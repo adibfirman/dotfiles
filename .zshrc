@@ -181,14 +181,14 @@ export NVM_DIR="$HOME/.nvm"
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # bun completions
-[ -s "/Users/adib.firman/.bun/_bun" ] && source "/Users/adib.firman/.bun/_bun"
+# [ -s "/Users/adib.firman/.bun/_bun" ] && source "/Users/adib.firman/.bun/_bun"
 
 # Rust setup
 source $HOME/.cargo/bin
 
 # Bun
-export BUN_INSTALL="/Users/adib.firman/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+# export BUN_INSTALL="/Users/adib.firman/.bun"
+# export PATH="$BUN_INSTALL/bin:$PATH"
 
 eval "$(starship init zsh)"
 
