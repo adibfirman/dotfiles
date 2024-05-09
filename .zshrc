@@ -102,8 +102,6 @@ source $ZSH/oh-my-zsh.sh
 ### ----- Custom Alias ----- ###
 ### ===== And dont' forget to install https://starship.rs/guide/ ---- ###
 alias rm="rm -i"
-alias npm="pnpm"
-alias npx="pnpx"
 alias rn="react-native"
 alias gs="git status"
 alias add-commit="git add . && git commit -m"
@@ -116,7 +114,6 @@ alias gf="git fetch"
 # alias restart-network="sudo service network-manager restart"
 alias gw="git worktree"
 alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
-alias vim="nvim"
 alias sync-midasv2-to-prod="gb -D midas/production && gc -b midas/production origin/midas/production && git rebase midas/beta"
 
 sync-midas2-with-master() {
@@ -177,8 +174,6 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completio
 
-# echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/adib.firman/.zprofile
-eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # bun completions
 # [ -s "/Users/adib.firman/.bun/_bun" ] && source "/Users/adib.firman/.bun/_bun"
@@ -190,6 +185,7 @@ source $HOME/.cargo/bin
 # export BUN_INSTALL="/Users/adib.firman/.bun"
 # export PATH="$BUN_INSTALL/bin:$PATH"
 
+export PATH="$PATH:/opt/nvim-linux64/bin"
+
 eval "$(starship init zsh)"
 
-nvm use
