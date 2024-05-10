@@ -6,7 +6,7 @@ return {
       minimum_width = 50,
       render = "minimal",
       stages = "slide",
-      top_down = false,
+      top_down = true,
     })
   end,
 }

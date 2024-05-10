@@ -1,9 +1,0 @@
-return {
-  {
-    "anuvyklack/windows.nvim",
-    require("anuvyklack/middleclass"),
-    config = function()
-      require("windows").setup()
-    end,
-  },
-}
