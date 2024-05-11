@@ -1,5 +1,6 @@
 return {
   "nvim-neo-tree/neo-tree.nvim",
+  branch = "v3.x",
   config = function()
     require("neo-tree").setup({
       window = {
@@ -7,10 +8,10 @@ return {
       },
       filesystem = {
         filtered_items = {
-          visible = false,
-          hide_dotfiles = false,
-          hide_gitignored = false,
-          hide_hidden = false,
+          visible = true,
+          hide_dotfiles = true,
+          hide_gitignored = true,
+          hide_hidden = true,
         },
       },
       default_component_configs = {
