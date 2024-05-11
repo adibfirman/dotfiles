@@ -114,50 +114,6 @@ alias gf="git fetch"
 # alias restart-network="sudo service network-manager restart"
 alias gw="git worktree"
 alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
-alias sync-midasv2-to-prod="gb -D midas/production && gc -b midas/production origin/midas/production && git rebase midas/beta"
-
-sync-midas2-with-master() {
-  echo "===== Fetching origin ====="
-  git fetch origin
-  echo "===== sync 'midas/beta' with master ====="
-  gb -D midas/beta
-  gc -b midas/beta origin/midas/beta
-  git rebase origin/master
-  push --force-with-lease
-  echo "===== @end ====="
-
-  echo "===== sync 'midas/staging' with 'midas/beta' ====="
-  gb -D midas/staging
-  gc -b midas/staging origin/midas/staging
-  git rebase midas/beta
-  push --force-with-lease
-  echo "===== @end ====="
-
-  echo "===== back to 'master' branch ====="
-  gc master
-}
-
-sync-midasv3-with-master() {
-  echo "===== Fetching origin ====="
-  git fetch origin
-
-  echo "===== sync 'staging' with 'master' ====="
-  gb -D staging
-  gc -b staging origin/staging
-  git rebase master
-  push --force-with-lease
-  echo "===== @end ====="
-
-  echo "===== sync 'production' with 'staging' ====="
-  gb -D production
-  gc -b production origin/production
-  git rebase staging
-  push --force-with-lease
-
-  echo "===== back to 'master' branch ====="
-  gc master
-}
-
 
 # usage: kill-port 3000
 kill-port() { lsof -t -i ":$1" | xargs kill; }
