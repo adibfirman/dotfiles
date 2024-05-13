@@ -9,6 +9,8 @@ return {
     servers = {
       eslint = {
         root_dir = get_root_dir,
+        format = true,
+        quiet = false,
       },
       tsserver = {
         root_dir = get_root_dir,
