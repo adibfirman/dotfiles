@@ -7,6 +7,7 @@ return {
       render = "minimal",
       stages = "slide",
       top_down = true,
+      timeout = 10000,
     })
   end,
 }
