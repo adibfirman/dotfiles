@@ -4,6 +4,8 @@ local get_root_dir = function(fname)
 end
 
 return {
+  -- "williamboman/mason.nvim",
+  -- "williamboman/mason-lspconfig.nvim",
   "neovim/nvim-lspconfig",
   opts = {
     servers = {
