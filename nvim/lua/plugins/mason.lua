@@ -1,0 +1,30 @@
+return {
+  "williamboman/mason.nvim",
+  opts = function(_, opts)
+    vim.list_extend(opts.ensure_installed, {
+      "bash-language-server",
+      "eslint-lsp",
+      "json-lsp",
+      "lua-language-server",
+      "markdownlint",
+      "marksman",
+      "prettier",
+      "shellcheck",
+      "shfmt",
+      "stylua",
+      "tailwindcss-language-server",
+      "typescript-language-server",
+      "yaml-language-server",
+      "stylua",
+      "selene",
+      "luacheck",
+      "shellcheck",
+      "shfmt",
+      "tailwindcss-language-server",
+      "typescript-language-server",
+      "css-lsp",
+      "vue-language-server",
+      "vetur-vls",
+    })
+  end,
+}
