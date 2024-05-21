@@ -25,6 +25,7 @@ return {
       "css-lsp",
       "vue-language-server",
       "vetur-vls",
+      "astro-language-server",
     })
   end,
 }
