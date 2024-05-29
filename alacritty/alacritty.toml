@@ -18,6 +18,10 @@ size = 15.0
 
 [window]
 
-opacity = 0.5
+# opacity = 0.8
 startup_mode = "Maximized"
 blur = true
+
+[mouse]
+
+hide_when_typing = true
