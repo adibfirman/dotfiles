@@ -1,5 +1,13 @@
+ui {
+    pane_frames {
+        hide_session_name true
+        rounded_corners true
+    }
+}
+
 // If you'd like to override the default keybindings completely, be sure to change "keybinds" to "keybinds clear-defaults=true"
 keybinds {
+    unbind "Ctrl o"
     normal {
         // uncomment this and adjust key if using copy_on_select=false
         // bind "Alt c" { Copy; }
@@ -109,18 +117,18 @@ keybinds {
         bind "Ctrl c" { SwitchToMode "Normal"; }
         bind "Esc" { UndoRenamePane; SwitchToMode "Pane"; }
     }
-    // session clear-defaults=true {
-    //     bind "Ctrl o" { SwitchToMode "Normal"; }
-    //     bind "Ctrl s" { SwitchToMode "Scroll"; }
-    //     bind "d" { Detach; }
-    //     bind "w" {
-    //         LaunchOrFocusPlugin "session-manager" {
-    //             floating true
-    //             move_to_focused_tab true
-    //         };
-    //         SwitchToMode "Normal"
-    //     }
-    // }
+    session {
+        bind "Ctrl o" { SwitchToMode "Normal"; }
+        bind "Ctrl s" { SwitchToMode "Scroll"; }
+        bind "d" { Detach; }
+        bind "w" {
+            LaunchOrFocusPlugin "session-manager" {
+                floating true
+                move_to_focused_tab true
+            };
+            SwitchToMode "Normal"
+        }
+    }
     tmux {
         bind "[" { SwitchToMode "Scroll"; }
         bind "Ctrl b" { Write 2; SwitchToMode "Normal"; }
