@@ -13,14 +13,15 @@ normal.family = "CaskaydiaCove Nerd Font Propo"
 bold.family = "CaskaydiaCove Nerd Font Propo"
 italic.family = "CaskaydiaCove Nerd Font Propo"
 bold_italic.family = "CaskaydiaCove Nerd Font Propo"
+builtin_box_drawing = false
 
-size = 15.0
+size = 16.0
 
 [window]
 
-# opacity = 0.8
+# opacity = 0.9
 startup_mode = "Maximized"
-blur = true
+# blur = true
 
 [mouse]
 

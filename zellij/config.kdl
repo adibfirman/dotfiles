@@ -109,18 +109,18 @@ keybinds {
         bind "Ctrl c" { SwitchToMode "Normal"; }
         bind "Esc" { UndoRenamePane; SwitchToMode "Pane"; }
     }
-    session {
-        bind "Ctrl o" { SwitchToMode "Normal"; }
-        bind "Ctrl s" { SwitchToMode "Scroll"; }
-        bind "d" { Detach; }
-        bind "w" {
-            LaunchOrFocusPlugin "session-manager" {
-                floating true
-                move_to_focused_tab true
-            };
-            SwitchToMode "Normal"
-        }
-    }
+    // session clear-defaults=true {
+    //     bind "Ctrl o" { SwitchToMode "Normal"; }
+    //     bind "Ctrl s" { SwitchToMode "Scroll"; }
+    //     bind "d" { Detach; }
+    //     bind "w" {
+    //         LaunchOrFocusPlugin "session-manager" {
+    //             floating true
+    //             move_to_focused_tab true
+    //         };
+    //         SwitchToMode "Normal"
+    //     }
+    // }
     tmux {
         bind "[" { SwitchToMode "Scroll"; }
         bind "Ctrl b" { Write 2; SwitchToMode "Normal"; }
