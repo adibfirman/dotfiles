@@ -7,7 +7,7 @@
 # 3. neo vim
 
 import = [
-    "~/.config/alacritty/themes/themes/rose-pine-dawn.toml"
+    "~/.config/alacritty/themes/themes/everforest_dark.toml"
 ]
 
 [shell]

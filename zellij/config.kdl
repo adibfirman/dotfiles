@@ -285,19 +285,36 @@ default_shell "zsh"
 
 themes {
     default {
-        bg "#faf4ed"
-        fg "#575279"
-        black "#f2e9e1"
-        red "#b4637a"
-        green "#286983"
-        yellow "#ea9d34"
-        blue "#56949f"
-        magenta "#907aa9"
-        cyan "#d7827e"
-        white "#575279"
-        orange "#575279"
+      bg "#2d353b"
+      fg "#d3c6aa"
+      black   "#475258"
+      red     "#e67e80"
+      green   "#a7c080"
+      yellow  "#dbbc7f"
+      blue    "#7fbbb3"
+      magenta "#d699b6"
+      cyan    "#83c092"
+      white   "#d3c6aa"
+      orange "#575279"
     }
-}
+  }
+
+
+// themes {
+//     default {
+//         bg "#faf4ed"
+//         fg "#575279"
+//         black "#f2e9e1"
+//         red "#b4637a"
+//         green "#286983"
+//         yellow "#ea9d34"
+//         blue "#56949f"
+//         magenta "#907aa9"
+//         cyan "#d7827e"
+//         white "#575279"
+//         orange "#575279"
+//     }
+// }
 
 // Choose the theme that is specified in the themes section.
 // Default: default
