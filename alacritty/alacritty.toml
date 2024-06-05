@@ -17,14 +17,17 @@ args = ["-l"]
 
 [font]
 
-normal.family = "CaskaydiaCove Nerd Font Propo"
-normal.style = "Bold"
-bold.family = "CaskaydiaCove Nerd Font Propo"
-italic.family = "CaskaydiaCove Nerd Font Propo"
-bold_italic.family = "CaskaydiaCove Nerd Font Propo"
-builtin_box_drawing = false
+normal.family = "FiraCode Nerd Font Propo"
+normal.style = "SemiBold"
+bold.family = "FiraCode Nerd Font Propo"
+italic.family = "FiraCode Nerd Font Propo"
+bold_italic.family = "FiraCode Nerd Font Propo"
+# normal.style = "Bold"
+# bold.family = "CaskaydiaCove Nerd Font Propo"
+# italic.family = "CaskaydiaCove Nerd Font Propo"
+# bold_italic.family = "CaskaydiaCove Nerd Font Propo"
 
-size = 14.0
+size = 13.0
 
 [window]
 
