@@ -32,6 +32,7 @@ size = 13.0
 [window]
 
 startup_mode = "Maximized"
+# decorations = "None"
 
 [mouse]
 
