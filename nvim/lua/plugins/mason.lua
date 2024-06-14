@@ -2,10 +2,10 @@ return {
   "williamboman/mason.nvim",
   opts = function(_, opts)
     vim.list_extend(opts.ensure_installed, {
-      "bash-language-server",
-      "eslint-lsp",
-      "json-lsp",
-      "lua-language-server",
+      "bash-language-server@5.4.0",
+      "eslint-lsp@4.8.0",
+      "json-lsp@4.10.0",
+      "lua-language-server@3.9.2",
       "markdownlint",
       "marksman",
       "prettier",
