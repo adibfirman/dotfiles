@@ -3,17 +3,23 @@ local get_root_dir = function(fname)
   return util.root_pattern(".git")(fname) or util.root_pattern("package.json", "tsconfig.json")(fname)
 end
 
-require("lazyvim.util").lsp.on_attach(function(client)
-  local active_clients = vim.lsp.get_clients()
-  if client.name == "vtsls" then
-    for _, client_ in pairs(active_clients) do
-      -- stop tsserver if vtsls is already active
-      if client_.name == "tsserver" then
-        client_.stop()
-      end
-    end
+local function get_node_version()
+  local handle = io.popen("node -v")
+  local version = handle:read("*a")
+  handle:close()
+  return version
+end
+
+local function is_node_version_greater_than_16()
+  local version = get_node_version()
+  local major_version = tonumber(version:match("v(%d+)"))
+
+  if major_version > 16 then
+    return true
+  else
+    return false
   end
-end)
+end
 
 return {
   "neovim/nvim-lspconfig",
@@ -58,13 +64,15 @@ return {
           end
         end)
       end,
-      -- vtsls = function()
-      --   require("lazyvim.util").lsp.on_attach(function(client)
-      --     if client.name == "tsserver" then
-      --       client.stop(true)
-      --     end
-      --   end)
-      -- end,
+      tsserver = function()
+        require("lazyvim.util").lsp.on_attach(function(client)
+          if client.name == "tsserver" then
+            if is_node_version_greater_than_16() then
+              client.stop(true)
+            end
+          end
+        end)
+      end,
     },
   },
 }
