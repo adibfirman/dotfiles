@@ -1,32 +1,42 @@
 return {
-  "williamboman/mason.nvim",
-  opts = function(_, opts)
-    vim.list_extend(opts.ensure_installed, {
-      "bash-language-server",
-      "eslint-lsp",
-      "eslint_d",
-      "json-lsp",
-      "lua-language-server",
-      "markdownlint",
-      "marksman",
-      "prettier",
-      "shellcheck",
-      "shfmt",
-      "stylua",
-      "tailwindcss-language-server",
-      "vtsls",
-      "typescript-language-server",
-      "yaml-language-server",
-      "stylua",
-      "selene",
-      "luacheck",
-      "shellcheck",
-      "shfmt",
-      "tailwindcss-language-server",
-      "css-lsp",
-      "vue-language-server",
-      "vetur-vls",
-      "astro-language-server",
-    })
-  end,
+  {
+    "williamboman/mason.nvim",
+    opts = function(_, opts)
+      vim.list_extend(opts.ensure_installed, {
+        "bash-language-server",
+        "eslint-lsp",
+        "eslint_d",
+        "json-lsp",
+        "lua-language-server",
+        "markdownlint",
+        "marksman",
+        "prettier",
+        "shellcheck",
+        "shfmt",
+        "stylua",
+        "tailwindcss-language-server",
+        "vtsls",
+        "typescript-language-server",
+        "yaml-language-server",
+        "stylua",
+        "selene",
+        "luacheck",
+        "shellcheck",
+        "shfmt",
+        "tailwindcss-language-server",
+        "css-lsp",
+        "vue-language-server",
+        "vetur-vls",
+        "astro-language-server",
+      })
+    end,
+  },
+  {
+    "zapling/mason-lock.nvim",
+    init = function()
+      require("mason-lock").setup({
+        lockfile_path = vim.fn.stdpath("config") .. "/mason-lock.json", -- (default)
+      })
+    end,
+  },
 }
