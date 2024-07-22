@@ -22,6 +22,11 @@ return {
       "williamboman/mason.nvim",
       "williamboman/mason-lspconfig.nvim",
     },
+    opts = {
+      document_highlight = {
+        enabled = true,
+      },
+    },
     -- opts = {
     --   servers = {
     --     eslint = {
@@ -83,15 +88,17 @@ return {
     --     end,
     --   },
     -- },
-    config = function()
+    config = function(_, opts)
       local lspconfig = require("lspconfig")
       local mason_lspconfig = require("mason-lspconfig")
       local cmp_nvim_lsp = require("cmp_nvim_lsp")
 
-      LazyVim.format.register(LazyVim.lsp.formatter())
-      LazyVim.lsp.on_attach(function(client, buffer)
+      LazyVim.format.register(LazyVim.lsp.formatter()) -- setup auto formatter
+      LazyVim.lsp.on_attach(function(client, buffer) -- get the existing keymaps from lazyvim
         require("lazyvim.plugins.lsp.keymaps").on_attach(client, buffer)
       end)
+
+      LazyVim.lsp.words.setup(opts.document_highlight)
 
       -- used to enable autocompletion (assign to every lsp server config)
       local capabilities = cmp_nvim_lsp.default_capabilities()
@@ -153,8 +160,8 @@ return {
             })
           end
         end,
-        ["volar"] = function()
-          lspconfig["volar"].setup()
+        ["lua_ls"] = function()
+          lspconfig["lua_ls"].setup({})
         end,
       })
     end,
