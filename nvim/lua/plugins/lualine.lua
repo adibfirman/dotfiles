@@ -7,7 +7,7 @@ return {
       lualine_z = {},
     },
     options = {
-      theme = "everforest",
+      theme = "auto",
     },
   },
 }

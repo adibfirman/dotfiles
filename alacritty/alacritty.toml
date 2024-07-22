@@ -6,34 +6,27 @@
 # 2. Zellij
 # 3. neo vim
 
-import = [
-    "~/.config/alacritty/themes/themes/everforest_dark.toml"
-]
+import = ["~/.config/alacritty/themes/themes/coolnight-josean.toml"]
 
 [shell]
-
 program = "/bin/zsh"
 args = ["-l"]
 
 [font]
-
 normal.family = "FiraCode Nerd Font Propo"
 normal.style = "SemiBold"
 bold.family = "FiraCode Nerd Font Propo"
 italic.family = "FiraCode Nerd Font Propo"
 bold_italic.family = "FiraCode Nerd Font Propo"
+size = 13.0
 # normal.style = "Bold"
 # bold.family = "CaskaydiaCove Nerd Font Propo"
 # italic.family = "CaskaydiaCove Nerd Font Propo"
 # bold_italic.family = "CaskaydiaCove Nerd Font Propo"
 
-size = 13.0
-
 [window]
-
 startup_mode = "Maximized"
-# decorations = "None"
+decorations = "Buttonless"
 
 [mouse]
-
 hide_when_typing = true
