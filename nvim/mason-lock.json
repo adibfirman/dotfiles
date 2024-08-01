@@ -20,5 +20,6 @@
   "taplo": "0.8.1",
   "typescript-language-server": "4.3.3",
   "vtsls": "0.2.4",
+  "vue-language-server": "1.8.0",
   "yaml-language-server": "1.15.0"
 }

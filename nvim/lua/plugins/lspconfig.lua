@@ -116,11 +116,32 @@ return {
         local version = get_node_version()
         local major_version = tonumber(version:match("v(%d+)"))
 
-        if major_version > 16 then
+        if major_version >= 16 then
           return true
         else
           return false
         end
+      end
+
+      -- This will remove buffer permanently if the buffer not longer in the list
+      local function buffer_augroup(group, bufnr, cmds)
+        vim.api.nvim_create_augroup(group, { clear = false })
+        vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
+        for _, cmd in ipairs(cmds) do
+          local event = cmd.event
+          cmd.event = nil
+          vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, cmd))
+        end
+      end
+
+      -- attach this on lsp server in params "on_attach" for each lsp
+      local function on_attach(client, bufnr)
+        local detach = function()
+          vim.lsp.buf_detach_client(bufnr, client.id)
+        end
+        buffer_augroup("entropitor:lsp:closing", bufnr, {
+          { event = "BufDelete", callback = detach },
+        })
       end
 
       mason_lspconfig.setup_handlers({
@@ -134,9 +155,9 @@ return {
           lspconfig["eslint"].setup({
             capabilities = capabilities,
             format = true,
-            quiet = false,
             root_dir = get_root_dir,
-            on_attach = function(_, bufnr)
+            on_attach = function(client, bufnr)
+              on_attach(client, bufnr)
               vim.api.nvim_create_autocmd("BufWritePre", {
                 buffer = bufnr,
                 command = "EslintFixAll",
@@ -149,6 +170,7 @@ return {
             lspconfig["tsserver"].setup({
               capabilities = capabilities,
               root_dir = get_root_dir,
+              on_attach = on_attach,
             })
           end
         end,
@@ -157,11 +179,30 @@ return {
             lspconfig["vtsls"].setup({
               capabilities = capabilities,
               root_dir = get_root_dir,
+              enabled = false,
+              on_attach = on_attach,
             })
           end
         end,
         ["lua_ls"] = function()
-          lspconfig["lua_ls"].setup({})
+          lspconfig["lua_ls"].setup({
+            capabilities = capabilities,
+            on_attach = on_attach,
+          })
+        end,
+        ["jsonls"] = function()
+          lspconfig["jsonls"].setup({
+            capabilities = capabilities,
+            on_attach = on_attach,
+          })
+        end,
+        ["volar"] = function()
+          lspconfig["volar"].setup({
+            filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue", "json" },
+            capabilities = capabilities,
+            on_attach = on_attach,
+            -- enabled = false,
+          })
         end,
       })
     end,
