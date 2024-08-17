@@ -1,11 +1,3 @@
-# === If im planning to change themes with dark and white ===
-# TODO
-# - Need to create .sh file
-#
-# 1. alacritty it self
-# 2. Zellij
-# 3. neo vim
-
 import = ["~/.config/alacritty/themes/themes/coolnight-josean.toml"]
 
 [shell]
@@ -19,6 +11,8 @@ bold.family = "FiraCode Nerd Font Propo"
 italic.family = "FiraCode Nerd Font Propo"
 bold_italic.family = "FiraCode Nerd Font Propo"
 size = 13.0
+offset.x = 0
+offset.y = 1
 # normal.style = "Bold"
 # bold.family = "CaskaydiaCove Nerd Font Propo"
 # italic.family = "CaskaydiaCove Nerd Font Propo"
