@@ -89,7 +89,7 @@ return {
           lspconfig["eslint"].setup({
             capabilities = capabilities,
             format = true,
-            root_dir = get_root_dir,
+            -- root_dir = get_root_dir,
             on_attach = function(client, bufnr)
               on_attach(client, bufnr)
               vim.api.nvim_create_autocmd("BufWritePre", {
