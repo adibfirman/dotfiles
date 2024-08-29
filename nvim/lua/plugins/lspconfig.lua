@@ -78,6 +78,7 @@ return {
         })
       end
 
+      local use_vue_lsp = false
       mason_lspconfig.setup_handlers({
         -- uncomment this if you want to automatic detect all the server name
         -- function(server_name)
@@ -89,7 +90,7 @@ return {
           lspconfig["eslint"].setup({
             capabilities = capabilities,
             format = true,
-            -- root_dir = get_root_dir,
+            root_dir = get_root_dir,
             on_attach = function(client, bufnr)
               on_attach(client, bufnr)
               vim.api.nvim_create_autocmd("BufWritePre", {
@@ -105,6 +106,7 @@ return {
               capabilities = capabilities,
               root_dir = get_root_dir,
               on_attach = on_attach,
+              enabled = not use_vue_lsp,
             })
           end
         end,
@@ -113,8 +115,8 @@ return {
             lspconfig["vtsls"].setup({
               capabilities = capabilities,
               root_dir = get_root_dir,
-              enabled = false,
               on_attach = on_attach,
+              enabled = not use_vue_lsp,
             })
           end
         end,
@@ -135,7 +137,7 @@ return {
             filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue", "json" },
             capabilities = capabilities,
             on_attach = on_attach,
-            -- enabled = false,
+            enabled = use_vue_lsp,
           })
         end,
       })
