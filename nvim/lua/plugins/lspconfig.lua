@@ -3,6 +3,47 @@ local get_root_dir = function(fname)
   return util.root_pattern(".git")(fname) or util.root_pattern("package.json", "tsconfig.json")(fname)
 end
 
+local function is_node_16()
+  local function get_node_version()
+    local handle = io.popen("node -v")
+    if not (handle == nil) then
+      local version = handle:read("*a")
+      handle:close()
+      return version
+    end
+  end
+
+  local version = get_node_version()
+  local major_version = tonumber(version:match("v(%d+)"))
+
+  if major_version >= 16 then
+    return true
+  else
+    return false
+  end
+end
+
+local function use_volar_takeover_project_over_ts()
+  local lspconfig_util = require("lspconfig.util")
+  local root_files = {
+    "vetur.config.js",
+  }
+
+  local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
+
+  if not root_dir then
+    return false
+  end
+
+  -- Check each file in the root directory
+  local full_path = lspconfig_util.path.join(root_dir, root_files[1])
+  if vim.fn.filereadable(full_path) == 1 or vim.fn.isdirectory(full_path) == 1 then
+    return true
+  end
+
+  return false
+end
+
 return {
   {
     "williamboman/mason.nvim",
@@ -37,26 +78,6 @@ return {
       -- used to enable autocompletion (assign to every lsp server config)
       local capabilities = cmp_nvim_lsp.default_capabilities()
 
-      local function get_node_version()
-        local handle = io.popen("node -v")
-        if not (handle == nil) then
-          local version = handle:read("*a")
-          handle:close()
-          return version
-        end
-      end
-
-      local function is_node_16()
-        local version = get_node_version()
-        local major_version = tonumber(version:match("v(%d+)"))
-
-        if major_version >= 16 then
-          return true
-        else
-          return false
-        end
-      end
-
       -- This will remove buffer permanently if the buffer not longer in the list
       local function buffer_augroup(group, bufnr, cmds)
         vim.api.nvim_create_augroup(group, { clear = false })
@@ -78,7 +99,6 @@ return {
         })
       end
 
-      local use_vue_lsp = false
       mason_lspconfig.setup_handlers({
         -- uncomment this if you want to automatic detect all the server name
         -- function(server_name)
@@ -106,7 +126,7 @@ return {
               capabilities = capabilities,
               root_dir = get_root_dir,
               on_attach = on_attach,
-              enabled = not use_vue_lsp,
+              enabled = not use_volar_takeover_project_over_ts(),
             })
           end
         end,
@@ -116,7 +136,7 @@ return {
               capabilities = capabilities,
               root_dir = get_root_dir,
               on_attach = on_attach,
-              enabled = not use_vue_lsp,
+              enabled = not use_volar_takeover_project_over_ts(),
             })
           end
         end,
@@ -137,7 +157,7 @@ return {
             filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue", "json" },
             capabilities = capabilities,
             on_attach = on_attach,
-            enabled = use_vue_lsp,
+            enabled = use_volar_takeover_project_over_ts(),
           })
         end,
       })
