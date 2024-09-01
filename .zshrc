@@ -102,6 +102,7 @@ source $ZSH/oh-my-zsh.sh
 ### ----- Custom Alias ----- ###
 ### ===== And dont' forget to install https://starship.rs/guide/ ---- ###
 alias rm="rm -i"
+alias nvim="~/downloads/neovim-10/bin/nvim"
 alias rn="react-native"
 alias gs="git status"
 alias add-commit="git add . && git commit -m"
