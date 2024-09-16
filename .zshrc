@@ -146,3 +146,5 @@ export PATH="$PATH:/opt/nvim-linux64/bin"
 
 eval "$(starship init zsh)"
 
+
+# [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
