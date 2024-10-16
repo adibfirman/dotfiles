@@ -121,22 +121,26 @@ return {
           })
         end,
         ["tsserver"] = function()
+          local enabled = not use_volar_takeover_project_over_ts()
+
           if is_node_16() == false then
             lspconfig["tsserver"].setup({
               capabilities = capabilities,
               root_dir = get_root_dir,
               on_attach = on_attach,
-              enabled = not use_volar_takeover_project_over_ts(),
+              enabled = enabled,
             })
           end
         end,
         ["vtsls"] = function()
+          local enabled = not use_volar_takeover_project_over_ts()
+
           if is_node_16() then
             lspconfig["vtsls"].setup({
               capabilities = capabilities,
               root_dir = get_root_dir,
               on_attach = on_attach,
-              enabled = not use_volar_takeover_project_over_ts(),
+              enabled = enabled,
             })
           end
         end,
@@ -153,11 +157,13 @@ return {
           })
         end,
         ["volar"] = function()
+          local enabled = use_volar_takeover_project_over_ts()
+
           lspconfig["volar"].setup({
             filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue", "json" },
             capabilities = capabilities,
             on_attach = on_attach,
-            enabled = use_volar_takeover_project_over_ts(),
+            enabled = enabled,
           })
         end,
       })
