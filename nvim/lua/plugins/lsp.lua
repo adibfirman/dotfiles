@@ -120,11 +120,12 @@ return {
             end,
           })
         end,
-        ["tsserver"] = function()
+        ["ts_ls"] = function()
           local enabled = not use_volar_takeover_project_over_ts()
 
           if is_node_16() == false then
-            lspconfig["tsserver"].setup({
+            -- https://github.com/neovim/nvim-lspconfig/pull/3232
+            lspconfig["ts_ls"].setup({
               capabilities = capabilities,
               root_dir = get_root_dir,
               on_attach = on_attach,
