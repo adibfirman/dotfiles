@@ -23,10 +23,12 @@ local function is_node_16()
   end
 end
 
+-- for now this only used in the project in office that still using vue js
+-- will change this root files detection in case there's any new project coming
 local function use_volar_takeover_project_over_ts()
   local lspconfig_util = require("lspconfig.util")
   local root_files = {
-    "vetur.config.js",
+    "ttam_creation_mono.code-workspace",
   }
 
   local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
