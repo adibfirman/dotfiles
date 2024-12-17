@@ -23,6 +23,29 @@ local function is_node_16()
   end
 end
 
+-- if the repo using lerna or something for monorepo purpose
+-- we need to attach the root_dir LSP to the root of repo instead of per service/apps
+local function is_using_monorepo()
+  local lspconfig_util = require("lspconfig.util")
+  local root_files = {
+    "lerna.json",
+  }
+
+  local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
+
+  if not root_dir then
+    return false
+  end
+
+  -- Check each file in the root directory
+  local full_path = lspconfig_util.path.join(root_dir, root_files[1])
+  if vim.fn.filereadable(full_path) == 1 or vim.fn.isdirectory(full_path) == 1 then
+    return true
+  end
+
+  return false
+end
+
 -- for now this only used in the project in office that still using vue js
 -- will change this root files detection in case there's any new project coming
 local function use_volar_takeover_project_over_ts()
@@ -109,10 +132,9 @@ return {
         --   })
         -- end,
         ["eslint"] = function()
-          lspconfig["eslint"].setup({
+          local config = {
             capabilities = capabilities,
             format = true,
-            root_dir = get_root_dir,
             on_attach = function(client, bufnr)
               on_attach(client, bufnr)
               vim.api.nvim_create_autocmd("BufWritePre", {
@@ -120,7 +142,13 @@ return {
                 command = "EslintFixAll",
               })
             end,
-          })
+          }
+
+          if is_using_monorepo() then
+            table.insert(config, { root_dir = get_root_dir })
+          end
+
+          lspconfig["eslint"].setup(config)
         end,
         ["ts_ls"] = function()
           local enabled = not use_volar_takeover_project_over_ts()
