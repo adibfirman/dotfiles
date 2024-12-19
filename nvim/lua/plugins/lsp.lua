@@ -133,6 +133,7 @@ return {
         -- end,
         ["eslint"] = function()
           local config = {
+            root_dir = get_root_dir,
             capabilities = capabilities,
             format = true,
             on_attach = function(client, bufnr)
@@ -144,8 +145,9 @@ return {
             end,
           }
 
-          if is_using_monorepo() then
-            table.insert(config, { root_dir = get_root_dir })
+          if not is_using_monorepo() then
+            -- table.insert(config, { root_dir = get_root_dir })
+            table.remove(config, 1)
           end
 
           lspconfig["eslint"].setup(config)

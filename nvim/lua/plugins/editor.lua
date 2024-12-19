@@ -73,7 +73,16 @@ return {
       -- | A | B | C                             X | Y | Z |
       -- +-------------------------------------------------+
       sections = {
-        lualine_a = { { "mode", separator = { right = "" }, padding = { left = 1 } } },
+        lualine_a = {
+          {
+            "mode",
+            separator = { right = "" },
+            padding = { left = 1 },
+            fmt = function(res)
+              return res:sub(1, 1)
+            end,
+          },
+        },
         lualine_b = { "branch" },
         lualine_c = {
           "diff",
