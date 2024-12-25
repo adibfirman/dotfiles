@@ -1,3 +1,0 @@
-# Prerequisite
-
-- nvim 10
