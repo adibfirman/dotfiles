@@ -132,7 +132,7 @@ return {
         --   })
         -- end,
         ["eslint"] = function()
-          local config = {
+          lspconfig["eslint"].setup({
             root_dir = get_root_dir,
             capabilities = capabilities,
             format = true,
@@ -143,14 +143,7 @@ return {
                 command = "EslintFixAll",
               })
             end,
-          }
-
-          if not is_using_monorepo() then
-            -- table.insert(config, { root_dir = get_root_dir })
-            table.remove(config, 1)
-          end
-
-          lspconfig["eslint"].setup(config)
+          })
         end,
         ["ts_ls"] = function()
           local enabled = not use_volar_takeover_project_over_ts()
