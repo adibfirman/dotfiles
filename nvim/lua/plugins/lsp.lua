@@ -14,7 +14,13 @@ return {
     "williamboman/mason.nvim",
     cmd = "Mason",
     build = ":MasonUpdate",
-    setup = function(_, opts)
+    opts_extend = { "ensure_installed" },
+    opts = {
+      ensure_installed = {
+        "vtsls"
+      },
+    },
+    config = function(_, opts)
       require("mason").setup(opts)
       local mr = require("mason-registry")
 
