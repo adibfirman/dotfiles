@@ -13,7 +13,7 @@ return {
       lazygit = { enabled = true },
     }
   },
-{
+  {
     "nvim-lualine/lualine.nvim",
     event = "VeryLazy",
     dependencies = {
