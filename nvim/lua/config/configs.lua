@@ -7,3 +7,6 @@ vim.opt.number = false
 vim.opt.relativenumber = false
 vim.opt.cursorline = false
 vim.o.cmdheight = 0
+
+vim.g.mapleader = " "
+vim.g.maplocalleader = "\\"
