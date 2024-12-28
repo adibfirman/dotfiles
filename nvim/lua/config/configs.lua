@@ -1,7 +1,7 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
-vim.o.cmdheight = 0
+-- vim.o.cmdheight = 0
 
 -- LazyVim auto format
 vim.g.autoformat = true

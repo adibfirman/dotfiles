@@ -4,7 +4,6 @@ return {
     build = ':TSUpdate',
     setup = function()
       require('nvim-treesitter.config').setup({
-        ensure_installed = {"lua", "vue", "javascript", "typescript", "go"},
         highlight = {enable = true},
         indent = {enable = true}
       })
@@ -17,7 +16,11 @@ return {
     opts_extend = { "ensure_installed" },
     opts = {
       ensure_installed = {
-        "vtsls"
+        "ast-grep",
+        "harper-ls",
+        "lua-language-server",
+        "luacheck",
+        "luaformatter"
       },
     },
     config = function(_, opts)
@@ -33,6 +36,7 @@ return {
         end, 100)
       end)
 
+      -- ensure installed all the package from options "opts.ensure_installed"
       mr.refresh(function()
         for _, tool in ipairs(opts.ensure_installed) do
           local p = mr.get_package(tool)
@@ -51,4 +55,23 @@ return {
       })
     end,
   },
+  {
+    "neovim/nvim-lspconfig",
+    dependencies = {
+      "williamboman/mason.nvim",
+      "williamboman/mason-lspconfig.nvim",
+    },
+    config = function()
+      local lspconfig = require("lspconfig")
+      local mason_lspconfig = require("mason-lspconfig")
+
+      mason_lspconfig.setup_handlers({
+        ["lua_ls"] = function()
+          lspconfig["lua_ls"].setup({
+            filetypes = {"lua"},
+          })
+        end,
+      })
+    end
+  }
 }
