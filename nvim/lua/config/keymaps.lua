@@ -1,6 +1,8 @@
 local telescope = require('telescope.builtin')
 
 vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
+vim.keymap.set("v", "<", "<gv")
+vim.keymap.set("v", ">", ">gv")
 vim.keymap.set('n', '<leader>ff', telescope.find_files, { desc = 'Telescope find files' })
 vim.keymap.set('n', '<leader>fg', telescope.live_grep, { desc = 'Telescope live grep' })
 vim.keymap.set('n', '<leader>fb', telescope.buffers, { desc = 'Telescope buffers' })
@@ -11,6 +13,20 @@ vim.keymap.set("n", "<leader>e", "<cmd>Neotree toggle=true<cr>", { desc = "File 
 
 -- LSP
 vim.keymap.set({"n", "v"}, "<leader>ca", vim.lsp.buf.code_action, {desc = "Code Action"} )
+vim.keymap.set('n', "gd", vim.lsp.buf.definition,{ desc = "Goto Definition"  })
+vim.keymap.set('n', "<leader>cl", "<cmd>LspInfo<cr>", {desc = "Lsp Info"} )
+vim.keymap.set('n', "gr", vim.lsp.buf.references, {desc = "References"} )
+vim.keymap.set('n', "gI", vim.lsp.buf.implementation, {desc = "Goto Implementation"} )
+vim.keymap.set('n', "gy", vim.lsp.buf.type_definition, {desc = "Goto T[y]pe Definition"} )
+vim.keymap.set('n', "gD", vim.lsp.buf.declaration, {desc = "Goto Declaration"} )
+vim.keymap.set('n', "K", function() return vim.lsp.buf.hover() end, {desc = "Hover"} )
+vim.keymap.set('n', "gK", function() return vim.lsp.buf.signature_help() end, {desc = "Signature Help"} )
+vim.keymap.set('i', "<c-k>", function() return vim.lsp.buf.signature_help() end,{ desc = "Signature Help"} )
+vim.keymap.set({ "n", "v" },  "<leader>cc", vim.lsp.codelens.run,{ desc = "Run Codelens",} )
+vim.keymap.set('n',  "<leader>cC", vim.lsp.codelens.refresh, {desc = "Refresh & Display Codelens"} )
+-- vim.keymap.set('n',  "<leader>cR", function() Snacks.rename.rename_file() end, {desc = "Rename File"} )
+vim.keymap.set('n', "<leader>cr", vim.lsp.buf.rename, {desc = "Rename"} )
+-- vim.keymap.set('n', "<leader>cA", vim.lsp.action.source, {desc = "Source Action"} )
 
 -- buffers
 vim.keymap.set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev Buffer" })
