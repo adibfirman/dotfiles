@@ -4,7 +4,7 @@ return {
     tag = '0.1.8',
     depedencies = {
       'nvim-lua/plenary.nvim',
-      "nvim-tree/nvim-web-devicons", 
+      "nvim-tree/nvim-web-devicons",
     },
   },
   {
@@ -121,7 +121,7 @@ return {
     branch = "v3.x",
     dependencies = {
       "nvim-lua/plenary.nvim",
-      "nvim-tree/nvim-web-devicons", 
+      "nvim-tree/nvim-web-devicons",
       "MunifTanjim/nui.nvim",
     },
     opts = {
@@ -179,7 +179,7 @@ return {
         },
       },
     },
-config = function(_, opts)
+    config = function(_, opts)
       local function on_move(data)
         LazyVim.lsp.on_rename(data.source, data.destination)
       end
