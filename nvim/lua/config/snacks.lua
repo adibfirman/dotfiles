@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-doc-class, undefined-doc-name, undefined-field
 -- configure this for plugins snacks run after lazy run loaded
 ---@class Snacks: snacks.plugins
 local M = {}

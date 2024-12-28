@@ -8,6 +8,10 @@ return {
     },
   },
   {
+    'stevearc/dressing.nvim',
+    opts = {},
+  },
+  {
     "folke/snacks.nvim",
     opts = {
       lazygit = { enabled = true },
