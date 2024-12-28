@@ -4,6 +4,7 @@
   "lua-language-server": "3.13.5",
   "luacheck": "1.1.0",
   "luaformatter": "scm-1",
+  "stylua": "v2.0.2",
   "typescript-language-server": "4.3.3",
   "vtsls": "0.2.6"
 }

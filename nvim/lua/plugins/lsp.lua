@@ -31,7 +31,7 @@ local function use_volar_takeover_project_over_ts()
     "ttam_creation_mono.code-workspace",
   }
 
----@diagnostic disable-next-line: deprecated
+  ---@diagnostic disable-next-line: deprecated
   local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
 
   if not root_dir then
@@ -49,14 +49,14 @@ end
 
 return {
   {
-    'nvim-treesitter/nvim-treesitter',
-    build = ':TSUpdate',
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
     setup = function()
-      require('nvim-treesitter.config').setup({
-        highlight = {enable = true},
-        indent = {enable = true}
+      require("nvim-treesitter.config").setup({
+        highlight = { enable = true },
+        indent = { enable = true },
       })
-    end
+    end,
   },
   {
     "williamboman/mason.nvim",
@@ -70,8 +70,9 @@ return {
         "lua-language-server",
         "luacheck",
         "luaformatter",
-        'typescript-language-server',
-        'vtsls',
+        "typescript-language-server",
+        "vtsls",
+        "stylua",
       },
     },
     config = function(_, opts)
@@ -103,6 +104,22 @@ return {
     init = function()
       require("mason-lock").setup({
         lockfile_path = vim.fn.stdpath("config") .. "/mason-lock.json",
+      })
+    end,
+  },
+  {
+    "nvimtools/none-ls.nvim",
+    dependencies = {
+      "nvimtools/none-ls-extras.nvim",
+    },
+    config = function()
+      local null_ls = require("null-ls")
+      null_ls.setup({
+        sources = {
+          null_ls.builtins.formatting.stylua,
+          null_ls.builtins.completion.spell,
+          require("none-ls.diagnostics.eslint"),
+        },
       })
     end,
   },
@@ -140,7 +157,7 @@ return {
       mason_lspconfig.setup_handlers({
         ["lua_ls"] = function()
           lspconfig["lua_ls"].setup({
-            filetypes = {"lua"},
+            filetypes = { "lua" },
           })
         end,
         ["vtsls"] = function()
@@ -169,6 +186,6 @@ return {
           end
         end,
       })
-    end
-  }
+    end,
+  },
 }
