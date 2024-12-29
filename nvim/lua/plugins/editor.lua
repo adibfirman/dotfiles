@@ -1,5 +1,13 @@
 return {
   {
+    "folke/snacks.nvim",
+    lazy = false,
+    priority = 1000,
+    opts = {
+      lazygit = { enabled = true },
+    },
+  },
+  {
     "nvim-telescope/telescope.nvim",
     tag = "0.1.8",
     depedencies = {
@@ -10,12 +18,6 @@ return {
   {
     "stevearc/dressing.nvim",
     opts = {},
-  },
-  {
-    "folke/snacks.nvim",
-    opts = {
-      lazygit = { enabled = true },
-    },
   },
   {
     "nvim-lualine/lualine.nvim",
@@ -120,6 +122,7 @@ return {
     "nvim-neo-tree/neo-tree.nvim",
     branch = "v3.x",
     lazy = false,
+    priority = 1000,
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
