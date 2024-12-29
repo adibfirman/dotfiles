@@ -75,7 +75,7 @@ return {
     },
     opts = {
       options = {
-        theme = "edge",
+        theme = "auto",
         component_separators = "",
         section_separators = { right = "", left = "" },
       },
