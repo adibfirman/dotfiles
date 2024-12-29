@@ -1,5 +1,11 @@
 return {
   {
+    "lewis6991/gitsigns.nvim",
+    config = function()
+      require("gitsigns").setup()
+    end,
+  },
+  {
     "folke/snacks.nvim",
     lazy = false,
     priority = 1000,
