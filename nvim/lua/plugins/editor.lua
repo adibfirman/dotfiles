@@ -1,5 +1,28 @@
 return {
   {
+    "folke/snacks.nvim",
+    lazy = false,
+    priority = 1000,
+    opts = {
+      lazygit = { enabled = true },
+      scope = {},
+      dim = {},
+      indent = {},
+      dashboard = {
+        preset = {
+          header = [[
+            .___.__ ___.     _____ .__                                          .___             
+_____     __| _/|__|\_ |__ _/ ____\|__|_______   _____  _____     ____        __| _/ ____ ___  __
+\__  \   / __ | |  | | __ \\   __\ |  |\_  __ \ /     \ \__  \   /    \      / __ |_/ __ \\  \/ /
+ / __ \_/ /_/ | |  | | \_\ \|  |   |  | |  | \/|  Y Y  \ / __ \_|   |  \    / /_/ |\  ___/ \   / 
+(____  /\____ | |__| |___  /|__|   |__| |__|   |__|_|  /(____  /|___|  / /\ \____ | \___  > \_/  
+     \/      \/          \/                          \/      \/      \/  \/      \/     \/       
+          ]],
+        },
+      },
+    },
+  },
+  {
     "akinsho/bufferline.nvim",
     event = "VeryLazy",
     opts = {
@@ -35,14 +58,6 @@ return {
         end,
       })
     end,
-  },
-  {
-    "folke/snacks.nvim",
-    lazy = false,
-    priority = 1000,
-    opts = {
-      lazygit = { enabled = true },
-    },
   },
   {
     "nvim-telescope/telescope.nvim",
