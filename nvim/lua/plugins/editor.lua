@@ -1,21 +1,21 @@
 return {
   {
-    'nvim-telescope/telescope.nvim',
-    tag = '0.1.8',
+    "nvim-telescope/telescope.nvim",
+    tag = "0.1.8",
     depedencies = {
-      'nvim-lua/plenary.nvim',
+      "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
     },
   },
   {
-    'stevearc/dressing.nvim',
+    "stevearc/dressing.nvim",
     opts = {},
   },
   {
     "folke/snacks.nvim",
     opts = {
       lazygit = { enabled = true },
-    }
+    },
   },
   {
     "nvim-lualine/lualine.nvim",
@@ -182,7 +182,7 @@ return {
     },
     config = function(_, opts)
       local function on_move(data)
-        LazyVim.lsp.on_rename(data.source, data.destination)
+        require("lazyvim.util").lsp.on_rename(data.source, data.destination)
       end
 
       local events = require("neo-tree.events")
@@ -207,5 +207,5 @@ return {
         end,
       })
     end,
-  }
+  },
 }
