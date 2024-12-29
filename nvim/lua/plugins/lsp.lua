@@ -55,6 +55,7 @@ return {
       require("nvim-treesitter.config").setup({
         highlight = { enable = true },
         indent = { enable = true },
+        auto_install = true,
       })
     end,
   },
@@ -66,13 +67,16 @@ return {
     opts = {
       ensure_installed = {
         "ast-grep",
+        "eslint-lsp",
+        "eslint_d",
         "harper-ls",
         "lua-language-server",
         "luacheck",
         "luaformatter",
+        "prettier",
+        "stylua",
         "typescript-language-server",
         "vtsls",
-        "stylua",
       },
     },
     config = function(_, opts)
@@ -109,17 +113,28 @@ return {
   },
   {
     "nvimtools/none-ls.nvim",
-    dependencies = {
-      "nvimtools/none-ls-extras.nvim",
-    },
     config = function()
+      local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
       local null_ls = require("null-ls")
+
       null_ls.setup({
         sources = {
           null_ls.builtins.formatting.stylua,
-          null_ls.builtins.completion.spell,
-          require("none-ls.diagnostics.eslint"),
+          null_ls.builtins.formatting.prettier,
         },
+        -- you can reuse a shared lspconfig on_attach callback here
+        on_attach = function(client, bufnr)
+          if client.supports_method("textDocument/formatting") then
+            vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+            vim.api.nvim_create_autocmd("BufWritePre", {
+              group = augroup,
+              buffer = bufnr,
+              callback = function()
+                vim.lsp.buf.format({ bufnr = bufnr, id = client.id })
+              end,
+            })
+          end
+        end,
       })
     end,
   },
@@ -155,9 +170,25 @@ return {
       end
 
       mason_lspconfig.setup_handlers({
+        ["eslint"] = function()
+          lspconfig["eslint"].setup({
+            root_dir = get_root_dir,
+            -- capabilities = capabilities,
+            format = true,
+            on_attach = function(client, bufnr)
+              on_attach(client, bufnr)
+              vim.api.nvim_create_autocmd("BufWritePre", {
+                buffer = bufnr,
+                command = "EslintFixAll",
+              })
+            end,
+          })
+        end,
         ["lua_ls"] = function()
           lspconfig["lua_ls"].setup({
             filetypes = { "lua" },
+            format = true,
+            on_attach = on_attach,
           })
         end,
         ["vtsls"] = function()
