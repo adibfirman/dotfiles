@@ -3,48 +3,37 @@ local get_root_dir = function(fname)
   return util.root_pattern(".git")(fname) or util.root_pattern("package.json", "tsconfig.json")(fname)
 end
 
-local function is_node_16()
-  local function get_node_version()
-    local handle = io.popen("node -v")
-    if not (handle == nil) then
-      local version = handle:read("*a")
-      handle:close()
-      return version
-    end
-  end
-
-  local version = get_node_version()
-  local major_version = tonumber(version:match("v(%d+)"))
-
-  if major_version >= 16 then
-    return true
-  else
-    return false
+-- This will remove buffer permanently if the buffer not longer in the list
+local function buffer_augroup(group, bufnr, cmds)
+  vim.api.nvim_create_augroup(group, { clear = false })
+  vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
+  for _, cmd in ipairs(cmds) do
+    local event = cmd.event
+    cmd.event = nil
+    vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, cmd))
   end
 end
 
--- for now this only used in the project in office that still using vue js
--- will change this root files detection in case there's any new project coming
-local function use_volar_takeover_project_over_ts()
-  local lspconfig_util = require("lspconfig.util")
-  local root_files = {
-    "ttam_creation_mono.code-workspace",
-  }
-
-  ---@diagnostic disable-next-line: deprecated
-  local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
-
-  if not root_dir then
-    return false
+-- attach this on lsp server in params "on_attach" for each lsp
+local function on_attach(client, bufnr)
+  local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
+  if client.supports_method("textDocument/formatting") then
+    vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = augroup,
+      buffer = bufnr,
+      callback = function()
+        vim.lsp.buf.format({ bufnr = bufnr, id = client.id })
+      end,
+    })
   end
 
-  -- Check each file in the root directory
-  local full_path = lspconfig_util.path.join(root_dir, root_files[1])
-  if vim.fn.filereadable(full_path) == 1 or vim.fn.isdirectory(full_path) == 1 then
-    return true
+  local detach = function()
+    vim.lsp.buf_detach_client(bufnr, client.id)
   end
-
-  return false
+  buffer_augroup("entropitor:lsp:closing", bufnr, {
+    { event = "BufDelete", callback = detach },
+  })
 end
 
 return {
@@ -158,7 +147,8 @@ return {
         "prettier",
         "stylua",
         "typescript-language-server",
-        "vtsls",
+        "vue-language-server",
+        "vetur-vls",
       },
     },
     config = function(_, opts)
@@ -196,7 +186,6 @@ return {
   {
     "nvimtools/none-ls.nvim",
     config = function()
-      local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
       local null_ls = require("null-ls")
 
       null_ls.setup({
@@ -204,19 +193,7 @@ return {
           null_ls.builtins.formatting.stylua,
           null_ls.builtins.formatting.prettier,
         },
-        -- you can reuse a shared lspconfig on_attach callback here
-        on_attach = function(client, bufnr)
-          if client.supports_method("textDocument/formatting") then
-            vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-            vim.api.nvim_create_autocmd("BufWritePre", {
-              group = augroup,
-              buffer = bufnr,
-              callback = function()
-                vim.lsp.buf.format({ bufnr = bufnr, id = client.id })
-              end,
-            })
-          end
-        end,
+        on_attach = on_attach,
       })
     end,
   },
@@ -230,29 +207,7 @@ return {
       local lspconfig = require("lspconfig")
       local mason_lspconfig = require("mason-lspconfig")
       local cmp_nvim_lsp = require("cmp_nvim_lsp")
-
-      -- This will remove buffer permanently if the buffer not longer in the list
-      local function buffer_augroup(group, bufnr, cmds)
-        vim.api.nvim_create_augroup(group, { clear = false })
-        vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
-        for _, cmd in ipairs(cmds) do
-          local event = cmd.event
-          cmd.event = nil
-          vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, cmd))
-        end
-      end
-
       local capabilities = cmp_nvim_lsp.default_capabilities()
-
-      -- attach this on lsp server in params "on_attach" for each lsp
-      local function on_attach(client, bufnr)
-        local detach = function()
-          vim.lsp.buf_detach_client(bufnr, client.id)
-        end
-        buffer_augroup("entropitor:lsp:closing", bufnr, {
-          { event = "BufDelete", callback = detach },
-        })
-      end
 
       mason_lspconfig.setup_handlers({
         ["eslint"] = function()
@@ -277,30 +232,39 @@ return {
             capabilities = capabilities,
           })
         end,
-        ["vtsls"] = function()
-          local enabled = not use_volar_takeover_project_over_ts()
-
-          if is_node_16() then
-            lspconfig["vtsls"].setup({
-              capabilities = capabilities,
-              root_dir = get_root_dir,
-              on_attach = on_attach,
-              enabled = enabled,
-            })
-          end
-        end,
         ["ts_ls"] = function()
-          local enabled = not use_volar_takeover_project_over_ts()
+          local data_path = vim.fn.stdpath("data")
+          local vue_lsp_loc = data_path .. "/mason/packages/vue-language-server/node_modules/@vue/language-server"
+          local format = { "javascript", "typescript", "vue", "typescriptreact", "javascriptreact" }
 
-          if is_node_16() == false then
-            -- https://github.com/neovim/nvim-lspconfig/pull/3232
-            lspconfig["ts_ls"].setup({
-              capabilities = capabilities,
-              root_dir = get_root_dir,
-              on_attach = on_attach,
-              enabled = enabled,
-            })
-          end
+          lspconfig["ts_ls"].setup({
+            capabilities = capabilities,
+            root_dir = get_root_dir,
+            on_attach = on_attach,
+            init_options = {
+              plugins = {
+                {
+                  name = "@vue/typescript-plugin",
+                  location = vue_lsp_loc,
+                  languages = format,
+                },
+              },
+            },
+            filetypes = format,
+          })
+        end,
+        ["jsonls"] = function()
+          lspconfig["jsonls"].setup({
+            capabilities = capabilities,
+            on_attach = on_attach,
+          })
+        end,
+        ["volar"] = function()
+          lspconfig["volar"].setup({
+            filetypes = { "vue" },
+            capabilities = capabilities,
+            on_attach = on_attach,
+          })
         end,
       })
     end,
