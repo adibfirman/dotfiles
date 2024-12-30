@@ -254,8 +254,8 @@ return {
             on_attach = on_attach,
           })
         end,
-        ["volar"] = function()
-          lspconfig["volar"].setup({
+        ["vuels"] = function()
+          lspconfig["vuels"].setup({
             filetypes = { "vue" },
             capabilities = capabilities,
             on_attach = on_attach,
