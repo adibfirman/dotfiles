@@ -10,8 +10,6 @@ return {
           hack = { pattern = "%f[%w]()HACK()%f[%W]", group = "MiniHipatternsHack" },
           todo = { pattern = "%f[%w]()TODO()%f[%W]", group = "MiniHipatternsTodo" },
           note = { pattern = "%f[%w]()NOTE()%f[%W]", group = "MiniHipatternsNote" },
-
-          -- Highlight hex color strings (`#rrggbb`) using that color
           hex_color = hipatterns.gen_highlighter.hex_color(),
         },
       })
@@ -253,89 +251,84 @@ _____     __| _/|__|\_ |__ _/ ____\|__|_______   _____  _____     ____        __
     },
   },
   {
-    "nvim-neo-tree/neo-tree.nvim",
-    branch = "v3.x",
-    lazy = false,
-    priority = 1000,
+    "stevearc/oil.nvim",
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
-      "MunifTanjim/nui.nvim",
     },
-    opts = {
-      sources = { "filesystem", "buffers", "git_status", "document_symbols" },
-      open_files_do_not_replace_types = { "terminal", "Trouble", "trouble", "qf", "Outline" },
-      filesystem = {
-        bind_to_cwd = false,
-        follow_current_file = { enabled = true },
-        use_libuv_file_watcher = true,
-        filtered_items = {
-          visible = true,
-          hide_dotfiles = true,
-          hide_gitignored = true,
-          hide_hidden = true,
+    config = function()
+      -- helper function to parse output
+      local function parse_output(proc)
+        local result = proc:wait()
+        local ret = {}
+        if result.code == 0 then
+          for line in vim.gsplit(result.stdout, "\n", { plain = true, trimempty = true }) do
+            -- Remove trailing slash
+            line = line:gsub("/$", "")
+            ret[line] = true
+          end
+        end
+        return ret
+      end
+
+      -- build git status cache
+      local function new_git_status()
+        return setmetatable({}, {
+          __index = function(self, key)
+            local ignore_proc = vim.system(
+              { "git", "ls-files", "--ignored", "--exclude-standard", "--others", "--directory" },
+              {
+                cwd = key,
+                text = true,
+              }
+            )
+            local tracked_proc = vim.system({ "git", "ls-tree", "HEAD", "--name-only" }, {
+              cwd = key,
+              text = true,
+            })
+            local ret = {
+              ignored = parse_output(ignore_proc),
+              tracked = parse_output(tracked_proc),
+            }
+
+            rawset(self, key, ret)
+            return ret
+          end,
+        })
+      end
+      local git_status = new_git_status()
+
+      -- Clear git status cache on refresh
+      local refresh = require("oil.actions").refresh
+      local orig_refresh = refresh.callback
+      refresh.callback = function(...)
+        git_status = new_git_status()
+        orig_refresh(...)
+      end
+
+      require("oil").setup({
+        columns = {
+          "icon",
+          "size",
+          "mtime",
         },
-      },
-      window = {
-        mappings = {
-          ["<space>"] = "none",
-          ["Y"] = {
-            function(state)
-              local node = state.tree:get_node()
-              local path = node:get_id()
-              vim.fn.setreg("+", path, "c")
-            end,
-            desc = "Copy Path to Clipboard",
-          },
-          ["O"] = {
-            function(state)
-              require("lazy.util").open(state.tree:get_node().path, { system = true })
-            end,
-            desc = "Open with System Application",
-          },
-        },
-      },
-      default_component_configs = {
-        indent = {
-          with_expanders = true, -- if nil and file nesting is enabled, will enable expanders
-          expander_collapsed = "",
-          expander_expanded = "",
-          expander_highlight = "NeoTreeExpander",
-        },
-        git_status = {
-          symbols = {
-            added = "",
-            modified = "",
-            deleted = "",
-            renamed = "",
-            untracked = "",
-            ignored = "",
-            unstaged = "",
-            staged = "",
-            conflict = "",
-          },
-        },
-      },
-    },
-    config = function(_, opts)
-      local events = require("neo-tree.events")
-      opts.event_handlers = opts.event_handlers or {}
-      vim.list_extend(opts.event_handlers, {
-        {
-          event = events.FILE_OPEN_REQUESTED,
-          handler = function()
-            require("neo-tree.command").execute({ action = "close" })
+        view_options = {
+          is_hidden_file = function(name, bufnr)
+            local dir = require("oil").get_current_dir(bufnr)
+            local is_dotfile = vim.startswith(name, ".") and name ~= ".."
+            -- if no local directory (e.g. for ssh connections), just hide dotfiles
+            if not dir then
+              return is_dotfile
+            end
+            -- dotfiles are considered hidden unless tracked
+            if is_dotfile then
+              return not git_status[dir].tracked[name]
+            else
+              -- Check if file is gitignored
+              return git_status[dir].ignored[name]
+            end
           end,
         },
-      })
-      require("neo-tree").setup(opts)
-      vim.api.nvim_create_autocmd("TermClose", {
-        pattern = "*lazygit",
-        callback = function()
-          if package.loaded["neo-tree.sources.git_status"] then
-            require("neo-tree.sources.git_status").refresh()
-          end
-        end,
       })
     end,
   },

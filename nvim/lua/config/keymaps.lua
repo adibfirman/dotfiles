@@ -2,6 +2,7 @@ local telescope = require("telescope.builtin")
 local fzf = require("fzf-lua")
 
 vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
+vim.keymap.set("n", "<leader>q", "<cmd>q<cr>", { desc = "Quit One" })
 vim.keymap.set("v", "<", "<gv")
 vim.keymap.set("v", ">", ">gv")
 
@@ -10,7 +11,8 @@ vim.keymap.set("n", "<leader>ff", telescope.find_files, { desc = "Telescope find
 vim.keymap.set("n", "<leader>fg", telescope.live_grep, { desc = "Telescope live grep" })
 vim.keymap.set("n", "<leader>fb", telescope.buffers, { desc = "Telescope buffers" })
 vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazygit" })
-vim.keymap.set("n", "<leader>e", "<cmd>Neotree toggle=true<cr>", { desc = "File Explorer" })
+-- vim.keymap.set("n", "<leader>e", "<cmd>Neotree toggle=true<cr>", { desc = "File Explorer" })
+vim.keymap.set("n", "<leader>e", "<CMD>Oil --float<CR>", { desc = "File Explorer" })
 
 -- search
 vim.keymap.set("n", '<leader>s"', "<cmd>FzfLua registers<cr>", { desc = "Registers" })
