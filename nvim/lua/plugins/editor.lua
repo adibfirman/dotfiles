@@ -1,5 +1,17 @@
 return {
   {
+    "akinsho/toggleterm.nvim",
+    version = "*",
+    config = function()
+      require("toggleterm").setup({
+        size = 10,
+        start_in_insert = true,
+        insert_mappings = true,
+        terminal_mappings = true,
+      })
+    end,
+  },
+  {
     "echasnovski/mini.hipatterns",
     version = "*",
     config = function()
@@ -224,7 +236,7 @@ return {
         theme = "auto",
         component_separators = "",
         section_separators = { right = "", left = "" },
-        globalstatus = true
+        globalstatus = true,
       },
       -- ----- reference position ------
       -- +-------------------------------------------------+

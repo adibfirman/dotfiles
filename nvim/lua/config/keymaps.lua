@@ -1,17 +1,36 @@
 local telescope = require("telescope.builtin")
 local fzf = require("fzf-lua")
+local term_escape_timer = nil
+local terminal_id = 2
 
 vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
 vim.keymap.set("n", "<leader>q", "<cmd>q<cr>", { desc = "Quit One" })
-vim.keymap.set("v", "<", "<gv")
-vim.keymap.set("v", ">", ">gv")
+vim.keymap.set("v", "<", "<gv", { desc = "Better indent to left" })
+vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
+
+-- Terminal
+vim.keymap.set("n", "<C-`>", "<cmd>:ToggleTerm<cr>", { desc = "Toggle terminal" })
+vim.keymap.set("n", "<leader>tn", function()
+  vim.cmd(terminal_id .. "ToggleTerm")
+  terminal_id = terminal_id + 1
+end, { desc = "Create a new terminal horizontally" })
+
+vim.keymap.set("t", "<esc>", function()
+  if term_escape_timer then
+    vim.api.nvim_command("stopinsert")
+    term_escape_timer = nil
+  else
+    term_escape_timer = vim.defer_fn(function()
+      term_escape_timer = nil
+    end, 300)
+  end
+end, { desc = "Go to normal mode in terminal", expr = true })
 
 -- files/find
 vim.keymap.set("n", "<leader>ff", telescope.find_files, { desc = "Telescope find files" })
 vim.keymap.set("n", "<leader>fg", telescope.live_grep, { desc = "Telescope live grep" })
 vim.keymap.set("n", "<leader>fb", telescope.buffers, { desc = "Telescope buffers" })
 vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazygit" })
--- vim.keymap.set("n", "<leader>e", "<cmd>Neotree toggle=true<cr>", { desc = "File Explorer" })
 vim.keymap.set("n", "<leader>e", "<CMD>Oil --float<CR>", { desc = "File Explorer" })
 
 -- search
