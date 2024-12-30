@@ -1,7 +1,23 @@
-local get_root_dir = function(fname)
+local get_base_root_dir = function(fname)
   local util = require("lspconfig.util")
   return util.root_pattern(".git")(fname) or util.root_pattern("package.json", "tsconfig.json")(fname)
 end
+
+local get_root_dir_eslint = function(fname)
+  local util = require("lspconfig.util")
+  local base_root = get_base_root_dir(fname)
+
+  -- Check if "lerna.json" exists in the base root directory
+  -- to make sure that all the dot files like tsconfig.json, etc
+  -- are configurable in the root of dir
+  local lerna_path = util.path.join(base_root, "lerna.json")
+  if vim.fn.filereadable(lerna_path) == 1 then
+    return base_root
+  end
+
+  return util.root_pattern('tsconfig.json', 'jsconfig.json', 'package.json')(fname)
+end
+
 
 -- This will remove buffer permanently if the buffer not longer in the list
 local function buffer_augroup(group, bufnr, cmds)
@@ -46,6 +62,7 @@ return {
     dependencies = {
       "onsails/lspkind.nvim",
       "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-nvim-lsp-signature-help",
     },
     config = function()
       local cmp = require("cmp")
@@ -63,6 +80,11 @@ return {
             winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
             col_offset = -3,
             side_padding = 0,
+            autocomplete = false,
+            completeopt = "menu,menuone",
+          },
+          documentation = {
+            winhighlight = "Normal:FloatBorder,FloatBorder:FloatBorder,Search:None",
           },
         },
         formatting = {
@@ -77,15 +99,17 @@ return {
           end,
         },
         mapping = {
-          ["<CR>"] = cmp.mapping.confirm({ select = true }),
-          ["<Tab>"] = cmp.mapping.select_next_item(),
-          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
+          ["<Tab>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }),
+          ["<S-Tab>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }),
+          ["<CR>"] = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true }),
         },
+        -- the orders below are matters
         sources = cmp.config.sources({
-          { name = "nvim_lsp" },
-          { name = "luasnip" },
           { name = "buffer" },
+          { name = "nvim_lsp_signature_help" },
           { name = "path" },
+          { name = "luasnip" },
+          { name = "nvim_lsp" },
         }),
       })
     end,
@@ -183,7 +207,7 @@ return {
       mason_lspconfig.setup_handlers({
         ["eslint"] = function()
           lspconfig["eslint"].setup({
-            root_dir = get_root_dir,
+            root_dir = get_root_dir_eslint,
             capabilities = capabilities,
             format = true,
             on_attach = function(client, bufnr)
@@ -210,7 +234,7 @@ return {
 
           lspconfig["ts_ls"].setup({
             capabilities = capabilities,
-            root_dir = get_root_dir,
+            root_dir = get_base_root_dir,
             on_attach = on_attach,
             init_options = {
               plugins = {
