@@ -44,7 +44,14 @@ vim.keymap.set("n", "gr", vim.lsp.buf.references, { desc = "References" })
 vim.keymap.set("n", "gI", vim.lsp.buf.implementation, { desc = "Goto Implementation" })
 vim.keymap.set("n", "gy", vim.lsp.buf.type_definition, { desc = "Goto T[y]pe Definition" })
 vim.keymap.set("n", "gD", vim.lsp.buf.declaration, { desc = "Goto Declaration" })
-vim.keymap.set("n", "cf", vim.lsp.buf.format, { desc = "Format" })
+vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format" })
+vim.keymap.set(
+  "n",
+  "<leader>cd",
+  '<cmd>:lua vim.diagnostic.open_float(0, { scope = "line" })<cr>',
+  { desc = "Line Diagnostic" }
+)
+
 vim.keymap.set("n", "K", "<cmd>:lua vim.lsp.buf.hover() <cr>", { desc = "Hover" })
 vim.keymap.set("n", "gK", "<cmd>:lua vim.lsp.buf.signature_help() <cr>", { desc = "Signature Help" })
 vim.keymap.set("i", "<c-k>", "<cmd> vim.lsp.buf.signature_help() <cr>", { desc = "Signature Help" })
@@ -58,6 +65,7 @@ vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Go to Lower Window", remap = tr
 vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Go to Upper Window", remap = true })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Go to Right Window", remap = true })
 vim.keymap.set("n", "<leader>wd", "<C-W>c", { desc = "Delete Window", remap = true })
+vim.keymap.set("n", "<leader>wm", "<cmd>:lua Snacks.zen()<cr>", { desc = "Maximize Window", remap = true })
 
 -- buffers
 vim.keymap.set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev Buffer" })

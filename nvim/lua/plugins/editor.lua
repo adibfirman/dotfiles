@@ -37,6 +37,15 @@ return {
       scope = {},
       dim = {},
       indent = {},
+      zen = {
+        toggles = {
+          dim = false,
+          git_signs = true,
+          mini_diff_signs = true,
+          diagnostics = true,
+          inlay_hints = true,
+        },
+      },
       dashboard = {
         preset = {
           header = [[
@@ -215,6 +224,7 @@ return {
         theme = "auto",
         component_separators = "",
         section_separators = { right = "", left = "" },
+        globalstatus = true
       },
       -- ----- reference position ------
       -- +-------------------------------------------------+
