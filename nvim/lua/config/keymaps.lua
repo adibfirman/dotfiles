@@ -18,20 +18,12 @@ vim.keymap.set("n", "<leader>e", "<CMD>Oil --float<CR>", { desc = "File Explorer
 vim.keymap.set("n", '<leader>s"', "<cmd>FzfLua registers<cr>", { desc = "Registers" })
 vim.keymap.set("n", "<leader>sb", "<cmd>FzfLua grep_curbuf<cr>", { desc = "Buffer" })
 vim.keymap.set("n", "<leader>sd", "<cmd>FzfLua diagnostics_document<cr>", { desc = "Document Diagnostics" })
--- vim.keymap.set("n", "<leader>sg", function()
---   fzf.grep({
---     cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] or vim.loop.cwd(),
---     symbol_kind = { "Function", "Method" }
---   })
--- end, { desc = "Grep (Root Dir)" })
-
--- vim.keymap.set("n", "<leader>sG", function()
---   fzf.grep({
---     cwd = vim.fn.getcwd(),
---     symbol_kind = { "Function", "Method" }
---   })
--- end, { desc = "Grep (cwd)" })
-
+vim.keymap.set(
+  "n",
+  "<leader>sg",
+  "<cmd>:lua Snacks.dashboard.pick('live_grep', {root = false})<cr>",
+  { desc = "Grep (Root Dir)" }
+)
 vim.keymap.set("n", "<leader>ss", function()
   fzf.lsp_document_symbols({ symbol_kind = { "Function", "Method" } })
 end, { desc = "Goto Symbol" })
