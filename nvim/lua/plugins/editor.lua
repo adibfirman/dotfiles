@@ -42,12 +42,12 @@ return {
       dashboard = {
         preset = {
           header = [[
-            .___.__ ___.     _____ .__                                          .___             
+            .___.__ ___.     _____ .__                                          .___
 _____     __| _/|__|\_ |__ _/ ____\|__|_______   _____  _____     ____        __| _/ ____ ___  __
 \__  \   / __ | |  | | __ \\   __\ |  |\_  __ \ /     \ \__  \   /    \      / __ |_/ __ \\  \/ /
- / __ \_/ /_/ | |  | | \_\ \|  |   |  | |  | \/|  Y Y  \ / __ \_|   |  \    / /_/ |\  ___/ \   / 
-(____  /\____ | |__| |___  /|__|   |__| |__|   |__|_|  /(____  /|___|  / /\ \____ | \___  > \_/  
-     \/      \/          \/                          \/      \/      \/  \/      \/     \/       
+ / __ \_/ /_/ | |  | | \_\ \|  |   |  | |  | \/|  Y Y  \ / __ \_|   |  \    / /_/ |\  ___/ \   /
+(____  /\____ | |__| |___  /|__|   |__| |__|   |__|_|  /(____  /|___|  / /\ \____ | \___  > \_/
+     \/      \/          \/                          \/      \/      \/  \/      \/     \/
           ]],
         },
       },
@@ -91,12 +91,63 @@ _____     __| _/|__|\_ |__ _/ ____\|__|_______   _____  _____     ____        __
     end,
   },
   {
+    "nvim-telescope/telescope-fzf-native.nvim",
+    build = "cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release",
+  },
+  {
     "nvim-telescope/telescope.nvim",
     tag = "0.1.8",
     depedencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
     },
+    config = function()
+      require("telescope").setup({
+        defaults = {
+          sorting_strategy = "ascending",
+          layout_config = { prompt_position = "top" },
+        },
+        pickers = {
+          functions = {
+            theme = "dropdown",
+            previewer = false,
+          },
+        },
+        extensions = {
+          fzf = {
+            fuzzy = false,
+            override_generic_sorter = true,
+            override_file_sorter = true,
+          },
+        },
+      })
+
+      require("telescope").load_extension("fzf")
+    end,
+  },
+  {
+    "ibhagwan/fzf-lua",
+    cmd = "FzfLua",
+    depedencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-tree/nvim-web-devicons",
+    },
+    config = function(_, opts)
+      if opts[1] == "default-title" then
+        local function fix(t)
+          t.prompt = t.prompt ~= nil and " " or nil
+          for _, v in pairs(t) do
+            if type(v) == "table" then
+              fix(v)
+            end
+          end
+          return t
+        end
+        opts = vim.tbl_deep_extend("force", fix(require("fzf-lua.profiles.default-title")), opts)
+        opts[1] = nil
+      end
+      require("fzf-lua").setup(opts)
+    end,
   },
   {
     "stevearc/dressing.nvim",
@@ -267,15 +318,9 @@ _____     __| _/|__|\_ |__ _/ ____\|__|_______   _____  _____     ____        __
       },
     },
     config = function(_, opts)
-      local function on_move(data)
-        require("lazyvim.util").lsp.on_rename(data.source, data.destination)
-      end
-
       local events = require("neo-tree.events")
       opts.event_handlers = opts.event_handlers or {}
       vim.list_extend(opts.event_handlers, {
-        { event = events.FILE_MOVED, handler = on_move },
-        { event = events.FILE_RENAMED, handler = on_move },
         {
           event = events.FILE_OPEN_REQUESTED,
           handler = function()
