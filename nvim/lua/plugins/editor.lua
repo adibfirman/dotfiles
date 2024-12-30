@@ -118,7 +118,7 @@ return {
         },
         extensions = {
           fzf = {
-            fuzzy = false,
+            fuzzy = true,
             override_generic_sorter = true,
             override_file_sorter = true,
           },
