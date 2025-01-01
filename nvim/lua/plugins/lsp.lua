@@ -15,34 +15,33 @@ local get_root_dir_eslint = function(fname)
     return base_root
   end
 
-  return util.root_pattern('tsconfig.json', 'jsconfig.json', 'package.json')(fname)
+  return util.root_pattern("tsconfig.json", "jsconfig.json", "package.json")(fname)
 end
-
 
 -- This will remove buffer permanently if the buffer not longer in the list
 local function buffer_augroup(group, bufnr, cmds)
   vim.api.nvim_create_augroup(group, { clear = false })
   vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
-  for _, cmd in ipairs(cmds) do
-    local event = cmd.event
-    cmd.event = nil
-    vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, cmd))
+  for _, _cmd in ipairs(cmds) do
+    local event = _cmd.event
+    _cmd.event = nil
+    vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, _cmd))
   end
 end
 
 -- attach this on lsp server in params "on_attach" for each lsp
 local function on_attach(client, bufnr)
-  local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
-  if client.supports_method("textDocument/formatting") then
-    vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-    vim.api.nvim_create_autocmd("BufWritePre", {
-      group = augroup,
-      buffer = bufnr,
-      callback = function()
-        vim.lsp.buf.format({ bufnr = bufnr, id = client.id })
-      end,
-    })
-  end
+  -- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
+  -- if client.supports_method("textDocument/formatting") then
+  --   vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+  --   vim.api.nvim_create_autocmd("BufWritePre", {
+  --     group = augroup,
+  --     buffer = bufnr,
+  --     callback = function()
+  --       vim.lsp.buf.format({ bufnr = bufnr, id = client.id })
+  --     end,
+  --   })
+  -- end
 
   local detach = function()
     vim.lsp.buf_detach_client(bufnr, client.id)
@@ -179,16 +178,28 @@ return {
     end,
   },
   {
-    "nvimtools/none-ls.nvim",
+    "stevearc/conform.nvim",
+    event = { "BufWritePre" },
+    cmd = { "ConformInfo" },
     config = function()
-      local null_ls = require("null-ls")
-
-      null_ls.setup({
-        sources = {
-          null_ls.builtins.formatting.stylua,
-          null_ls.builtins.formatting.prettier,
+      require("conform").setup({
+        formatters_by_ft = {
+          lua = { "stylua" },
+          javascript = { "prettier", stop_after_first = true },
+          typescript = { "prettier", stop_after_first = true },
+          javascriptreact = { "prettier", stop_after_first = true },
+          typescriptreact = { "prettier", stop_after_first = true },
+          svelte = { "prettier", stop_after_first = true },
+          css = { "prettier", stop_after_first = true },
+          html = { "prettier", stop_after_first = true },
+          markdown = { "prettier", stop_after_first = true },
+          graphql = { "prettier", stop_after_first = true },
         },
-        on_attach = on_attach,
+        format_on_save = {
+          timeout_ms = 500,
+          async = false,
+          lsp_format = "fallback",
+        },
       })
     end,
   },
