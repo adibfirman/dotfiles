@@ -89,5 +89,6 @@ vim.keymap.set("n", "<leader>bD", "<cmd>:bd<cr>", { desc = "Delete Buffer and Wi
 -- Clear search and stop snippet on escape
 vim.keymap.set({ "i", "n", "s" }, "<esc>", function()
   vim.cmd("noh")
+  vim.cmd("delm!")
   return "<esc>"
 end, { expr = true, desc = "Escape and Clear hlsearch" })
