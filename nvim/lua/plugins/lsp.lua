@@ -11,7 +11,7 @@ local get_root_dir_eslint = function(fname)
   -- to make sure that all the dot files like tsconfig.json, etc
   -- are configurable in the root of dir
   local lerna_path = util.path.join(base_root, "lerna.json")
-  if vim.fn.filereadable(lerna_path) == 1 then
+  if not vim.fn.filereadable(lerna_path) == 1 then
     return base_root
   end
 
@@ -31,18 +31,6 @@ end
 
 -- attach this on lsp server in params "on_attach" for each lsp
 local function on_attach(client, bufnr)
-  -- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
-  -- if client.supports_method("textDocument/formatting") then
-  --   vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-  --   vim.api.nvim_create_autocmd("BufWritePre", {
-  --     group = augroup,
-  --     buffer = bufnr,
-  --     callback = function()
-  --       vim.lsp.buf.format({ bufnr = bufnr, id = client.id })
-  --     end,
-  --   })
-  -- end
-
   local detach = function()
     vim.lsp.buf_detach_client(bufnr, client.id)
   end
