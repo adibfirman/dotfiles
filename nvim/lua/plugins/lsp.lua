@@ -131,6 +131,7 @@ return {
         "typescript-language-server",
         "vue-language-server",
         "vetur-vls",
+        "json-lsp",
       },
     },
     config = function(_, opts)
