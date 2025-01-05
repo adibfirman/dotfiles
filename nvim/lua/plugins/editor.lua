@@ -98,6 +98,7 @@ return {
     },
     config = function()
       require("telescope").setup({
+        theme = "auto",
         defaults = {
           sorting_strategy = "ascending",
         },
@@ -112,6 +113,7 @@ return {
             fuzzy = true,
             override_generic_sorter = true,
             override_file_sorter = true,
+            theme = "auto",
           },
         },
       })
