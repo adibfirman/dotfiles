@@ -2,11 +2,16 @@ local telescope = require("telescope.builtin")
 local fzf = require("fzf-lua")
 local term_escape_timer = nil
 local terminal_id = 2
+local dropbar_api = require("dropbar.api")
 
 vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
-vim.keymap.set("n", "<leader>q", "<cmd>q<cr>", { desc = "Quit One" })
 vim.keymap.set("v", "<", "<gv", { desc = "Better indent to left" })
 vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
+
+-- Breadcrumbs
+vim.keymap.set("n", "<Leader>;", dropbar_api.pick, { desc = "Pick symbols in winbar" })
+vim.keymap.set("n", "[;", dropbar_api.goto_context_start, { desc = "Go to start of current context" })
+vim.keymap.set("n", "];", dropbar_api.select_next_context, { desc = "Select next context" })
 
 -- Terminal
 vim.keymap.set("n", "<C-`>", "<cmd>:ToggleTerm<cr>", { desc = "Toggle terminal" })
