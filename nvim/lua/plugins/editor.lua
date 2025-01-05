@@ -1,5 +1,28 @@
 return {
   {
+    "anuvyklack/windows.nvim",
+    dependencies = {
+      "anuvyklack/middleclass",
+    },
+    config = function()
+      require("windows").setup({
+        autowidth = {
+          enable = true,
+          winwidth = 30,
+          filetype = {
+            help = 2,
+            NvimTree = 1,
+            [""] = 1,
+          },
+        },
+        ignore = {
+          buftype = { "quickfix", "nofile" },
+          filetype = { "undotree", "gundo", "NvimTree", "vista", "packer" },
+        },
+      })
+    end,
+  },
+  {
     "Bekaboo/dropbar.nvim",
     dependencies = {
       "nvim-telescope/telescope-fzf-native.nvim",
