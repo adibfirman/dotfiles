@@ -113,8 +113,5 @@ opt.wildmode = "longest:full,full" -- Command-line completion mode
 opt.winminwidth = 5 -- Minimum window width
 opt.wrap = false -- Disable line wrap
 opt.smoothscroll = true
-opt.foldexpr = "v:lua.require'lazyvim.util'.ui.foldexpr()"
-opt.foldmethod = "expr"
-opt.foldtext = ""
 -- Fix markdown indentation settings
 vim.g.markdown_recommended_style = 0

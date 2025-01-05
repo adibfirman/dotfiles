@@ -76,7 +76,7 @@ vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Go to Lower Window", remap = tr
 vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Go to Upper Window", remap = true })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Go to Right Window", remap = true })
 vim.keymap.set("n", "<leader>wd", "<C-W>c", { desc = "Delete Window", remap = true })
-vim.keymap.set("n", "<leader>wm", "<cmd>:lua Snacks.zen()<cr>", { desc = "Maximize Window", remap = true })
+-- vim.keymap.set("n", "<leader>wm", "<cmd>:lua Snacks.zen()<cr>", { desc = "Maximize Window", remap = true })
 
 -- buffers
 vim.keymap.set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev Buffer" })
