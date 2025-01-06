@@ -1,4 +1,4 @@
-local telescope = require("telescope.builtin")
+local telescopebuiltin = require("telescope.builtin")
 local fzf = require("fzf-lua")
 local term_escape_timer = nil
 local terminal_id = 2
@@ -32,9 +32,9 @@ vim.keymap.set("t", "<esc>", function()
 end, { desc = "Go to normal mode in terminal", expr = true })
 
 -- files/find
-vim.keymap.set("n", "<leader>ff", telescope.find_files, { desc = "Telescope find files" })
-vim.keymap.set("n", "<leader>fg", telescope.live_grep, { desc = "Telescope live grep" })
-vim.keymap.set("n", "<leader>fb", telescope.buffers, { desc = "Telescope buffers" })
+vim.keymap.set("n", "<leader>ff", telescopebuiltin.find_files, { desc = "Telescope find files" })
+vim.keymap.set("n", "<leader>fg", telescopebuiltin.live_grep, { desc = "Telescope live grep" })
+vim.keymap.set("n", "<leader>fb", telescopebuiltin.buffers, { desc = "Telescope buffers" })
 vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazygit" })
 vim.keymap.set("n", "<leader>e", "<CMD>Oil --float<CR>", { desc = "File Explorer" })
 
@@ -54,11 +54,10 @@ end, { desc = "Goto Symbol" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, { desc = "Code Action" })
-vim.keymap.set("n", "gd", vim.lsp.buf.definition, { desc = "Goto Definition" })
-vim.keymap.set("n", "<leader>cl", "<cmd>LspInfo<cr>", { desc = "Lsp Info" })
-vim.keymap.set("n", "gr", vim.lsp.buf.references, { desc = "References" })
-vim.keymap.set("n", "gI", vim.lsp.buf.implementation, { desc = "Goto Implementation" })
-vim.keymap.set("n", "gy", vim.lsp.buf.type_definition, { desc = "Goto T[y]pe Definition" })
+vim.keymap.set("n", "gd", telescopebuiltin.lsp_definitions, { desc = "Goto Definition" })
+vim.keymap.set("n", "gr", telescopebuiltin.lsp_references, { desc = "References" })
+vim.keymap.set("n", "gI", telescopebuiltin.lsp_implementations, { desc = "Goto Implementation" })
+vim.keymap.set("n", "gy", telescopebuiltin.lsp_type_definitions, { desc = "Goto T[y]pe Definition" })
 vim.keymap.set("n", "gD", vim.lsp.buf.declaration, { desc = "Goto Declaration" })
 vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format" })
 vim.keymap.set(
