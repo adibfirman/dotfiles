@@ -54,11 +54,11 @@ end, { desc = "Goto Symbol" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, { desc = "Code Action" })
-vim.keymap.set("n", "gd", telescopebuiltin.lsp_definitions, { desc = "Goto Definition" })
-vim.keymap.set("n", "gr", telescopebuiltin.lsp_references, { desc = "References" })
-vim.keymap.set("n", "gI", telescopebuiltin.lsp_implementations, { desc = "Goto Implementation" })
-vim.keymap.set("n", "gy", telescopebuiltin.lsp_type_definitions, { desc = "Goto T[y]pe Definition" })
-vim.keymap.set("n", "gD", vim.lsp.buf.declaration, { desc = "Goto Declaration" })
+vim.keymap.set("n", "gd", "<cmd>FzfLua lsp_definitions<cr>", { desc = "Goto Definition" })
+vim.keymap.set("n", "gr", "<cmd>FzfLua lsp_references<cr>", { desc = "References" })
+vim.keymap.set("n", "gI", "<cmd>FzfLua lsp_implementations<cr>", { desc = "Goto Implementation" })
+vim.keymap.set("n", "gy", "<cmd>FzfLua lsp_typedefs<cr>", { desc = "Goto T[y]pe Definition" })
+vim.keymap.set("n", "gD", "<cmd>FzfLua lsp_declarations", { desc = "Goto Declaration" })
 vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format" })
 vim.keymap.set(
   "n",

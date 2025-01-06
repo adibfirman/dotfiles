@@ -49,10 +49,10 @@ return {
     dependencies = {
       "onsails/lspkind.nvim",
       "hrsh7th/cmp-nvim-lsp",
-      "hrsh7th/cmp-nvim-lsp-signature-help",
     },
     config = function()
       local cmp = require("cmp")
+      local defaults = require("cmp.config.default")()
       require("luasnip.loaders.from_vscode").lazy_load()
 
       cmp.setup({
@@ -86,18 +86,18 @@ return {
           end,
         },
         mapping = {
-          ["<Tab>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }),
-          ["<S-Tab>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }),
+          ["<Tab>"] = cmp.mapping.select_next_item(),
+          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
           ["<CR>"] = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true }),
         },
+        sorting = defaults.sorting,
         -- the orders below are matters
         sources = cmp.config.sources({
-          { name = "buffer" },
+          { name = "nvim_lsp" },
           { name = "nvim_lsp_signature_help" },
           { name = "path" },
           { name = "luasnip" },
-          { name = "nvim_lsp" },
-        }),
+        }, { name = "buffer" }),
       })
     end,
   },
@@ -105,7 +105,7 @@ return {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
     setup = function()
-      require("nvim-treesitter.config").setup({
+      require("nvim-treesitter.configs").setup({
         highlight = { enable = true },
         indent = { enable = true },
         auto_install = true,
@@ -207,7 +207,7 @@ return {
       mason_lspconfig.setup_handlers({
         ["eslint"] = function()
           lspconfig["eslint"].setup({
-            root_dir = get_root_dir_eslint,
+            root_dir = get_base_root_dir,
             capabilities = capabilities,
             format = true,
             on_attach = function(client, bufnr)
