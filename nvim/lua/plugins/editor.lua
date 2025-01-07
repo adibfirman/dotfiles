@@ -7,7 +7,7 @@ return {
     config = function()
       require("windows").setup({
         autowidth = {
-          enable = true,
+          enable = false,
           winwidth = 30,
           filetype = {
             help = 2,
@@ -23,20 +23,15 @@ return {
     end,
   },
   {
-    "Bekaboo/dropbar.nvim",
+    "utilyre/barbecue.nvim",
+    name = "barbecue",
+    version = "*",
     dependencies = {
-      "nvim-telescope/telescope-fzf-native.nvim",
-      build = "make",
+      "SmiteshP/nvim-navic",
+      "nvim-tree/nvim-web-devicons",
     },
     config = function()
-      local dropbar = require("dropbar")
-      dropbar.setup({
-        menu = {
-          win_configs = {
-            border = "rounded",
-          },
-        },
-      })
+      require("barbecue").setup()
     end,
   },
   {

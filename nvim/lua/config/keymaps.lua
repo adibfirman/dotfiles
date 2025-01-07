@@ -2,16 +2,10 @@ local telescopebuiltin = require("telescope.builtin")
 local fzf = require("fzf-lua")
 local term_escape_timer = nil
 local terminal_id = 2
-local dropbar_api = require("dropbar.api")
 
 vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
 vim.keymap.set("v", "<", "<gv", { desc = "Better indent to left" })
 vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
-
--- Breadcrumbs
-vim.keymap.set("n", "<Leader>;", dropbar_api.pick, { desc = "Pick symbols in winbar" })
-vim.keymap.set("n", "[;", dropbar_api.goto_context_start, { desc = "Go to start of current context" })
-vim.keymap.set("n", "];", dropbar_api.select_next_context, { desc = "Select next context" })
 
 -- Terminal
 vim.keymap.set("n", "<C-`>", "<cmd>:ToggleTerm<cr>", { desc = "Toggle terminal" })
@@ -53,26 +47,18 @@ vim.keymap.set("n", "<leader>ss", function()
 end, { desc = "Goto Symbol" })
 
 -- LSP
-vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, { desc = "Code Action" })
-vim.keymap.set("n", "gd", "<cmd>FzfLua lsp_definitions<cr>", { desc = "Goto Definition" })
+vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
+vim.keymap.set("n", "gd", "<cmd>Lspsaga goto_definition<cr>", { desc = "Goto Definition" })
 vim.keymap.set("n", "gr", "<cmd>FzfLua lsp_references<cr>", { desc = "References" })
 vim.keymap.set("n", "gI", "<cmd>FzfLua lsp_implementations<cr>", { desc = "Goto Implementation" })
 vim.keymap.set("n", "gy", "<cmd>FzfLua lsp_typedefs<cr>", { desc = "Goto T[y]pe Definition" })
-vim.keymap.set("n", "gD", "<cmd>FzfLua lsp_declarations", { desc = "Goto Declaration" })
 vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format" })
-vim.keymap.set(
-  "n",
-  "<leader>cd",
-  '<cmd>:lua vim.diagnostic.open_float(0, { scope = "line" })<cr>',
-  { desc = "Line Diagnostic" }
-)
-
-vim.keymap.set("n", "K", "<cmd>:lua vim.lsp.buf.hover() <cr>", { desc = "Hover" })
-vim.keymap.set("n", "gK", "<cmd>:lua vim.lsp.buf.signature_help() <cr>", { desc = "Signature Help" })
-vim.keymap.set("i", "<c-k>", "<cmd> vim.lsp.buf.signature_help() <cr>", { desc = "Signature Help" })
+vim.keymap.set("n", "<leader>cd", "<cmd>Lspsaga show_line_diagnostics<cr>", { desc = "Line Diagnostic" })
+vim.keymap.set("n", "K", "<cmd>Lspsaga hover_doc<cr>", { desc = "Hover" })
 vim.keymap.set({ "n", "v" }, "<leader>cc", vim.lsp.codelens.run, { desc = "Run Codelens" })
-vim.keymap.set("n", "<leader>cC", vim.lsp.codelens.refresh, { desc = "Refresh & Display Codelens" })
 vim.keymap.set("n", "<leader>cr", vim.lsp.buf.rename, { desc = "Rename" })
+-- vim.keymap.set("n", "gK", "<cmd>:lua vim.lsp.buf.signature_help() <cr>", { desc = "Signature Help" })
+-- vim.keymap.set("i", "<c-k>", "<cmd> vim.lsp.buf.signature_help() <cr>", { desc = "Signature Help" })
 
 -- Windows stuff
 vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to Left Window", remap = true })

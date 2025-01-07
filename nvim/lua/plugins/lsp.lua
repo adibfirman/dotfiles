@@ -3,46 +3,34 @@ local get_base_root_dir = function(fname)
   return util.root_pattern(".git")(fname) or util.root_pattern("package.json", "tsconfig.json")(fname)
 end
 
-local get_root_dir_eslint = function(fname)
-  local util = require("lspconfig.util")
-  local base_root = get_base_root_dir(fname)
-
-  -- Check if "lerna.json" exists in the base root directory
-  -- to make sure that all the dot files like tsconfig.json, etc
-  -- are configurable in the root of dir
-  local lerna_path = util.path.join(base_root, "lerna.json")
-  if not vim.fn.filereadable(lerna_path) == 1 then
-    return base_root
-  end
-
-  return util.root_pattern("tsconfig.json", "jsconfig.json", "package.json")(fname)
-end
-
--- This will remove buffer permanently if the buffer not longer in the list
-local function buffer_augroup(group, bufnr, cmds)
-  vim.api.nvim_create_augroup(group, { clear = false })
-  vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
-  for _, _cmd in ipairs(cmds) do
-    local event = _cmd.event
-    _cmd.event = nil
-    vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, _cmd))
-  end
-end
-
--- attach this on lsp server in params "on_attach" for each lsp
-local function on_attach(client, bufnr)
-  local detach = function()
-    vim.lsp.buf_detach_client(bufnr, client.id)
-  end
-  buffer_augroup("entropitor:lsp:closing", bufnr, {
-    { event = "BufDelete", callback = detach },
-  })
-end
-
 return {
+  {
+    "zeioth/garbage-day.nvim",
+    dependencies = "neovim/nvim-lspconfig",
+    event = "VeryLazy",
+    opts = {},
+  },
   {
     "L3MON4D3/LuaSnip",
     dependencies = { "rafamadriz/friendly-snippets", "saadparwaiz1/cmp_luasnip" },
+  },
+  {
+    "nvimdev/lspsaga.nvim",
+    event = "LspAttach",
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons",
+    },
+    config = function()
+      require("lspsaga").setup({
+        symbol_in_winbar = {
+          enable = false,
+        },
+        lightbulb = {
+          sign = false,
+        },
+      })
+    end,
   },
   {
     "hrsh7th/nvim-cmp",
@@ -104,6 +92,7 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
+    event = "VeryLazy",
     setup = function()
       require("nvim-treesitter.configs").setup({
         highlight = { enable = true },
@@ -210,8 +199,7 @@ return {
             root_dir = get_base_root_dir,
             capabilities = capabilities,
             format = true,
-            on_attach = function(client, bufnr)
-              on_attach(client, bufnr)
+            on_attach = function(_, bufnr)
               vim.api.nvim_create_autocmd("BufWritePre", {
                 buffer = bufnr,
                 command = "EslintFixAll",
@@ -223,7 +211,6 @@ return {
           lspconfig["lua_ls"].setup({
             filetypes = { "lua" },
             format = true,
-            on_attach = on_attach,
             capabilities = capabilities,
           })
         end,
@@ -235,7 +222,6 @@ return {
           lspconfig["ts_ls"].setup({
             capabilities = capabilities,
             root_dir = get_base_root_dir,
-            on_attach = on_attach,
             init_options = {
               plugins = {
                 {
@@ -251,14 +237,12 @@ return {
         ["jsonls"] = function()
           lspconfig["jsonls"].setup({
             capabilities = capabilities,
-            on_attach = on_attach,
           })
         end,
         ["vuels"] = function()
           lspconfig["vuels"].setup({
             filetypes = { "vue" },
             capabilities = capabilities,
-            on_attach = on_attach,
           })
         end,
       })
