@@ -306,6 +306,18 @@ return {
           show_hidden = true,
         },
       })
+
+      _G.OilCopyFullPath = function()
+        local oil = require("oil")
+        local entry = oil.get_cursor_entry()
+        if entry and entry.name then
+          local full_path = require("oil").get_current_dir() .. entry.name
+          vim.fn.setreg("+", full_path)
+          print("Copied: " .. full_path)
+        else
+          print("No valid file or path selected.")
+        end
+      end
     end,
   },
 }
