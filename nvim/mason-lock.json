@@ -1,8 +1,8 @@
 {
-  "ast-grep": "0.32.2",
+  "ast-grep": "0.33.0",
   "eslint-lsp": "4.10.0",
   "eslint_d": "14.3.0",
-  "harper-ls": "v0.12.0",
+  "harper-ls": "v0.14.0",
   "json-lsp": "4.10.0",
   "lua-language-server": "3.13.5",
   "luacheck": "1.1.0",
