@@ -157,6 +157,32 @@ return {
     end,
   },
   {
+    "mfussenegger/nvim-lint",
+    event = { "BufWritePre" },
+    config = function()
+      local lint = require("lint")
+      lint.linters_by_ft = {
+        lua = { "luacheck" },
+        javascript = { "eslint_d" },
+        typescript = { "eslint_d" },
+        javascriptreact = { "eslint_d" },
+        typescriptreact = { "eslint_d" },
+        svelte = { "eslint_d" },
+        css = { "eslint_d" },
+        html = { "eslint_d" },
+        markdown = { "eslint_d" },
+        graphql = { "eslint_d" },
+        vue = { "eslint_d" },
+      }
+
+      vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter", "InsertLeave" }, {
+        callback = function()
+          require("lint").try_lint()
+        end,
+      })
+    end,
+  },
+  {
     "stevearc/conform.nvim",
     event = { "BufWritePre" },
     cmd = { "ConformInfo" },
@@ -176,7 +202,6 @@ return {
           vue = { "prettierd", "prettier", stop_after_first = true },
         },
         format_on_save = {
-          timeout_ms = 500,
           async = false,
           lsp_format = "fallback",
         },
@@ -196,19 +221,6 @@ return {
       local capabilities = cmp_nvim_lsp.default_capabilities()
 
       mason_lspconfig.setup_handlers({
-        ["eslint"] = function()
-          lspconfig["eslint"].setup({
-            root_dir = get_base_root_dir,
-            capabilities = capabilities,
-            format = true,
-            on_attach = function(_, bufnr)
-              vim.api.nvim_create_autocmd("BufWritePre", {
-                buffer = bufnr,
-                command = "EslintFixAll",
-              })
-            end,
-          })
-        end,
         ["lua_ls"] = function()
           lspconfig["lua_ls"].setup({
             filetypes = { "lua" },
