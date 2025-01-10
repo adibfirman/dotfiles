@@ -20,7 +20,8 @@ offset.y = 1
 
 [window]
 startup_mode = "Maximized"
-opacity = 0.8
+opacity = 0.3
+blur = true # mac os only
 
 [mouse]
 hide_when_typing = true

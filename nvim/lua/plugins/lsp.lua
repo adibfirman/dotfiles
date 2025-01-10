@@ -121,6 +121,7 @@ return {
         "vue-language-server",
         "vetur-vls",
         "json-lsp",
+        "prettierd",
       },
     },
     config = function(_, opts)
@@ -163,15 +164,16 @@ return {
       require("conform").setup({
         formatters_by_ft = {
           lua = { "stylua" },
-          javascript = { "prettier", stop_after_first = true },
-          typescript = { "prettier", stop_after_first = true },
-          javascriptreact = { "prettier", stop_after_first = true },
-          typescriptreact = { "prettier", stop_after_first = true },
-          svelte = { "prettier", stop_after_first = true },
-          css = { "prettier", stop_after_first = true },
-          html = { "prettier", stop_after_first = true },
-          markdown = { "prettier", stop_after_first = true },
-          graphql = { "prettier", stop_after_first = true },
+          javascript = { "prettierd", "prettier", stop_after_first = true },
+          typescript = { "prettierd", "prettier", stop_after_first = true },
+          javascriptreact = { "prettierd", "prettier", stop_after_first = true },
+          typescriptreact = { "prettierd", "prettier", stop_after_first = true },
+          svelte = { "prettierd", "prettier", stop_after_first = true },
+          css = { "prettierd", "prettier", stop_after_first = true },
+          html = { "prettierd", "prettier", stop_after_first = true },
+          markdown = { "prettierd", "prettier", stop_after_first = true },
+          graphql = { "prettierd", "prettier", stop_after_first = true },
+          vue = { "prettierd", "prettier", stop_after_first = true },
         },
         format_on_save = {
           timeout_ms = 500,
