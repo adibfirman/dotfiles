@@ -10,7 +10,7 @@ normal.style = "SemiBold"
 bold.family = "FiraCode Nerd Font Propo"
 italic.family = "FiraCode Nerd Font Propo"
 bold_italic.family = "FiraCode Nerd Font Propo"
-size = 13.0
+size = 17.0
 offset.x = 0
 offset.y = 1
 # normal.style = "Bold"
@@ -20,6 +20,7 @@ offset.y = 1
 
 [window]
 startup_mode = "Maximized"
+opacity = 0.8
 
 [mouse]
 hide_when_typing = true
