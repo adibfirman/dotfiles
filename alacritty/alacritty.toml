@@ -21,7 +21,6 @@ offset.y = 1
 [window]
 startup_mode = "Maximized"
 opacity = 0.85
-decorations = "None"
 
 [mouse]
 hide_when_typing = true
