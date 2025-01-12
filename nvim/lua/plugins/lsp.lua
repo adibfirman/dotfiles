@@ -158,7 +158,7 @@ return {
   },
   {
     "mfussenegger/nvim-lint",
-    event = { "BufWritePre" },
+    event = { "BufWritePre", "BufNewFile" },
     config = function()
       local lint = require("lint")
       lint.linters_by_ft = {
@@ -175,7 +175,8 @@ return {
         vue = { "eslint_d" },
       }
 
-      vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter", "InsertLeave" }, {
+      vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
+        group = lint_group,
         callback = function()
           require("lint").try_lint()
         end,
