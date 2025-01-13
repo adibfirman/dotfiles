@@ -102,7 +102,10 @@ return {
     end,
   },
   {
-    "williamboman/mason.nvim",
+    "williamboman/mason-lspconfig.nvim",
+    dependencies = {
+      "williamboman/mason.nvim",
+    },
     cmd = "Mason",
     build = ":MasonUpdate",
     opts_extend = { "ensure_installed" },
@@ -110,7 +113,6 @@ return {
       ensure_installed = {
         "ast-grep",
         "eslint-lsp",
-        "eslint_d",
         "harper-ls",
         "lua-language-server",
         "luacheck",
@@ -126,6 +128,7 @@ return {
     },
     config = function(_, opts)
       require("mason").setup(opts)
+      require("mason-lspconfig").setup(opts)
       local mr = require("mason-registry")
 
       mr:on("package:install:success", function()
@@ -163,17 +166,19 @@ return {
       local lint = require("lint")
       lint.linters_by_ft = {
         lua = { "luacheck" },
-        javascript = { "eslint_d" },
-        typescript = { "eslint_d" },
-        javascriptreact = { "eslint_d" },
-        typescriptreact = { "eslint_d" },
-        svelte = { "eslint_d" },
-        css = { "eslint_d" },
-        html = { "eslint_d" },
-        markdown = { "eslint_d" },
-        graphql = { "eslint_d" },
-        vue = { "eslint_d" },
+        javascript = { "eslint" },
+        typescript = { "eslint" },
+        javascriptreact = { "eslint" },
+        typescriptreact = { "eslint" },
+        svelte = { "eslint" },
+        css = { "eslint" },
+        html = { "eslint" },
+        markdown = { "eslint" },
+        graphql = { "eslint" },
+        vue = { "eslint" },
       }
+
+      local lint_group = vim.api.nvim_create_augroup("list", { clear = true })
 
       vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
         group = lint_group,
