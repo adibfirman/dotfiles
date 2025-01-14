@@ -1,6 +1,8 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
+vim.g.loaded_node_provider = 0
+
 -- LazyVim auto format
 vim.g.autoformat = true
 
