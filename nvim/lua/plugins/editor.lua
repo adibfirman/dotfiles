@@ -22,20 +22,20 @@ return {
       })
     end,
   },
-  {
-    "utilyre/barbecue.nvim",
-    name = "barbecue",
-    version = "*",
-    dependencies = {
-      "SmiteshP/nvim-navic",
-      "nvim-tree/nvim-web-devicons",
-    },
-    config = function()
-      require("barbecue").setup({
-        exclude_filetypes = { "toggleterm" },
-      })
-    end,
-  },
+  -- {
+  --   "utilyre/barbecue.nvim",
+  --   name = "barbecue",
+  --   version = "*",
+  --   dependencies = {
+  --     "SmiteshP/nvim-navic",
+  --     "nvim-tree/nvim-web-devicons",
+  --   },
+  --   config = function()
+  --     require("barbecue").setup({
+  --       exclude_filetypes = { "toggleterm" },
+  --     })
+  --   end,
+  -- },
   {
     "akinsho/toggleterm.nvim",
     version = "*",
