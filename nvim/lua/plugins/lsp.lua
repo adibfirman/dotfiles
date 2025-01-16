@@ -5,6 +5,18 @@ end
 
 return {
   {
+    "ray-x/lsp_signature.nvim",
+    event = "VeryLazy",
+    config = function()
+      vim.api.nvim_create_autocmd("LspAttach", {
+        callback = function(args)
+          local bufnr = args.buf
+          require("lsp_signature").on_attach({}, bufnr)
+        end,
+      })
+    end,
+  },
+  {
     "zeioth/garbage-day.nvim",
     dependencies = "neovim/nvim-lspconfig",
     event = "VeryLazy",
@@ -103,6 +115,7 @@ return {
   },
   {
     "williamboman/mason-lspconfig.nvim",
+    lazy = false,
     dependencies = {
       {
         "williamboman/mason.nvim",
@@ -266,7 +279,6 @@ return {
         ["vuels"] = function()
           lspconfig["vuels"].setup({
             filetypes = { "vue" },
-            capabilities = capabilities,
           })
         end,
       })
