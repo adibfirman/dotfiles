@@ -23,23 +23,6 @@ return {
     end,
   },
   {
-    "akinsho/toggleterm.nvim",
-    version = "*",
-    config = function()
-      require("toggleterm").setup({
-        size = 10,
-        start_in_insert = true,
-        insert_mappings = true,
-        terminal_mappings = true,
-        on_open = function(term)
-          vim.defer_fn(function()
-            vim.wo[term.window].winbar = ""
-          end, 0)
-        end,
-      })
-    end,
-  },
-  {
     "echasnovski/mini.hipatterns",
     version = "*",
     config = function()
@@ -63,9 +46,10 @@ return {
     end,
   },
   {
-    "lewis6991/gitsigns.nvim",
+    "echasnovski/mini.diff",
+    version = "*",
     config = function()
-      require("gitsigns").setup()
+      require("mini.diff").setup()
     end,
   },
   {
