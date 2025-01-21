@@ -1,28 +1,5 @@
 return {
   {
-    "anuvyklack/windows.nvim",
-    dependencies = {
-      "anuvyklack/middleclass",
-    },
-    config = function()
-      require("windows").setup({
-        autowidth = {
-          enable = false,
-          winwidth = 30,
-          filetype = {
-            help = 2,
-            NvimTree = 1,
-            [""] = 1,
-          },
-        },
-        ignore = {
-          buftype = { "quickfix", "nofile" },
-          filetype = { "undotree", "gundo", "NvimTree", "vista", "packer" },
-        },
-      })
-    end,
-  },
-  {
     "echasnovski/mini.hipatterns",
     version = "*",
     config = function()
