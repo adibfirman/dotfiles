@@ -11,7 +11,18 @@ return {
       vim.api.nvim_create_autocmd("LspAttach", {
         callback = function(args)
           local bufnr = args.buf
-          require("lsp_signature").on_attach({}, bufnr)
+          require("lsp_signature").on_attach({
+            bind = false,
+            floating_window = false,
+            hint_prefix = {
+              above = "↙ ", -- when the hint is on the line above the current line
+              current = "← ", -- when the hint is on the same line
+              below = "↖ ", -- when the hint is on the line below the current line
+            },
+            handler_opts = {
+              border = "rounded",
+            },
+          }, bufnr)
         end,
       })
     end,
