@@ -17,12 +17,6 @@ return {
     end,
   },
   {
-    "zeioth/garbage-day.nvim",
-    dependencies = "neovim/nvim-lspconfig",
-    event = "VeryLazy",
-    opts = {},
-  },
-  {
     "L3MON4D3/LuaSnip",
     dependencies = { "rafamadriz/friendly-snippets", "saadparwaiz1/cmp_luasnip" },
   },

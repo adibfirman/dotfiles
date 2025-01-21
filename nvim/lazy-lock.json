@@ -7,7 +7,6 @@
   "dressing.nvim": { "branch": "master", "commit": "3a45525bb182730fe462325c99395529308f431e" },
   "friendly-snippets": { "branch": "main", "commit": "efff286dd74c22f731cdec26a70b46e5b203c619" },
   "fzf-lua": { "branch": "main", "commit": "f10843834e79a71c07231b2642170b652c1095f1" },
-  "garbage-day.nvim": { "branch": "main", "commit": "750ef08ae6031ee3683014c5349144340c08ead6" },
   "gitsigns.nvim": { "branch": "main", "commit": "76d88f3b584e1f83b2aa51663a32cc6ee8d97eff" },
   "lazy.nvim": { "branch": "main", "commit": "d8f26efd456190241afd1b0f5235fe6fdba13d4a" },
   "lsp-progress.nvim": { "branch": "main", "commit": "f3df1df8f5ea33d082db047b5d2d2b83cc01cd8a" },
