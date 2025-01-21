@@ -244,6 +244,7 @@ return {
             filetypes = { "lua" },
             format = true,
             capabilities = capabilities,
+            root_dir = get_base_root_dir,
           })
         end,
         ["ts_ls"] = function()
@@ -274,6 +275,7 @@ return {
         ["vuels"] = function()
           lspconfig["vuels"].setup({
             filetypes = { "vue" },
+            capabilities = capabilities,
           })
         end,
       })
