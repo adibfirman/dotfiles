@@ -1,32 +1,15 @@
 return {
   {
-    "nvimdev/dashboard-nvim",
-    event = "VimEnter",
-    opts = function(_, opts)
-      local logo = [[
-        ██████╗ ██╗██████╗ ██╗    ██╗███████╗██████╗ 
-        ██╔══██╗██║██╔══██╗██║    ██║██╔════╝██╔══██╗
-        ██║  ██║██║██████╔╝██║ █╗ ██║█████╗  ██████╔╝
-        ██║  ██║██║██╔══██╗██║███╗██║██╔══╝  ██╔══██╗
-        ██████╔╝██║██████╔╝╚███╔███╔╝███████╗██████╔╝
-        ╚═════╝ ╚═╝╚═════╝  ╚══╝╚══╝ ╚══════╝╚═════╝ 
-    ]]
-
-      logo = string.rep("\n", 8) .. logo .. "\n\n"
-      opts.config.header = vim.split(logo, "\n")
-    end,
-  },
-  {
-    "rcarriga/nvim-notify",
+    "catppuccin/nvim",
+    name = "catppuccin",
+    lazy = false,
+    priority = 1000,
     config = function()
-      require("notify").setup({
-        background_colour = "NotifyBackground",
-        minimum_width = 50,
-        render = "minimal",
-        stages = "slide",
-        top_down = true,
-        timeout = 10000,
+      require("catppuccin").setup({
+        transparent_background = true,
       })
+
+      vim.cmd.colorscheme("catppuccin-frappe")
     end,
   },
 }

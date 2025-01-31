@@ -1,3 +1,4 @@
-# Prerequisite
+FnQ Error
 
-- nvim 10
+1. tree-sitter executable not found
+   > cargo install tree-sitter-cli

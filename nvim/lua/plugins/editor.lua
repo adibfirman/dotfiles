@@ -1,12 +1,154 @@
 return {
   {
-    "ibhagwan/fzf-lua",
-    cmd = "FzfLua",
+    "Bekaboo/dropbar.nvim",
+    lazy = false,
+    priority = 999,
+    config = function()
+      require("dropbar").setup({
+        sources = {
+          lsp = {
+            max_depth = 1,
+          },
+        },
+      })
+    end,
+  },
+  {
+    "echasnovski/mini.hipatterns",
+    version = "*",
+    config = function()
+      local hipatterns = require("mini.hipatterns")
+      hipatterns.setup({
+        highlighters = {
+          fixme = { pattern = "%f[%w]()FIXME()%f[%W]", group = "MiniHipatternsFixme" },
+          hack = { pattern = "%f[%w]()HACK()%f[%W]", group = "MiniHipatternsHack" },
+          todo = { pattern = "%f[%w]()TODO()%f[%W]", group = "MiniHipatternsTodo" },
+          note = { pattern = "%f[%w]()NOTE()%f[%W]", group = "MiniHipatternsNote" },
+          hex_color = hipatterns.gen_highlighter.hex_color(),
+        },
+      })
+    end,
+  },
+  {
+    "echasnovski/mini.pairs",
+    version = "*",
+    config = function()
+      require("mini.pairs").setup()
+    end,
+  },
+  {
+    "echasnovski/mini.diff",
+    version = "*",
+    config = function()
+      require("mini.diff").setup()
+    end,
+  },
+  {
+    "folke/snacks.nvim",
+    lazy = false,
+    priority = 1000,
     opts = {
-      files = {
-        git_icons = false,
+      lazygit = { enabled = true },
+      scope = {},
+      indent = {},
+      zoom = {},
+      dashboard = {
+        width = 72,
+        sections = {
+          {
+            section = "terminal",
+            align = "center",
+            cmd = "curl -s 'https://wttr.in/Jakarta?0'",
+            height = 8,
+            width = 72,
+            padding = 1,
+          },
+          {
+            align = "center",
+            padding = 1,
+            text = {
+              { "  Update ", hl = "Label" },
+              { "  Sessions ", hl = "@property" },
+              { "  Last Session ", hl = "Number" },
+              { "  Files ", hl = "DiagnosticInfo" },
+              { "  Recent ", hl = "@string" },
+            },
+          },
+          { section = "startup", padding = 1 },
+          { icon = "󰏓 ", title = "Projects", section = "projects", indent = 2, padding = 1 },
+          { icon = " ", title = "Recent Files", section = "recent_files", indent = 2, padding = 1 },
+          { text = "", action = ":Lazy update", key = "u" },
+          { text = "", action = ":PersistenceLoadSession", key = "s" },
+          { text = "", action = ":PersistenceLoadLast", key = "l" },
+          { text = "", action = ":Telescope find_files", key = "f" },
+          { text = "", action = ":Telescope oldfiles", key = "r" },
+        },
       },
     },
+  },
+  {
+    "nvim-telescope/telescope-fzf-native.nvim",
+    build = "cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release",
+  },
+  {
+    "nvim-telescope/telescope.nvim",
+    tag = "0.1.8",
+    depedencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-tree/nvim-web-devicons",
+    },
+    config = function()
+      require("telescope").setup({
+        theme = "auto",
+        defaults = {
+          sorting_strategy = "ascending",
+        },
+        pickers = {
+          functions = {
+            theme = "dropdown",
+            previewer = false,
+          },
+        },
+        extensions = {
+          fzf = {
+            fuzzy = true,
+            override_generic_sorter = true,
+            override_file_sorter = true,
+            theme = "auto",
+          },
+        },
+      })
+
+      require("telescope").load_extension("fzf")
+    end,
+  },
+  {
+    "ibhagwan/fzf-lua",
+    cmd = "FzfLua",
+    depedencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-tree/nvim-web-devicons",
+    },
+    config = function(_, opts)
+      if opts[1] == "default-title" then
+        local function fix(t)
+          t.prompt = t.prompt ~= nil and " " or nil
+          for _, v in pairs(t) do
+            if type(v) == "table" then
+              fix(v)
+            end
+          end
+          return t
+        end
+        opts = vim.tbl_deep_extend("force", fix(require("fzf-lua.profiles.default-title")), opts)
+        opts[1] = nil
+      end
+      require("fzf-lua").setup(opts)
+    end,
+  },
+  {
+    "stevearc/dressing.nvim",
+    opts = {},
   },
   {
     "nvim-lualine/lualine.nvim",
@@ -64,9 +206,10 @@ return {
     },
     opts = {
       options = {
-        theme = "edge",
+        theme = "auto",
         component_separators = "",
         section_separators = { right = "", left = "" },
+        globalstatus = true,
       },
       -- ----- reference position ------
       -- +-------------------------------------------------+
@@ -108,144 +251,34 @@ return {
     },
   },
   {
-    "nvim-neo-tree/neo-tree.nvim",
-    branch = "v3.x",
-    cmd = "Neotree",
-    keys = {
-      {
-        "<leader>fe",
-        function()
-          require("neo-tree.command").execute({ toggle = true, dir = LazyVim.root() })
-        end,
-        desc = "Explorer NeoTree (Root Dir)",
-      },
-      {
-        "<leader>fE",
-        function()
-          require("neo-tree.command").execute({ toggle = true, dir = vim.uv.cwd() })
-        end,
-        desc = "Explorer NeoTree (cwd)",
-      },
-      { "<leader>e", "<leader>fe", desc = "Explorer NeoTree (Root Dir)", remap = true },
-      { "<leader>E", "<leader>fE", desc = "Explorer NeoTree (cwd)", remap = true },
-      {
-        "<leader>ge",
-        function()
-          require("neo-tree.command").execute({ source = "git_status", toggle = true })
-        end,
-        desc = "Git Explorer",
-      },
-      {
-        "<leader>be",
-        function()
-          require("neo-tree.command").execute({ source = "buffers", toggle = true })
-        end,
-        desc = "Buffer Explorer",
-      },
+    "stevearc/oil.nvim",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-tree/nvim-web-devicons",
     },
-    deactivate = function()
-      vim.cmd([[Neotree close]])
-    end,
-    init = function()
-      -- FIX: use `autocmd` for lazy-loading neo-tree instead of directly requiring it,
-      -- because `cwd` is not set up properly.
-      vim.api.nvim_create_autocmd("BufEnter", {
-        group = vim.api.nvim_create_augroup("Neotree_start_directory", { clear = true }),
-        desc = "Start Neo-tree with directory",
-        once = true,
-        callback = function()
-          if package.loaded["neo-tree"] then
-            return
-          else
-            local stats = vim.uv.fs_stat(vim.fn.argv(0))
-            if stats and stats.type == "directory" then
-              require("neo-tree")
-            end
-          end
-        end,
+    config = function()
+      require("oil").setup({
+        columns = {
+          "icon",
+          "size",
+          "mtime",
+        },
+        view_options = {
+          show_hidden = true,
+        },
       })
-    end,
-    opts = {
-      sources = { "filesystem", "buffers", "git_status", "document_symbols" },
-      open_files_do_not_replace_types = { "terminal", "Trouble", "trouble", "qf", "Outline" },
-      filesystem = {
-        bind_to_cwd = false,
-        follow_current_file = { enabled = true },
-        use_libuv_file_watcher = true,
-        filtered_items = {
-          visible = true,
-          hide_dotfiles = true,
-          hide_gitignored = true,
-          hide_hidden = true,
-        },
-      },
-      window = {
-        mappings = {
-          ["<space>"] = "none",
-          ["Y"] = {
-            function(state)
-              local node = state.tree:get_node()
-              local path = node:get_id()
-              vim.fn.setreg("+", path, "c")
-            end,
-            desc = "Copy Path to Clipboard",
-          },
-          ["O"] = {
-            function(state)
-              require("lazy.util").open(state.tree:get_node().path, { system = true })
-            end,
-            desc = "Open with System Application",
-          },
-        },
-      },
-      default_component_configs = {
-        indent = {
-          with_expanders = true, -- if nil and file nesting is enabled, will enable expanders
-          expander_collapsed = "",
-          expander_expanded = "",
-          expander_highlight = "NeoTreeExpander",
-        },
-        git_status = {
-          symbols = {
-            added = "",
-            modified = "",
-            deleted = "",
-            renamed = "",
-            untracked = "",
-            ignored = "",
-            unstaged = "",
-            staged = "",
-            conflict = "",
-          },
-        },
-      },
-    },
-    config = function(_, opts)
-      local function on_move(data)
-        LazyVim.lsp.on_rename(data.source, data.destination)
-      end
 
-      local events = require("neo-tree.events")
-      opts.event_handlers = opts.event_handlers or {}
-      vim.list_extend(opts.event_handlers, {
-        { event = events.FILE_MOVED, handler = on_move },
-        { event = events.FILE_RENAMED, handler = on_move },
-        {
-          event = events.FILE_OPEN_REQUESTED,
-          handler = function()
-            require("neo-tree.command").execute({ action = "close" })
-          end,
-        },
-      })
-      require("neo-tree").setup(opts)
-      vim.api.nvim_create_autocmd("TermClose", {
-        pattern = "*lazygit",
-        callback = function()
-          if package.loaded["neo-tree.sources.git_status"] then
-            require("neo-tree.sources.git_status").refresh()
-          end
-        end,
-      })
+      _G.OilCopyFullPath = function()
+        local oil = require("oil")
+        local entry = oil.get_cursor_entry()
+        if entry and entry.name then
+          local full_path = require("oil").get_current_dir() .. entry.name
+          vim.fn.setreg("+", full_path)
+          print("Copied: " .. full_path)
+        else
+          print("No valid file or path selected.")
+        end
+      end
     end,
   },
 }

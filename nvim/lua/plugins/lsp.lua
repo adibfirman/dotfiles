@@ -1,77 +1,180 @@
-local get_root_dir = function(fname)
+local get_base_root_dir = function(fname)
   local util = require("lspconfig.util")
   return util.root_pattern(".git")(fname) or util.root_pattern("package.json", "tsconfig.json")(fname)
 end
 
-local function is_node_16()
-  local function get_node_version()
-    local handle = io.popen("node -v")
-    if not (handle == nil) then
-      local version = handle:read("*a")
-      handle:close()
-      return version
-    end
-  end
-
-  local version = get_node_version()
-  local major_version = tonumber(version:match("v(%d+)"))
-
-  if major_version >= 16 then
-    return true
-  else
-    return false
-  end
-end
-
--- if the repo using lerna or something for monorepo purpose
--- we need to attach the root_dir LSP to the root of repo instead of per service/apps
-local function is_using_monorepo()
-  local lspconfig_util = require("lspconfig.util")
-  local root_files = {
-    "lerna.json",
-  }
-
-  local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
-
-  if not root_dir then
-    return false
-  end
-
-  -- Check each file in the root directory
-  local full_path = lspconfig_util.path.join(root_dir, root_files[1])
-  if vim.fn.filereadable(full_path) == 1 or vim.fn.isdirectory(full_path) == 1 then
-    return true
-  end
-
-  return false
-end
-
--- for now this only used in the project in office that still using vue js
--- will change this root files detection in case there's any new project coming
-local function use_volar_takeover_project_over_ts()
-  local lspconfig_util = require("lspconfig.util")
-  local root_files = {
-    "ttam_creation_mono.code-workspace",
-  }
-
-  local root_dir = lspconfig_util.root_pattern(unpack(root_files))(vim.fn.getcwd())
-
-  if not root_dir then
-    return false
-  end
-
-  -- Check each file in the root directory
-  local full_path = lspconfig_util.path.join(root_dir, root_files[1])
-  if vim.fn.filereadable(full_path) == 1 or vim.fn.isdirectory(full_path) == 1 then
-    return true
-  end
-
-  return false
-end
-
 return {
   {
-    "williamboman/mason.nvim",
+    "ray-x/lsp_signature.nvim",
+    event = "VeryLazy",
+    config = function()
+      vim.api.nvim_create_autocmd("LspAttach", {
+        callback = function(args)
+          local bufnr = args.buf
+          require("lsp_signature").on_attach({
+            bind = false,
+            floating_window = false,
+            hint_prefix = {
+              above = "↙ ", -- when the hint is on the line above the current line
+              current = "← ", -- when the hint is on the same line
+              below = "↖ ", -- when the hint is on the line below the current line
+            },
+            handler_opts = {
+              border = "rounded",
+            },
+          }, bufnr)
+        end,
+      })
+    end,
+  },
+  {
+    "L3MON4D3/LuaSnip",
+    dependencies = { "rafamadriz/friendly-snippets", "saadparwaiz1/cmp_luasnip" },
+  },
+  {
+    "nvimdev/lspsaga.nvim",
+    event = "LspAttach",
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons",
+    },
+    config = function()
+      require("lspsaga").setup({
+        symbol_in_winbar = {
+          enable = false,
+        },
+        lightbulb = {
+          sign = false,
+        },
+      })
+    end,
+  },
+  {
+    "hrsh7th/nvim-cmp",
+    event = { "InsertEnter", "CmdlineEnter" },
+    dependencies = {
+      "onsails/lspkind.nvim",
+      "hrsh7th/cmp-nvim-lsp",
+    },
+    config = function()
+      local cmp = require("cmp")
+      local defaults = require("cmp.config.default")()
+      require("luasnip.loaders.from_vscode").lazy_load()
+
+      cmp.setup({
+        snippet = {
+          expand = function(args)
+            require("luasnip").lsp_expand(args.body)
+            vim.snippet.expand(args.body)
+          end,
+        },
+        window = {
+          completion = {
+            winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+            col_offset = -3,
+            side_padding = 0,
+            autocomplete = false,
+            completeopt = "menu,menuone",
+          },
+          documentation = {
+            winhighlight = "Normal:FloatBorder,FloatBorder:FloatBorder,Search:None",
+          },
+        },
+        formatting = {
+          fields = { "kind", "abbr", "menu" },
+          format = function(entry, vim_item)
+            local kind = require("lspkind").cmp_format({ mode = "symbol_text", maxwidth = 50 })(entry, vim_item)
+            local strings = vim.split(kind.kind, "%s", { trimempty = true })
+            kind.kind = " " .. (strings[1] or "") .. " "
+            kind.menu = "    (" .. (strings[2] or "") .. ")"
+
+            return kind
+          end,
+        },
+        mapping = {
+          ["<Tab>"] = cmp.mapping.select_next_item(),
+          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
+          ["<CR>"] = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true }),
+        },
+        sorting = defaults.sorting,
+        -- the orders below are matters
+        sources = cmp.config.sources({
+          { name = "nvim_lsp" },
+          { name = "nvim_lsp_signature_help" },
+          { name = "path" },
+          { name = "luasnip" },
+        }, { name = "buffer" }),
+      })
+    end,
+  },
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+    event = "VeryLazy",
+    setup = function()
+      require("nvim-treesitter.configs").setup({
+        highlight = { enable = true },
+        indent = { enable = true },
+        auto_install = true,
+      })
+    end,
+  },
+  {
+    "williamboman/mason-lspconfig.nvim",
+    lazy = false,
+    dependencies = {
+      {
+        "williamboman/mason.nvim",
+        cmd = "Mason",
+        build = ":MasonUpdate",
+        opts_extend = { "ensure_installed" },
+        opts = {
+          ensure_installed = {
+            "ast-grep",
+            "eslint-lsp",
+            "harper-ls",
+            "lua-language-server",
+            "luacheck",
+            "luaformatter",
+            "prettier",
+            "stylua",
+            "typescript-language-server",
+            "vue-language-server",
+            "vetur-vls",
+            "json-lsp",
+            "prettierd",
+          },
+        },
+        config = function(_, opts)
+          require("mason").setup(opts)
+          local mr = require("mason-registry")
+
+          mr:on("package:install:success", function()
+            vim.defer_fn(function()
+              require("lazy.core.handler.event").trigger({
+                event = "FileType",
+                buf = vim.api.nvim_get_current_buf(),
+              })
+            end, 100)
+          end)
+
+          -- ensure installed all the package from options "opts.ensure_installed"
+          mr.refresh(function()
+            for _, tool in ipairs(opts.ensure_installed) do
+              local p = mr.get_package(tool)
+              if not p:is_installed() then
+                p:install()
+              end
+            end
+          end)
+        end,
+      },
+    },
+    config = function()
+      require("mason-lspconfig").setup({
+        automatic_installation = true,
+      })
+    end,
   },
   {
     "zapling/mason-lock.nvim",
@@ -82,114 +185,108 @@ return {
     end,
   },
   {
+    "mfussenegger/nvim-lint",
+    config = function()
+      local lint = require("lint")
+      lint.linters_by_ft = {
+        lua = { "luacheck" },
+        javascript = { "eslint" },
+        typescript = { "eslint" },
+        javascriptreact = { "eslint" },
+        typescriptreact = { "eslint" },
+        svelte = { "eslint" },
+        css = { "eslint" },
+        html = { "eslint" },
+        markdown = { "eslint" },
+        graphql = { "eslint" },
+        vue = { "eslint" },
+      }
+
+      local lint_group = vim.api.nvim_create_augroup("list", { clear = true })
+      vim.api.nvim_create_autocmd({ "BufWritePost", "BufRead" }, {
+        group = lint_group,
+        callback = function()
+          require("lint").try_lint(nil, { ignore_errors = true })
+        end,
+      })
+    end,
+  },
+  {
+    "stevearc/conform.nvim",
+    event = { "BufWritePre" },
+    cmd = { "ConformInfo" },
+    config = function()
+      require("conform").setup({
+        formatters_by_ft = {
+          lua = { "stylua" },
+          javascript = { "prettierd", "prettier", stop_after_first = true },
+          typescript = { "prettierd", "prettier", stop_after_first = true },
+          javascriptreact = { "prettierd", "prettier", stop_after_first = true },
+          typescriptreact = { "prettierd", "prettier", stop_after_first = true },
+          svelte = { "prettierd", "prettier", stop_after_first = true },
+          css = { "prettierd", "prettier", stop_after_first = true },
+          html = { "prettierd", "prettier", stop_after_first = true },
+          markdown = { "prettierd", "prettier", stop_after_first = true },
+          graphql = { "prettierd", "prettier", stop_after_first = true },
+          vue = { "prettierd", "prettier", stop_after_first = true },
+        },
+        format_on_save = {
+          async = false,
+          lsp_format = "fallback",
+        },
+      })
+    end,
+  },
+  {
     "neovim/nvim-lspconfig",
     dependencies = {
-      "hrsh7th/cmp-nvim-lsp",
       "williamboman/mason.nvim",
       "williamboman/mason-lspconfig.nvim",
     },
-    config = function(_, opts)
+    config = function()
       local lspconfig = require("lspconfig")
       local mason_lspconfig = require("mason-lspconfig")
       local cmp_nvim_lsp = require("cmp_nvim_lsp")
-
-      LazyVim.format.register(LazyVim.lsp.formatter()) -- setup auto formatter
-      LazyVim.lsp.on_attach(function(client, buffer) -- get the existing keymaps from lazyvim
-        require("lazyvim.plugins.lsp.keymaps").on_attach(client, buffer)
-      end)
-
-      LazyVim.lsp.words.setup(opts.document_highlight)
-
-      -- used to enable autocompletion (assign to every lsp server config)
       local capabilities = cmp_nvim_lsp.default_capabilities()
 
-      -- This will remove buffer permanently if the buffer not longer in the list
-      local function buffer_augroup(group, bufnr, cmds)
-        vim.api.nvim_create_augroup(group, { clear = false })
-        vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
-        for _, cmd in ipairs(cmds) do
-          local event = cmd.event
-          cmd.event = nil
-          vim.api.nvim_create_autocmd(event, vim.tbl_extend("keep", { group = group, buffer = bufnr }, cmd))
-        end
-      end
-
-      -- attach this on lsp server in params "on_attach" for each lsp
-      local function on_attach(client, bufnr)
-        local detach = function()
-          vim.lsp.buf_detach_client(bufnr, client.id)
-        end
-        buffer_augroup("entropitor:lsp:closing", bufnr, {
-          { event = "BufDelete", callback = detach },
-        })
-      end
-
       mason_lspconfig.setup_handlers({
-        -- uncomment this if you want to automatic detect all the server name
-        -- function(server_name)
-        --   lspconfig[server_name].setup({
-        --     capabilities = capabilities,
-        --   })
-        -- end,
-        ["eslint"] = function()
-          lspconfig["eslint"].setup({
-            root_dir = get_root_dir,
-            capabilities = capabilities,
+        ["lua_ls"] = function()
+          lspconfig["lua_ls"].setup({
+            filetypes = { "lua" },
             format = true,
-            on_attach = function(client, bufnr)
-              on_attach(client, bufnr)
-              vim.api.nvim_create_autocmd("BufWritePre", {
-                buffer = bufnr,
-                command = "EslintFixAll",
-              })
-            end,
+            capabilities = capabilities,
+            root_dir = get_base_root_dir,
           })
         end,
         ["ts_ls"] = function()
-          local enabled = not use_volar_takeover_project_over_ts()
+          local data_path = vim.fn.stdpath("data")
+          local vue_lsp_loc = data_path .. "/mason/packages/vue-language-server/node_modules/@vue/language-server"
+          local format = { "javascript", "typescript", "vue", "typescriptreact", "javascriptreact" }
 
-          if is_node_16() == false then
-            -- https://github.com/neovim/nvim-lspconfig/pull/3232
-            lspconfig["ts_ls"].setup({
-              capabilities = capabilities,
-              root_dir = get_root_dir,
-              on_attach = on_attach,
-              enabled = enabled,
-            })
-          end
-        end,
-        ["vtsls"] = function()
-          local enabled = not use_volar_takeover_project_over_ts()
-
-          if is_node_16() then
-            lspconfig["vtsls"].setup({
-              capabilities = capabilities,
-              root_dir = get_root_dir,
-              on_attach = on_attach,
-              enabled = enabled,
-            })
-          end
-        end,
-        ["lua_ls"] = function()
-          lspconfig["lua_ls"].setup({
+          lspconfig["ts_ls"].setup({
             capabilities = capabilities,
-            on_attach = on_attach,
+            root_dir = get_base_root_dir,
+            init_options = {
+              plugins = {
+                {
+                  name = "@vue/typescript-plugin",
+                  location = vue_lsp_loc,
+                  languages = format,
+                },
+              },
+            },
+            filetypes = format,
           })
         end,
         ["jsonls"] = function()
           lspconfig["jsonls"].setup({
             capabilities = capabilities,
-            on_attach = on_attach,
           })
         end,
-        ["volar"] = function()
-          local enabled = use_volar_takeover_project_over_ts()
-
-          lspconfig["volar"].setup({
-            filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue", "json" },
+        ["vuels"] = function()
+          lspconfig["vuels"].setup({
+            filetypes = { "vue" },
             capabilities = capabilities,
-            on_attach = on_attach,
-            enabled = enabled,
           })
         end,
       })
