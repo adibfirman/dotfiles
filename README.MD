@@ -25,8 +25,8 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 - [fd](https://github.com/sharkdp/fd)
 
 ## Installation ⚡
-
-### 1. Clone the repository
 ```bash
 git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
+stow <dot files name>
+```
