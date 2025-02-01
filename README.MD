@@ -10,6 +10,7 @@
 This repository contains my system configurations for:
 - **Editor**: Neovim (Lua config)
 - **Terminal**: Ghostty, Alacritty
+- **Shell**: Zsh, Oh My Zsh, Starship
 
 Designed to work seamlessly on both **macOS** and **Linux**.
 
@@ -17,6 +18,8 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 - Git
 - [Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/CascadiaCode.zip)
 - GNU Stow (`brew install stow` or `yay -S stow`)
+- zsh (`brew install zsh` or `yay -S zsh`)
+- starship (`brew install starship` or `yay -S starship`)
 - Neovim (≥ 0.10.0)
 - lua
 - [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
@@ -30,3 +33,8 @@ git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 stow <folder name>
 ```
+
+## FAQ & Troubleshooting ❓
+### Q1: lazygit not working "exit code xx" inside the neovim
+
+Then, you need to trigger by calling `lazygit` outside the neovim mode.
