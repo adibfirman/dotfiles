@@ -10,7 +10,7 @@
 This repository contains my system configurations for:
 - **Editor**: Neovim (Lua config)
 - **Terminal**: Ghostty, Alacritty
-- **Shell**: Zsh, Oh My Zsh, Starship
+- **Shell**: Oh My Zsh, Starship
 
 Designed to work seamlessly on both **macOS** and **Linux**.
 
