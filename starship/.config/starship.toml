@@ -1,24 +1,10 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
 format = """
-[](surface0)\
-$os\
+\
 $username\
 $directory\
-$git_branch\
-$git_status\
-$c\
-$rust\
-$golang\
-$nodejs\
-$php\
-$java\
-$kotlin\
-$haskell\
-$python\
-$docker_context\
-$time\
-[ ](fg:purple)\
+$all\
 $line_break$character"""
 
 palette = 'catppuccin_mocha'
@@ -63,40 +49,11 @@ base = "#1e1e2e"
 mantle = "#181825"
 crust = "#11111b"
 
-[os]
-disabled = false
-style = "bg:surface0 fg:text"
-
-[os.symbols]
-Windows = "󰍲"
-Ubuntu = "󰕈"
-SUSE = ""
-Raspbian = "󰐿"
-Mint = "󰣭"
-Macos = ""
-Manjaro = ""
-Linux = "󰌽"
-Gentoo = "󰣨"
-Fedora = "󰣛"
-Alpine = ""
-Amazon = ""
-Android = ""
-Arch = "󰣇"
-Artix = "󰣇"
-CentOS = ""
-Debian = "󰣚"
-Redhat = "󱄛"
-RedHatEnterprise = "󱄛"
-
 [username]
 show_always = true
-style_user = "bg:surface0 fg:text"
-style_root = "bg:surface0 fg:text"
-format = '[ $user ]($style)'
+format = "[$user](sky)[ in ](text)"
 
 [directory]
-style = "fg:mantle bg:peach"
-format = "[ $path ]($style)"
 truncation_length = 3
 truncation_symbol = "…/"
 
@@ -108,66 +65,13 @@ truncation_symbol = "…/"
 "Developer" = "󰲋 "
 
 [git_branch]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol $branch ](fg:base bg:green)]($style)'
+disabled = false
 
 [git_status]
-style = "bg:teal"
-format = '[[($all_status$ahead_behind )](fg:base bg:green)]($style)'
-
-[nodejs]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[c]
-symbol = " "
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[rust]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[golang]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[php]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[java]
-symbol = " "
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[kotlin]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[haskell]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[python]
-symbol = ""
-style = "bg:teal"
-format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
-
-[docker_context]
-symbol = ""
-style = "bg:mantle"
-format = '[[ $symbol( $context) ](fg:#83a598 bg:color_bg3)]($style)'
+disabled = false
 
 [time]
-disabled = false
+disabled = true
 time_format = "%R"
 style = "bg:peach"
 format = '[[  $time ](fg:mantle bg:purple)]($style)'
