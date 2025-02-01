@@ -1,3 +1,6 @@
+# init tmux
+if [ "$TMUX" = "" ]; then tmux; fi
+
 # initialise completions with ZSH's compinit
 autoload -Uz compinit && compinit
 
