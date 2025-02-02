@@ -10,7 +10,7 @@
 This repository contains my system configurations for:
 - **Editor**: Neovim (Lua config)
 - **Terminal**: Ghostty, Alacritty
-- **Shell**: Oh My Zsh, Starship
+- **Shell**: Oh My Zsh, Starship, Tmux
 
 Designed to work seamlessly on both **macOS** and **Linux**.
 
@@ -33,6 +33,9 @@ git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 stow <folder name>
 ```
+
+## TMUX Installation
+After you install the `tmux` in your system, don't forget to apply the plugins by running the shell script under the `./tmux` folder
 
 ## FAQ & Troubleshooting ❓
 ### Q1: lazygit not working "exit code xx" inside the neovim
