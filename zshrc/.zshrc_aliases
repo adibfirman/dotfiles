@@ -17,6 +17,19 @@ alias gf="git fetch"
 alias gw="git worktree"
 alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
 
+# usage: kill-port 3000
+kill-port() {
+  lsof -t -i ":$1" | xargs kill;
+}
+
+# usage: git-clean origin
+git-clean() {
+  echo "======== Start clean the untracked git branch ==="
+  git gc --prune=now
+  git remote prune $1
+  echo "======== Finished clean git ====================="
+}
+
 max-node-memory() {
   echo "==== Set node js memory to 8GB ===="
   export NODE_OPTIONS="--max-old-space-size=8192"
