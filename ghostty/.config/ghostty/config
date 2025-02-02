@@ -5,3 +5,4 @@ font-size = 13
 background-opacity = 0.85
 gtk-titlebar = false
 mouse-hide-while-typing = true
+background-blur = true
