@@ -8,6 +8,9 @@ SAVEHIST=50000
 # import aliases
 [ -f ~/.zshrc_aliases ] && source ~/.zshrc_aliases
 
+# import related work file
+[ -f ~/.zshrc_work ] && source ~/.zshrc_work
+
 # initialise completions with ZSH's compinit
 autoload -Uz compinit && compinit
 
