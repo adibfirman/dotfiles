@@ -1,0 +1,24 @@
+
+alias emulator="~/Library/Android/sdk/emulator/emulator"
+alias git-lock-remove-branch="rm -rf .git/logs/refs/**/*.lock"
+alias nvim-clean-swap="rm -rf ~/.local/state/nvim/swap"
+alias rm="rm -i"
+alias npx="pnpx"
+alias rn="react-native"
+alias gs="git status"
+alias add-commit="git add . && git commit -m"
+alias pull="git pull"
+alias gb="git branch"
+alias push="git push"
+alias git-save-auth="git config credential.helper store"
+alias gc="git checkout"
+alias gm="git merge"
+alias gf="git fetch"
+alias gw="git worktree"
+alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
+
+max-node-memory() {
+  echo "==== Set node js memory to 8GB ===="
+  export NODE_OPTIONS="--max-old-space-size=8192"
+  echo "==== Done ===="
+}
