@@ -4,7 +4,7 @@ format = """
 \
 $username\
 $directory\
-$all\
+$all$fill $time\
 $line_break$character"""
 
 palette = 'catppuccin_mocha'
@@ -50,13 +50,20 @@ base = "#1e1e2e"
 mantle = "#181825"
 crust = "#11111b"
 
+[fill]
+symbol = '-'
+style = 'bold lavender'
+
 [username]
+disabled = true
 show_always = true
-format = "[$user](sky)[ in ](text)"
+format = "[adibfirman](sky)[ at ](text)"
 
 [directory]
 truncation_length = 3
 truncation_symbol = "…/"
+format = 'at [$path]($style) '
+home_symbol = "Home"
 
 [directory.substitutions]
 "Documents" = "󰈙 "
@@ -72,10 +79,9 @@ disabled = false
 disabled = false
 
 [time]
-disabled = true
+disabled = false
 time_format = "%R"
-style = "bg:peach"
-format = '[[  $time ](fg:mantle bg:purple)]($style)'
+format = '[ $time](blue)'
 
 [line_break]
 disabled = false
@@ -90,6 +96,7 @@ vimcmd_replace_symbol = '[](bold fg:purple)'
 vimcmd_visual_symbol = '[](bold fg:lavender)'
 
 [gcloud]
+disabled = true
 symbol = '☁️ '
 format = 'on [$symbol$account(@$domain)(\($region\))]($style) '
 style = 'bold sapphire'
