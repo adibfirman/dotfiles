@@ -40,4 +40,4 @@ After you install the `tmux` in your system, don't forget to apply the plugins b
 ## FAQ & Troubleshooting ❓
 ### Q1: lazygit not working "exit code xx" inside the neovim
 
-Then, you need to trigger by calling `lazygit` outside the neovim mode.
+Then, you need to trigger by calling `lazygit` outside the neovim mode then you can reopen the neovim and lazy git will opened like charm
