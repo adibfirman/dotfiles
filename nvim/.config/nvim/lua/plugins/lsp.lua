@@ -132,6 +132,7 @@ return {
           ensure_installed = {
             "ast-grep",
             "eslint-lsp",
+            "quick-lint-js",
             "harper-ls",
             "lua-language-server",
             "luacheck",
@@ -190,16 +191,16 @@ return {
       local lint = require("lint")
       lint.linters_by_ft = {
         lua = { "luacheck" },
-        javascript = { "eslint" },
-        typescript = { "eslint" },
-        javascriptreact = { "eslint" },
-        typescriptreact = { "eslint" },
-        svelte = { "eslint" },
-        css = { "eslint" },
-        html = { "eslint" },
-        markdown = { "eslint" },
-        graphql = { "eslint" },
-        vue = { "eslint" },
+        javascript = { "quick-lint-js" },
+        typescript = { "quick-lint-js" },
+        javascriptreact = { "quick-lint-js" },
+        typescriptreact = { "quick-lint-js" },
+        svelte = { "quick-lint-js" },
+        css = { "quick-lint-js" },
+        html = { "quick-lint-js" },
+        markdown = { "quick-lint-js" },
+        graphql = { "quick-lint-js" },
+        vue = { "quick-lint-js" },
       }
 
       local lint_group = vim.api.nvim_create_augroup("list", { clear = true })
