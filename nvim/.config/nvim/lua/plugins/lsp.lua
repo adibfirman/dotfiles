@@ -39,9 +39,21 @@ return {
         },
         signature = { enabled = true },
         snippets = { preset = "default" },
+        completion = {
+          menu = {
+            auto_show = function(ctx)
+              return ctx.mode ~= "cmdline" or not vim.tbl_contains({ "/", "?" }, vim.fn.getcmdtype())
+            end,
+          },
+        },
         sources = {
           default = { "lsp", "path", "snippets", "buffer" },
-          cmdline = {},
+          min_keyword_length = function(ctx)
+            if ctx.mode == "cmdline" and string.find(ctx.line, " ") == nil then
+              return 3
+            end
+            return 0
+          end,
         },
       })
     end,
