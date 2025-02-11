@@ -5,33 +5,6 @@ end
 
 return {
   {
-    "ray-x/lsp_signature.nvim",
-    event = "VeryLazy",
-    config = function()
-      vim.api.nvim_create_autocmd("LspAttach", {
-        callback = function(args)
-          local bufnr = args.buf
-          require("lsp_signature").on_attach({
-            bind = false,
-            floating_window = false,
-            hint_prefix = {
-              above = "↙ ", -- when the hint is on the line above the current line
-              current = "← ", -- when the hint is on the same line
-              below = "↖ ", -- when the hint is on the line below the current line
-            },
-            handler_opts = {
-              border = "rounded",
-            },
-          }, bufnr)
-        end,
-      })
-    end,
-  },
-  {
-    "L3MON4D3/LuaSnip",
-    dependencies = { "rafamadriz/friendly-snippets", "saadparwaiz1/cmp_luasnip" },
-  },
-  {
     "nvimdev/lspsaga.nvim",
     event = "LspAttach",
     dependencies = {
@@ -50,65 +23,34 @@ return {
     end,
   },
   {
-    "hrsh7th/nvim-cmp",
-    event = { "InsertEnter", "CmdlineEnter" },
+    "saghen/blink.cmp",
     dependencies = {
-      "onsails/lspkind.nvim",
-      "hrsh7th/cmp-nvim-lsp",
+      "rafamadriz/friendly-snippets",
     },
+    version = "*",
     config = function()
-      local cmp = require("cmp")
-      local defaults = require("cmp.config.default")()
-      require("luasnip.loaders.from_vscode").lazy_load()
-
-      cmp.setup({
-        snippet = {
-          expand = function(args)
-            require("luasnip").lsp_expand(args.body)
-            vim.snippet.expand(args.body)
-          end,
+      require("blink.cmp").setup({
+        keymap = {
+          preset = "super-tab",
         },
-        window = {
-          completion = {
-            winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
-            col_offset = -3,
-            side_padding = 0,
-            autocomplete = false,
-            completeopt = "menu,menuone",
-          },
-          documentation = {
-            winhighlight = "Normal:FloatBorder,FloatBorder:FloatBorder,Search:None",
-          },
+        appearance = {
+          use_nvim_cmp_as_default = true,
+          nerd_font_variant = "mono",
         },
-        formatting = {
-          fields = { "kind", "abbr", "menu" },
-          format = function(entry, vim_item)
-            local kind = require("lspkind").cmp_format({ mode = "symbol_text", maxwidth = 50 })(entry, vim_item)
-            local strings = vim.split(kind.kind, "%s", { trimempty = true })
-            kind.kind = " " .. (strings[1] or "") .. " "
-            kind.menu = "    (" .. (strings[2] or "") .. ")"
-
-            return kind
-          end,
+        signature = { enabled = true },
+        snippets = { preset = "default" },
+        sources = {
+          default = { "lsp", "path", "snippets", "buffer" },
+          cmdline = {},
         },
-        mapping = {
-          ["<Tab>"] = cmp.mapping.select_next_item(),
-          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
-          ["<CR>"] = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true }),
-        },
-        sorting = defaults.sorting,
-        -- the orders below are matters
-        sources = cmp.config.sources({
-          { name = "nvim_lsp" },
-          { name = "nvim_lsp_signature_help" },
-          { name = "path" },
-          { name = "luasnip" },
-        }, { name = "buffer" }),
       })
     end,
   },
   {
     "nvim-treesitter/nvim-treesitter",
+    dependencies = {
+      "williamboman/mason.nvim",
+    },
     build = ":TSUpdate",
     event = "VeryLazy",
     setup = function()
@@ -120,56 +62,57 @@ return {
     end,
   },
   {
+    "williamboman/mason.nvim",
+    cmd = "Mason",
+    build = ":MasonUpdate",
+    opts_extend = { "ensure_installed" },
+    opts = {
+      ensure_installed = {
+        "ast-grep",
+        "eslint-lsp",
+        "quick-lint-js",
+        "harper-ls",
+        "lua-language-server",
+        "luacheck",
+        "luaformatter",
+        "prettier",
+        "stylua",
+        "typescript-language-server",
+        "vue-language-server",
+        "vetur-vls",
+        "json-lsp",
+        "prettierd",
+      },
+    },
+    config = function(_, opts)
+      require("mason").setup(opts)
+      local mr = require("mason-registry")
+
+      mr:on("package:install:success", function()
+        vim.defer_fn(function()
+          require("lazy.core.handler.event").trigger({
+            event = "FileType",
+            buf = vim.api.nvim_get_current_buf(),
+          })
+        end, 100)
+      end)
+
+      -- ensure installed all the package from options "opts.ensure_installed"
+      mr.refresh(function()
+        for _, tool in ipairs(opts.ensure_installed) do
+          local p = mr.get_package(tool)
+          if not p:is_installed() then
+            p:install()
+          end
+        end
+      end)
+    end,
+  },
+  {
     "williamboman/mason-lspconfig.nvim",
     lazy = false,
     dependencies = {
-      {
-        "williamboman/mason.nvim",
-        cmd = "Mason",
-        build = ":MasonUpdate",
-        opts_extend = { "ensure_installed" },
-        opts = {
-          ensure_installed = {
-            "ast-grep",
-            "eslint-lsp",
-            "quick-lint-js",
-            "harper-ls",
-            "lua-language-server",
-            "luacheck",
-            "luaformatter",
-            "prettier",
-            "stylua",
-            "typescript-language-server",
-            "vue-language-server",
-            "vetur-vls",
-            "json-lsp",
-            "prettierd",
-          },
-        },
-        config = function(_, opts)
-          require("mason").setup(opts)
-          local mr = require("mason-registry")
-
-          mr:on("package:install:success", function()
-            vim.defer_fn(function()
-              require("lazy.core.handler.event").trigger({
-                event = "FileType",
-                buf = vim.api.nvim_get_current_buf(),
-              })
-            end, 100)
-          end)
-
-          -- ensure installed all the package from options "opts.ensure_installed"
-          mr.refresh(function()
-            for _, tool in ipairs(opts.ensure_installed) do
-              local p = mr.get_package(tool)
-              if not p:is_installed() then
-                p:install()
-              end
-            end
-          end)
-        end,
-      },
+      "williamboman/mason.nvim",
     },
     config = function()
       require("mason-lspconfig").setup({
@@ -179,6 +122,9 @@ return {
   },
   {
     "zapling/mason-lock.nvim",
+    dependencies = {
+      "williamboman/mason.nvim",
+    },
     init = function()
       require("mason-lock").setup({
         lockfile_path = vim.fn.stdpath("config") .. "/mason-lock.json",
@@ -243,12 +189,12 @@ return {
     dependencies = {
       "williamboman/mason.nvim",
       "williamboman/mason-lspconfig.nvim",
+      "saghen/blink.cmp",
     },
     config = function()
       local lspconfig = require("lspconfig")
       local mason_lspconfig = require("mason-lspconfig")
-      local cmp_nvim_lsp = require("cmp_nvim_lsp")
-      local capabilities = cmp_nvim_lsp.default_capabilities()
+      local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       mason_lspconfig.setup_handlers({
         ["lua_ls"] = function()
