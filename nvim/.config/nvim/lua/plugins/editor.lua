@@ -1,5 +1,11 @@
 return {
   {
+    "MagicDuck/grug-far.nvim",
+    config = function()
+      require("grug-far").setup()
+    end,
+  },
+  {
     "echasnovski/mini.ai",
     version = "*",
     config = function()
@@ -101,15 +107,15 @@ return {
     },
   },
   {
-    "nvim-telescope/telescope-fzf-native.nvim",
-    build = "cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release",
-  },
-  {
     "nvim-telescope/telescope.nvim",
     tag = "0.1.8",
-    depedencies = {
+    dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
+      {
+        "nvim-telescope/telescope-fzf-native.nvim",
+        build = "cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release",
+      },
     },
     config = function()
       require("telescope").setup({
@@ -134,30 +140,6 @@ return {
       })
 
       require("telescope").load_extension("fzf")
-    end,
-  },
-  {
-    "ibhagwan/fzf-lua",
-    cmd = "FzfLua",
-    depedencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-tree/nvim-web-devicons",
-    },
-    config = function(_, opts)
-      if opts[1] == "default-title" then
-        local function fix(t)
-          t.prompt = t.prompt ~= nil and " " or nil
-          for _, v in pairs(t) do
-            if type(v) == "table" then
-              fix(v)
-            end
-          end
-          return t
-        end
-        opts = vim.tbl_deep_extend("force", fix(require("fzf-lua.profiles.default-title")), opts)
-        opts[1] = nil
-      end
-      require("fzf-lua").setup(opts)
     end,
   },
   {

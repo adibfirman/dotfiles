@@ -148,7 +148,6 @@ return {
     config = function()
       local lint = require("lint")
       lint.linters_by_ft = {
-        lua = { "luacheck" },
         javascript = { "quick-lint-js" },
         typescript = { "quick-lint-js" },
         javascriptreact = { "quick-lint-js" },
@@ -173,7 +172,9 @@ return {
   {
     "stevearc/conform.nvim",
     event = { "BufWritePre" },
-    cmd = { "ConformInfo" },
+    dependencies = { "mason.nvim" },
+    lazy = true,
+    cmd = "ConformInfo",
     config = function()
       require("conform").setup({
         formatters_by_ft = {

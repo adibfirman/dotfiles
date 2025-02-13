@@ -17,15 +17,17 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 ## Prerequisites 🛠️
 - Git
 - [Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/CascadiaCode.zip)
-- GNU Stow (`brew install stow` or `yay -S stow`)
-- zsh (`brew install zsh` or `yay -S zsh`)
-- starship (`brew install starship` or `yay -S starship`)
-- Neovim (≥ 0.10.0)
+- GNU Stow `brew install stow` or `yay -S stow`
+- ZSH `brew install zsh` or `yay -S zsh`
+- Starship `brew install starship` or `yay -S starship`
+- Neovim ≥ 0.10.0
 - lua
-- [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
-- [lazygit](https://github.com/jesseduffield/lazygit)
+- [FZF](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
+- [Lazygit](https://github.com/jesseduffield/lazygit)
 - [luarocks](https://github.com/luarocks/luarocks)
 - [fd](https://github.com/sharkdp/fd)
+- Ripgrep `brew install ripgrep` or `yay -S ripgrep`
+- Stylua `brew install stylua` or `yay -S stylua`
 
 ## Installation ⚡
 ```bash
