@@ -20,6 +20,7 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 - GNU Stow `brew install stow` or `yay -S stow`
 - ZSH `brew install zsh` or `yay -S zsh`
 - Starship `brew install starship` or `yay -S starship`
+- Tree-sitter `brew install tree-sitter` or `yay -S tree-sitter`
 - Neovim ≥ 0.10.0
 - lua
 - [FZF](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
