@@ -22,8 +22,14 @@ vim.keymap.set(
 vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
 vim.keymap.set(
   "n",
+  "<leader>sb",
+  "lua require('telescope.builtin').current_buffer_fuzzy_find({ sorter = require('telescope.sorters').get_substr_matcher({})})",
+  { desc = "Search in Current Buffer" }
+)
+vim.keymap.set(
+  "n",
   "<leader>ss",
-  "<cmd>Telescope lsp_document_symbols symbols={'method', 'function'}<cr>",
+  "<cmd>Telescope lsp_document_symbols symbols={'method','function'}<cr>",
   { desc = "Goto Symbol" }
 )
 

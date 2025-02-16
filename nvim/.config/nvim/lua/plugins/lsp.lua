@@ -31,7 +31,10 @@ return {
     config = function()
       require("blink.cmp").setup({
         keymap = {
-          preset = "super-tab",
+          preset = "none",
+          ["<S-Tab>"] = { "select_prev", "fallback" },
+          ["<Tab>"] = { "select_next", "fallback" },
+          ["<CR>"] = { "accept", "fallback" },
         },
         appearance = {
           use_nvim_cmp_as_default = true,

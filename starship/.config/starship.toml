@@ -63,14 +63,6 @@ format = "[adibfirman](sky)[ at ](text)"
 truncation_length = 3
 truncation_symbol = "…/"
 format = 'at [$path]($style) '
-home_symbol = "Home"
-
-[directory.substitutions]
-"Documents" = "󰈙 "
-"Downloads" = " "
-"Music" = "󰝚 "
-"Pictures" = " "
-"Developer" = "󰲋 "
 
 [git_branch]
 disabled = false
