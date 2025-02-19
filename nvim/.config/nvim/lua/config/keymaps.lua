@@ -9,19 +9,21 @@ vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc 
 vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer" })
 
 -- files/find
-vim.keymap.set("n", "<leader>ff", "<cmd>Telescope find_files<cr>", { desc = "Telescope find files" })
-vim.keymap.set("n", "<leader>fb", "<cmd>Telescope buffers<cr>", { desc = "Telescope buffers" })
+vim.keymap.set("n", "<leader>ff", "<cmd>FzfLua files<cr>", { desc = "Telescope find files" })
+vim.keymap.set("n", "<leader>fb", "<cmd>FzfLua buffers<cr>", { desc = "Telescope buffers" })
 vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "Copy Current File Path with Oil", remap = true, silent = true })
 
 -- search
 vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
-vim.keymap.set("n", "<leader>sb", "<cmd>lua require('telescope.builtin').current_buffer_fuzzy_find({ sorter = require('telescope.sorters').get_substr_matcher({})})<cr>", { desc = "Search in Current Buffer" })
-vim.keymap.set("n", "<leader>ss", "<cmd>Telescope lsp_document_symbols symbols={'method','function'}<cr>", { desc = "Goto Symbol" })
+vim.keymap.set("n", "<leader>sb", "<cmd>FzfLua grep_curbuf<cr>", { desc = "Buffer" })
+vim.keymap.set("n", "<leader>ss", "<cmd>FzfLua lsp_document_symbols<cr>", { desc = "Goto Symbol" })
+vim.keymap.set("n", "<leader>sd", "<cmd>FzfLua lsp_document_diagnostics<cr>", { desc = "Search buffer diagnostic" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
 vim.keymap.set("n", "gd", "<cmd>Lspsaga goto_definition<cr>", { desc = "Goto Definition" })
 vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<cr>", { desc = "Sneak-peek of type definition" })
+vim.keymap.set("n", "gr", "<cmd>FzfLua lsp_references<cr>", { desc = "Goto References" })
 vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format" })
 vim.keymap.set("n", "<leader>cd", "<cmd>Lspsaga show_line_diagnostics<cr>", { desc = "Line Diagnostic" })
 vim.keymap.set("n", "K", "<cmd>Lspsaga hover_doc<cr>", { desc = "Hover" })

@@ -29,7 +29,7 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 - [fd](https://github.com/sharkdp/fd)
 - Ripgrep `brew install ripgrep` or `yay -S ripgrep`
 - Stylua `brew install stylua` or `yay -S stylua`
-- cmake
+- cmake `brew install cmake` or `yay -S cmake`
 
 ## Installation ⚡
 ```bash

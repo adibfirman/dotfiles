@@ -100,51 +100,32 @@ return {
           { text = "", action = ":Lazy update", key = "u" },
           { text = "", action = ":PersistenceLoadSession", key = "s" },
           { text = "", action = ":PersistenceLoadLast", key = "l" },
-          { text = "", action = ":Telescope find_files", key = "f" },
-          { text = "", action = ":Telescope oldfiles", key = "r" },
         },
       },
     },
   },
   {
-    "nvim-telescope/telescope.nvim",
-    tag = "0.1.8",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
+    "ibhagwan/fzf-lua",
+    cmd = "FzfLua",
+    depedencies = {
       "nvim-tree/nvim-web-devicons",
-      {
-        "nvim-telescope/telescope-fzf-native.nvim",
-        build = "cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release",
-      },
     },
-    config = function()
-      require("telescope").setup({
-        theme = "auto",
-        defaults = {
-          sorting_strategy = "ascending",
-        },
-        pickers = {
-          functions = {
-            theme = "dropdown",
-            previewer = false,
-          },
-        },
-        extensions = {
-          fzf = {
-            fuzzy = true,
-            override_generic_sorter = true,
-            override_file_sorter = true,
-            theme = "auto",
-          },
-        },
-      })
-
-      require("telescope").load_extension("fzf")
+    config = function(_, opts)
+      if opts[1] == "default-title" then
+        local function fix(t)
+          t.prompt = t.prompt ~= nil and " " or nil
+          for _, v in pairs(t) do
+            if type(v) == "table" then
+              fix(v)
+            end
+          end
+          return t
+        end
+        opts = vim.tbl_deep_extend("force", fix(require("fzf-lua.profiles.default-title")), opts)
+        opts[1] = nil
+      end
+      require("fzf-lua").setup(opts)
     end,
-  },
-  {
-    "stevearc/dressing.nvim",
-    opts = {},
   },
   {
     "nvim-lualine/lualine.nvim",
