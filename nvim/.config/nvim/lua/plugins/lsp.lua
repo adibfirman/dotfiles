@@ -48,6 +48,9 @@ return {
               return ctx.mode ~= "cmdline" or not vim.tbl_contains({ "/", "?" }, vim.fn.getcmdtype())
             end,
           },
+          documentation = {
+            auto_show = true,
+          },
         },
         sources = {
           default = { "lsp", "path", "snippets", "buffer" },

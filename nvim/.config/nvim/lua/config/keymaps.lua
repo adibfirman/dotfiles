@@ -11,27 +11,12 @@ vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer
 -- files/find
 vim.keymap.set("n", "<leader>ff", "<cmd>Telescope find_files<cr>", { desc = "Telescope find files" })
 vim.keymap.set("n", "<leader>fb", "<cmd>Telescope buffers<cr>", { desc = "Telescope buffers" })
-vim.keymap.set(
-  "n",
-  "<leader>cp",
-  "<cmd>:lua OilCopyFullPath()<cr>",
-  { desc = "Copy Current File Path with Oil", remap = true, silent = true }
-)
+vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "Copy Current File Path with Oil", remap = true, silent = true })
 
 -- search
 vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
-vim.keymap.set(
-  "n",
-  "<leader>sb",
-  "lua require('telescope.builtin').current_buffer_fuzzy_find({ sorter = require('telescope.sorters').get_substr_matcher({})})",
-  { desc = "Search in Current Buffer" }
-)
-vim.keymap.set(
-  "n",
-  "<leader>ss",
-  "<cmd>Telescope lsp_document_symbols symbols={'method','function'}<cr>",
-  { desc = "Goto Symbol" }
-)
+vim.keymap.set("n", "<leader>sb", "<cmd>lua require('telescope.builtin').current_buffer_fuzzy_find({ sorter = require('telescope.sorters').get_substr_matcher({})})<cr>", { desc = "Search in Current Buffer" })
+vim.keymap.set("n", "<leader>ss", "<cmd>Telescope lsp_document_symbols symbols={'method','function'}<cr>", { desc = "Goto Symbol" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
