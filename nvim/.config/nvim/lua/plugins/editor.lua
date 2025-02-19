@@ -107,8 +107,13 @@ return {
   {
     "ibhagwan/fzf-lua",
     cmd = "FzfLua",
-    depedencies = {
+    dependencies = {
       "nvim-tree/nvim-web-devicons",
+    },
+    opts = {
+      files = {
+        cwd_prompt = false,
+      },
     },
     config = function(_, opts)
       if opts[1] == "default-title" then
