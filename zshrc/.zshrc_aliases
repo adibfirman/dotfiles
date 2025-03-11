@@ -16,6 +16,7 @@ alias gm="git merge"
 alias gf="git fetch"
 alias gw="git worktree"
 alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
+alias git-count-commit="git rev-list --count HEAD ^master"
 
 # usage: kill-port 3000
 kill-port() {
