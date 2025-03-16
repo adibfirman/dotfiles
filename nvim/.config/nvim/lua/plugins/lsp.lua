@@ -53,7 +53,7 @@ return {
           },
         },
         sources = {
-          default = { "lsp", "path", "snippets", "buffer" },
+          default = { "lsp", "path", "snippets", "buffer", "omni", "cmdline" },
           min_keyword_length = function(ctx)
             if ctx.mode == "cmdline" and string.find(ctx.line, " ") == nil then
               return 3
