@@ -51,6 +51,7 @@ mantle = "#181825"
 crust = "#11111b"
 
 [fill]
+disabled = true
 symbol = '-'
 style = 'bold lavender'
 
@@ -71,7 +72,7 @@ disabled = false
 disabled = false
 
 [time]
-disabled = false
+disabled = true
 time_format = "%R"
 format = '[ $time](blue)'
 

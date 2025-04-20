@@ -1,7 +1,6 @@
 theme = catppuccin-mocha
 font-family = CaskaydiaCove Nerd Font
 font-style = SemiBold
-font-size = 13
-background-opacity = 0.95
+font-size = 14
 gtk-titlebar = false
 mouse-hide-while-typing = true
