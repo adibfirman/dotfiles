@@ -7,6 +7,7 @@ return {
     scope = {},
     indent = {},
     zoom = {},
+    notifier = {},
     dashboard = {
       width = 72,
       sections = {
