@@ -1,6 +1,11 @@
-theme = catppuccin-mocha
+theme = kanagawa-wave
 font-family = CaskaydiaCove Nerd Font
 font-style = SemiBold
-font-size = 14
+font-size = 16
+font-feature = "ss01"
+font-feature = "ss02"
+font-feature = "ss03"
+font-feature = "ss04"
+font-feature = "liga"
 gtk-titlebar = false
 mouse-hide-while-typing = true
