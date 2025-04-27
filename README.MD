@@ -14,6 +14,14 @@ This repository contains my system configurations for:
 
 Designed to work seamlessly on both **macOS** and **Linux**.
 
+## Neovim Installation
+```bash
+# Make sure to install cargo first
+# https://github.com/MordechaiHadad/bob
+cargo install bob-nvim
+bob install 0.10.4
+```
+
 ## Prerequisites 🛠️
 - Git
 - [Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/CascadiaCode.zip)
@@ -21,7 +29,6 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 - ZSH `brew install zsh` or `yay -S zsh`
 - Starship `brew install starship` or `yay -S starship`
 - Tree-sitter `brew install tree-sitter` or `yay -S tree-sitter`
-- Neovim ≥ 0.10.0
 - lua
 - [FZF](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
 - [Lazygit](https://github.com/jesseduffield/lazygit)

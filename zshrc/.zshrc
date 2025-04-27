@@ -57,3 +57,5 @@ if [[ $(uname) == 'Darwin' ]]; then
   export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools"
 fi
 
+export PATH=$PATH:~/.cargo/bin
+export PATH=$PATH:~/.local/share/bob/nvim-bin
