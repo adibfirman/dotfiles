@@ -1,4 +1,5 @@
 {
+  "ast-grep": "0.37.0",
   "eslint-lsp": "4.10.0",
   "harper-ls": "v0.20.0",
   "json-lsp": "4.10.0",
@@ -9,7 +10,7 @@
   "prettierd": "0.26.1",
   "quick-lint-js": "3.2.0",
   "stylua": "v2.0.2",
-  "typescript-language-server": "4.3.3",
+  "typescript-language-server": "4.3.4",
   "vetur-vls": "0.8.5",
   "vue-language-server": "2.2.0"
 }
