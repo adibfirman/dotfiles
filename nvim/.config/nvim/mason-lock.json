@@ -1,6 +1,8 @@
 {
   "ast-grep": "0.37.0",
   "astro-language-server": "2.15.4",
+  "css-lsp": "4.10.0",
+  "css-variables-language-server": "2.7.0",
   "eslint-lsp": "4.10.0",
   "harper-ls": "v0.20.0",
   "json-lsp": "4.10.0",
@@ -10,6 +12,7 @@
   "prettier": "3.5.0",
   "prettierd": "0.26.1",
   "quick-lint-js": "3.2.0",
+  "stylelint": "16.19.1",
   "stylua": "v2.0.2",
   "typescript-language-server": "4.3.4",
   "vetur-vls": "0.8.5",
