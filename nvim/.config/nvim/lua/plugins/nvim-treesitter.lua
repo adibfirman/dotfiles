@@ -5,11 +5,45 @@ return {
   },
   build = ":TSUpdate",
   event = "VeryLazy",
-  setup = function()
+  config = function()
     require("nvim-treesitter.configs").setup({
+      ensure_installed = {
+        "bash",
+        "c",
+        "css",
+        "dockerfile",
+        "fish",
+        "html",
+        "java",
+        "javascript",
+        "json",
+        "lua",
+        "luadoc",
+        "luap",
+        "markdown",
+        "markdown_inline",
+        "nix",
+        "python",
+        "query",
+        "regex",
+        "ruby",
+        "rust",
+        "scss",
+        "svelte",
+        "tsx",
+        "typescript",
+        "vim",
+        "vimdoc",
+        "vue",
+        "yaml",
+      },
+      sync_install = true,
       highlight = { enable = true },
       indent = { enable = true },
-      auto_install = true,
+      -- Automatically install missing parsers when entering buffer
+      -- Recommendation: set to false if you don't have `tree-sitter` CLI installed locally
+      auto_install = false,
+      ignore_install = {},
     })
   end,
 }
