@@ -1,5 +1,6 @@
 {
   "ast-grep": "0.37.0",
+  "astro-language-server": "2.15.4",
   "eslint-lsp": "4.10.0",
   "harper-ls": "v0.20.0",
   "json-lsp": "4.10.0",
