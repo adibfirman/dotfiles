@@ -8,6 +8,7 @@ return {
     indent = {},
     zoom = {},
     notifier = {},
+    image = {},
     dashboard = {
       width = 72,
       sections = {
