@@ -15,6 +15,7 @@ return {
         "dockerfile",
         "fish",
         "go",
+        "graphql",
         "html",
         "java",
         "javascript",
