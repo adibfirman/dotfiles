@@ -59,3 +59,4 @@ fi
 
 export PATH=$PATH:~/.cargo/bin
 export PATH=$PATH:~/.local/share/bob/nvim-bin
+export PATH=$PATH:~/go/bin
