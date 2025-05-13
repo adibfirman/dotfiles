@@ -2,6 +2,9 @@ vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
 vim.keymap.set("v", "<", "<gv", { desc = "Better indent to left" })
 vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 
+-- show history of notification
+vim.keymap.set("n", "<leader>nh", "<cmd>:lua Snacks.notifier.show_history()<cr>", { desc = "Show history of notification" })
+
 -- open lazygit UI
 vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazygit" })
 

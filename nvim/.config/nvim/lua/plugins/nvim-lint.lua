@@ -3,16 +3,16 @@ return {
   config = function()
     local lint = require("lint")
     lint.linters_by_ft = {
-      javascript = { "quick-lint-js" },
-      typescript = { "quick-lint-js" },
-      javascriptreact = { "quick-lint-js" },
-      typescriptreact = { "quick-lint-js" },
-      svelte = { "quick-lint-js" },
-      css = { "quick-lint-js" },
-      html = { "quick-lint-js" },
-      markdown = { "quick-lint-js" },
-      graphql = { "quick-lint-js" },
-      vue = { "quick-lint-js" },
+      javascript = { "eslint_d" },
+      typescript = { "eslint_d" },
+      javascriptreact = { "eslint_d" },
+      typescriptreact = { "eslint_d" },
+      svelte = { "eslint_d" },
+      css = { "eslint_d" },
+      html = { "eslint_d" },
+      markdown = { "eslint_d" },
+      graphql = { "eslint_d" },
+      vue = { "eslint_d" },
     }
 
     local lint_group = vim.api.nvim_create_augroup("list", { clear = true })

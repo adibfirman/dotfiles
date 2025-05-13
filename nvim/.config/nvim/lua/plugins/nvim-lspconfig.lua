@@ -16,6 +16,12 @@ return {
     local capabilities = require("blink.cmp").get_lsp_capabilities()
 
     mason_lspconfig.setup_handlers({
+      ["astro"] = function()
+        lspconfig["astro"].setup({
+          filetypes = { "astro" },
+          capabilities = capabilities,
+        })
+      end,
       ["lua_ls"] = function()
         lspconfig["lua_ls"].setup({
           filetypes = { "lua" },
