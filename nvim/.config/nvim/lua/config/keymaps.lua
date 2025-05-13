@@ -20,20 +20,23 @@ vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "C
 vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
 vim.keymap.set("n", "<leader>sb", "<cmd>FzfLua grep_curbuf<cr>", { desc = "Buffer" })
 vim.keymap.set("n", "<leader>ss", "<cmd>FzfLua lsp_document_symbols<cr>", { desc = "Goto Symbol" })
-vim.keymap.set("n", "<leader>sd", "<cmd>FzfLua lsp_document_diagnostics<cr>", { desc = "Search buffer diagnostic" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
 vim.keymap.set("n", "gd", "<cmd>Lspsaga goto_definition<cr>", { desc = "Goto Definition" })
 vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<cr>", { desc = "Sneak-peek of type definition" })
-vim.keymap.set("n", "gr", "<cmd>FzfLua lsp_references<cr>", { desc = "Goto References" })
-vim.keymap.set("n", "grf", "<cmd>Lspsaga finder<cr>", { desc = "Show References by search in directory" })
+vim.keymap.set("n", "gr", "<cmd>Lspsaga finder<cr>", { desc = "Show References by search in directory" })
 vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format" })
+vim.keymap.set("n", "<leader>sd", "<cmd>Lspsaga show_buf_diagnostics<cr>", { desc = "Show the diagnostic over buffer" })
 vim.keymap.set("n", "<leader>cd", "<cmd>Lspsaga show_line_diagnostics<cr>", { desc = "Line Diagnostic" })
 vim.keymap.set("n", "K", "<cmd>Lspsaga hover_doc<cr>", { desc = "Hover" })
 vim.keymap.set("n", "<leader>cr", "<cmd>Lspsaga rename<cr>", { desc = "Rename" })
-vim.keymap.set("n", "]d", "<cmd>Lspsaga diagnostic_jump_next<cr>", { desc = "Jump to the next diagnostic" })
-vim.keymap.set("n", "[d", "<cmd>Lspsaga diagnostic_jump_prev<cr>", { desc = "Jump to the prev diagnostic" })
+vim.keymap.set("n", "]d", function()
+  require("lspsaga.diagnostic"):goto_next({ severity = vim.diagnostic.severity.ERROR })
+end, { desc = "Jump to the next diagnostic" })
+vim.keymap.set("n", "[d", function()
+  require("lspsaga.diagnostic"):goto_prev({ severity = vim.diagnostic.severity.ERROR })
+end, { desc = "Jump to the prev diagnostic" })
 
 -- Windows stuff
 vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to Left Window", remap = true })
