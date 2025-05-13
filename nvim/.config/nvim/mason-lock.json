@@ -1,6 +1,6 @@
 {
   "ast-grep": "0.37.0",
-  "astro-language-server": "2.15.4",
+  "astro-language-server": "1.0.8",
   "css-lsp": "4.10.0",
   "css-variables-language-server": "2.7.0",
   "eslint-lsp": "4.10.0",
