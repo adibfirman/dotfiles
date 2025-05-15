@@ -8,7 +8,7 @@ $all$fill $time\
 $line_break$character"""
 
 palette = 'catppuccin_mocha'
-command_timeout = 1500
+command_timeout = 3000
 
 [palettes.gruvbox_dark]
 color_fg0 = '#fbf1c7'
