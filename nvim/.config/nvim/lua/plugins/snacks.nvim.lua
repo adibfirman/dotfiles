@@ -3,12 +3,11 @@ return {
   lazy = false,
   priority = 1000,
   opts = {
-    lazygit = { enabled = true },
+    lazygit = { enabled = false },
     scope = {},
     indent = {},
     zoom = {},
     notifier = {},
-    image = {},
     dashboard = {
       width = 72,
       sections = {

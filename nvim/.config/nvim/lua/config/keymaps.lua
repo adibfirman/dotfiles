@@ -5,8 +5,8 @@ vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 -- show history of notification
 vim.keymap.set("n", "<leader>nh", "<cmd>:lua Snacks.notifier.show_history()<cr>", { desc = "Show history of notification" })
 
--- open lazygit UI
-vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazygit" })
+-- Git stuff
+vim.keymap.set("n", "<leader>gb", "<cmd>:lua require('gitsigns').blame_line({full = true})<cr>", { desc = "Git Blame Line" })
 
 -- open directory
 vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer" })
@@ -31,12 +31,8 @@ vim.keymap.set("n", "<leader>sd", "<cmd>Lspsaga show_buf_diagnostics<cr>", { des
 vim.keymap.set("n", "<leader>cd", "<cmd>Lspsaga show_line_diagnostics<cr>", { desc = "Line Diagnostic" })
 vim.keymap.set("n", "K", "<cmd>Lspsaga hover_doc<cr>", { desc = "Hover" })
 vim.keymap.set("n", "<leader>cr", "<cmd>Lspsaga rename<cr>", { desc = "Rename" })
-vim.keymap.set("n", "]d", function()
-  require("lspsaga.diagnostic"):goto_next({ severity = vim.diagnostic.severity.ERROR })
-end, { desc = "Jump to the next diagnostic" })
-vim.keymap.set("n", "[d", function()
-  require("lspsaga.diagnostic"):goto_prev({ severity = vim.diagnostic.severity.ERROR })
-end, { desc = "Jump to the prev diagnostic" })
+vim.keymap.set("n", "]d", "<cmd>:lua require('lspsaga.diagnostic'):goto_next({severity = vim.diagnostic.severity.ERROR})<cr>", { desc = "Jump to the next diagnostic" })
+vim.keymap.set("n", "[d", "<cmd>:lua require('lspsaga.diagnostic'):goto_prev({severity = vim.diagnostic.severity.ERROR})<cr>", { desc = "Jump to the next diagnostic" })
 
 -- Windows stuff
 vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to Left Window", remap = true })
