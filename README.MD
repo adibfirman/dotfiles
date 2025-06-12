@@ -31,7 +31,6 @@ bob install 0.10.4
 - Tree-sitter `brew install tree-sitter` or `yay -S tree-sitter`
 - lua
 - [FZF](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
-- [Lazygit](https://github.com/jesseduffield/lazygit)
 - [luarocks](https://github.com/luarocks/luarocks)
 - [fd](https://github.com/sharkdp/fd)
 - Ripgrep `brew install ripgrep` or `yay -S ripgrep`
