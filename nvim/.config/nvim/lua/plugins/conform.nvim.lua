@@ -20,10 +20,16 @@ return {
         typescriptreact = { "prettierd", "prettier", stop_after_first = true },
         vue = { "prettierd", "prettier", stop_after_first = true },
       },
-      format_on_save = {
-        async = false,
-        lsp_format = "fallback",
-      },
+      format_on_save = function(bufnr)
+        if vim.g.disable_autoformat or vim.b[bufnr].disable_autoformat then
+          return
+        end
+
+        return {
+          async = false,
+          lsp_format = "fallback",
+        }
+      end,
     })
   end,
 }
