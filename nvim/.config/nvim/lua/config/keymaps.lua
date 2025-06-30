@@ -6,8 +6,8 @@ vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 vim.keymap.set("n", "<leader>nh", "<cmd>:lua Snacks.notifier.show_history()<cr>", { desc = "Show history of notification" })
 
 -- Git stuff
-vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazygit" })
-vim.keymap.set("n", "<leader>gb", "<cmd>:lua require('gitsigns').blame_line({full = true})<cr>", { desc = "Git Blame Line" })
+vim.keymap.set("n", "<leader>gs", "<cmd>FzfLua git_status<cr>", { desc = "Git Status" })
+vim.keymap.set("n", "<leader>gb", "<cmd>FzfLua git_blame<cr>", { desc = "Git Blame" })
 
 -- open directory
 vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer" })
@@ -19,7 +19,7 @@ vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "C
 
 -- search
 vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
-vim.keymap.set("n", "<leader>sb", "<cmd>FzfLua grep_curbuf<cr>", { desc = "Buffer" })
+vim.keymap.set("n", "<leader>sb", "<cmd>FzfLua grep_curbuf winopts.preview.hidden=true<cr>", { desc = "Buffer" })
 vim.keymap.set("n", "<leader>ss", "<cmd>FzfLua lsp_document_symbols<cr>", { desc = "Goto Symbol" })
 
 -- LSP
