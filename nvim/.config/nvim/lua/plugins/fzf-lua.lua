@@ -21,26 +21,7 @@ return {
     },
     fzf_opts = {
       ["--layout"] = "reverse",
-      ["--info"] = "inline",
-    },
-    git = {
-      status = {
-        prompt = "GitStatus❯ ",
-        header = "󰛢  Press <C-c> to add all and commit\n",
-        actions = {
-          ["ctrl-c"] = function()
-            vim.ui.input({ prompt = "Commit message: " }, function(msg)
-              if msg and msg ~= "" then
-                vim.fn.system("git add .")
-                vim.fn.system({ "git", "commit", "-m", msg })
-                print("✅ Commit success!")
-              else
-                print("❌ Commit cancelled: no message")
-              end
-            end)
-          end,
-        },
-      },
+      -- ["--info"] = "inline",
     },
   },
   config = function(_, opts)
