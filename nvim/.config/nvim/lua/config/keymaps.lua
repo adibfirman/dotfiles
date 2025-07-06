@@ -32,8 +32,8 @@ vim.keymap.set("n", "<leader>sd", "<cmd>Lspsaga show_buf_diagnostics<cr>", { des
 vim.keymap.set("n", "<leader>cd", "<cmd>Lspsaga show_line_diagnostics<cr>", { desc = "Line Diagnostic" })
 vim.keymap.set("n", "K", "<cmd>Lspsaga hover_doc<cr>", { desc = "Hover" })
 vim.keymap.set("n", "<leader>cr", "<cmd>Lspsaga rename<cr>", { desc = "Rename" })
-vim.keymap.set("n", "]d", "<cmd>:lua require('lspsaga.diagnostic'):goto_next({severity = vim.diagnostic.severity.ERROR})<cr>", { desc = "Jump to the next diagnostic" })
-vim.keymap.set("n", "[d", "<cmd>:lua require('lspsaga.diagnostic'):goto_prev({severity = vim.diagnostic.severity.ERROR})<cr>", { desc = "Jump to the next diagnostic" })
+vim.keymap.set("n", "]d", "<cmd>:lua require('lspsaga.diagnostic'):goto_next()<cr>", { desc = "Jump to the next diagnostic" })
+vim.keymap.set("n", "[d", "<cmd>:lua require('lspsaga.diagnostic'):goto_prev()<cr>", { desc = "Jump to the next diagnostic" })
 
 -- Windows stuff
 vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to Left Window", remap = true })
