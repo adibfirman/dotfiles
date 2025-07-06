@@ -6,8 +6,7 @@ vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 vim.keymap.set("n", "<leader>nh", "<cmd>:lua Snacks.notifier.show_history()<cr>", { desc = "Show history of notification" })
 
 -- Git stuff
-vim.keymap.set("n", "<leader>gs", "<cmd>FzfLua git_status<cr>", { desc = "Show Git Status" })
-vim.keymap.set("n", "<leader>gb", "<cmd>FzfLua git_branches<cr>", { desc = "Show Git Branch" })
+vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazy Git" })
 vim.keymap.set("n", "<leader>gbl", "<cmd>FzfLua git_blame<cr>", { desc = "Git Blame", silent = true, remap = true })
 
 -- open directory
