@@ -15,7 +15,7 @@ vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer
 -- files/find
 vim.keymap.set("n", "<leader>ff", "<cmd>FzfLua files<cr>", { desc = "Telescope find files" })
 vim.keymap.set("n", "<leader>fb", "<cmd>FzfLua buffers<cr>", { desc = "Telescope buffers" })
-vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "Copy Current File Path with Oil", remap = true, silent = true })
+vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "Copy Current File Path with Oil", remap = true, silent = true }) -- this function is implemented under the plugins config, check plugins/oil
 
 -- search
 vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
