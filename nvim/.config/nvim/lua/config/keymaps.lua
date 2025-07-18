@@ -2,25 +2,17 @@ vim.keymap.set("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit All" })
 vim.keymap.set("v", "<", "<gv", { desc = "Better indent to left" })
 vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 
--- show history of notification
-vim.keymap.set("n", "<leader>nh", "<cmd>:lua Snacks.notifier.show_history()<cr>", { desc = "Show history of notification" })
+-- notification stuff
+vim.keymap.set("n", "<leader>nh", "<cmd>Notifications<cr>", { desc = "Show history of notification" })
 
 -- Git stuff
 vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "Lazy Git" })
-vim.keymap.set("n", "<leader>gbl", "<cmd>FzfLua git_blame<cr>", { desc = "Git Blame", silent = true, remap = true })
 
 -- open directory
 vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer" })
 
--- files/find
-vim.keymap.set("n", "<leader>ff", "<cmd>FzfLua files<cr>", { desc = "Telescope find files" })
-vim.keymap.set("n", "<leader>fb", "<cmd>FzfLua buffers<cr>", { desc = "Telescope buffers" })
+-- copy path when the during the oil is active
 vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "Copy Current File Path with Oil", remap = true, silent = true }) -- this function is implemented under the plugins config, check plugins/oil
-
--- search
-vim.keymap.set("n", "<leader>sg", "<cmd>GrugFar<cr>", { desc = "Grep (Root Dir)" })
-vim.keymap.set("n", "<leader>sb", "<cmd>FzfLua grep_curbuf winopts.preview.hidden=true<cr>", { desc = "Buffer" })
-vim.keymap.set("n", "<leader>ss", "<cmd>FzfLua lsp_document_symbols<cr>", { desc = "Goto Symbol" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
@@ -48,7 +40,7 @@ vim.keymap.set("n", "<leader>wm", "<cmd>FocusMaximise<cr>", { desc = "Maximize w
 vim.keymap.set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev Buffer" })
 vim.keymap.set("n", "<S-l>", "<cmd>bnext<cr>", { desc = "Next Buffer" })
 vim.keymap.set("n", "<leader>bb", "<cmd>e #<cr>", { desc = "Switch to Other Buffer" })
-vim.keymap.set("n", "<leader>bd", "<cmd>:lua Snacks.bufdelete() <cr>", { desc = "Delete Buffer" })
+vim.keymap.set("n", "<leader>bd", "<cmd>bd<cr>", { desc = "Delete Current Buffer" })
 vim.keymap.set("n", "<leader>bo", "<cmd>:lua Snacks.bufdelete.other() <cr>", { desc = "Delete Other Buffers" })
 vim.keymap.set("n", "<leader>bD", "<cmd>:bd<cr>", { desc = "Delete Buffer and Window" })
 
@@ -58,3 +50,5 @@ vim.keymap.set({ "i", "n", "s" }, "<esc>", function()
   vim.cmd("delm!")
   return "<esc>"
 end, { expr = true, desc = "Escape and Clear hlsearch" })
+
+require("config.keymaps-telescope")
