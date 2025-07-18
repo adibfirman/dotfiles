@@ -7,7 +7,7 @@ return {
   },
   config = function()
     require("lspsaga").setup({
-      lightbulb = { sign = false },
+      lightbulb = { enabled = false },
       symbol_in_winbar = {
         enable = true,
         hide_keyword = true,
