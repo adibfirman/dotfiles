@@ -26,7 +26,6 @@ return {
           use_nvim_cmp_as_default = true,
           nerd_font_variant = "mono",
         },
-        signature = { enabled = true },
         snippets = { preset = "default" },
         completion = {
           menu = {
@@ -36,6 +35,9 @@ return {
           },
           documentation = {
             auto_show = true,
+          },
+          ghost_text = {
+            enabled = true,
           },
         },
         sources = {
