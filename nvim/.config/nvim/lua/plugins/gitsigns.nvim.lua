@@ -1,8 +1,7 @@
 return {
   "lewis6991/gitsigns.nvim",
-  dependencies = {
-    "nvim-lua/plenary.nvim",
-  },
+  dependencies = { "nvim-lua/plenary.nvim" },
+  version = "*",
   config = function()
     require("gitsigns").setup({
       current_line_blame = true,
