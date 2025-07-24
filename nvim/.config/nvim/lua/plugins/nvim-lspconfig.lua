@@ -5,6 +5,7 @@ end
 
 return {
   "neovim/nvim-lspconfig",
+  version = "*",
   dependencies = {
     "williamboman/mason.nvim",
     "williamboman/mason-lspconfig.nvim",
@@ -12,55 +13,48 @@ return {
   },
   config = function()
     local lspconfig = require("lspconfig")
-    local mason_lspconfig = require("mason-lspconfig")
     local capabilities = require("blink.cmp").get_lsp_capabilities()
 
-    mason_lspconfig.setup_handlers({
-      ["astro"] = function()
-        lspconfig["astro"].setup({
-          filetypes = { "astro" },
-          capabilities = capabilities,
-        })
-      end,
-      ["lua_ls"] = function()
-        lspconfig["lua_ls"].setup({
-          filetypes = { "lua" },
-          format = true,
-          capabilities = capabilities,
-          root_dir = get_base_root_dir,
-        })
-      end,
-      ["ts_ls"] = function()
-        local data_path = vim.fn.stdpath("data")
-        local vue_lsp_loc = data_path .. "/mason/packages/vue-language-server/node_modules/@vue/language-server"
-        local format = { "javascript", "typescript", "vue", "typescriptreact", "javascriptreact" }
+    vim.lsp.enable("astro", {
+      filetypes = { "astro" },
+      capabilities = capabilities,
+    })
 
-        lspconfig["ts_ls"].setup({
-          capabilities = capabilities,
-          root_dir = get_base_root_dir,
-          init_options = {
-            plugins = {
-              {
-                name = "@vue/typescript-plugin",
-                location = vue_lsp_loc,
-                languages = format,
-              },
+    vim.lsp.enable("lua_ls", {
+      filetypes = { "lua" },
+      format = true,
+      capabilities = capabilities,
+      root_dir = get_base_root_dir,
+    })
+
+    vim.lsp.enable("ts_ls", function()
+      local data_path = vim.fn.stdpath("data")
+      local vue_lsp_loc = data_path .. "/mason/packages/vue-language-server/node_modules/@vue/language-server"
+      local format = { "javascript", "typescript", "vue", "typescriptreact", "javascriptreact" }
+
+      lspconfig["ts_ls"].setup({
+        capabilities = capabilities,
+        root_dir = get_base_root_dir,
+        init_options = {
+          plugins = {
+            {
+              name = "@vue/typescript-plugin",
+              location = vue_lsp_loc,
+              languages = format,
             },
           },
-          filetypes = format,
-        })
-      end,
-      ["jsonls"] = function()
-        lspconfig["jsonls"].setup({
-          capabilities = capabilities,
-        })
-      end,
-      ["vuels"] = function()
-        lspconfig["vuels"].setup({
-          filetypes = { "vue" },
-          capabilities = capabilities,
-        })
-      end,
+        },
+        filetypes = format,
+      })
+    end)
+
+    vim.lsp.enable("jsonls", {
+      capabilities = capabilities,
+    })
+
+    vim.lsp.enable("vue_ls", {
+      filetypes = { "vue" },
+      capabilities = capabilities,
     })
   end,
 }

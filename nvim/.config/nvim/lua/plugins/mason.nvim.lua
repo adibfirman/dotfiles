@@ -2,6 +2,7 @@ return {
   "williamboman/mason.nvim",
   cmd = "Mason",
   build = ":MasonUpdate",
+  version = "*",
   opts_extend = { "ensure_installed" },
   opts = {
     ensure_installed = {

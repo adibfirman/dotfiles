@@ -19,7 +19,7 @@ Designed to work seamlessly on both **macOS** and **Linux**.
 # Make sure to install cargo first
 # https://github.com/MordechaiHadad/bob
 cargo install bob-nvim
-bob install 0.10.4
+bob install 0.11.2
 ```
 
 ## Prerequisites 🛠️

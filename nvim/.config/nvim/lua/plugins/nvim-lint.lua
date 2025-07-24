@@ -1,5 +1,6 @@
 return {
   "mfussenegger/nvim-lint",
+  branch = "master",
   config = function()
     local lint = require("lint")
     lint.linters_by_ft = {

@@ -1,8 +1,7 @@
 return {
   "stevearc/oil.nvim",
-  dependencies = {
-    "nvim-tree/nvim-web-devicons",
-  },
+  version = "*",
+  dependencies = { "nvim-tree/nvim-web-devicons" },
   config = function()
     require("oil").setup({
       columns = {

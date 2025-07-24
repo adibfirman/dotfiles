@@ -1,10 +1,9 @@
 return {
   "nvim-treesitter/nvim-treesitter",
-  dependencies = {
-    "williamboman/mason.nvim",
-  },
+  dependencies = { "williamboman/mason.nvim" },
   build = ":TSUpdate",
   event = "VeryLazy",
+  branch = "master",
   config = function()
     require("nvim-treesitter.configs").setup({
       ensure_installed = {
