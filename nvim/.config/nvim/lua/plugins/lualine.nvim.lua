@@ -1,6 +1,7 @@
 return {
   "nvim-lualine/lualine.nvim",
   event = "VeryLazy",
+  branch = "master",
   dependencies = {
     "linrongbin16/lsp-progress.nvim",
     config = function()
