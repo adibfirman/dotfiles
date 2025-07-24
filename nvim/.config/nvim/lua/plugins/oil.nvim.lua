@@ -18,6 +18,10 @@ return {
           return vim.tbl_contains(folder_skip, name)
         end,
       },
+      float = {
+        max_width = 0.6,
+        max_height = 0.4,
+      },
     })
 
     _G.OilCopyFullPath = function()
