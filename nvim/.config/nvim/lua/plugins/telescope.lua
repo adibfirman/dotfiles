@@ -15,8 +15,12 @@ return {
 
     require("telescope").setup({
       defaults = {
-        file_ignore_patterns = { "dune.lock", ".git" },
-        sorting_strategy = "ascending",
+        file_ignore_patterns = {
+          "node_modules/",
+          "^.git/",
+          "build/",
+        },
+        winblend = 20,
       },
       pickers = {
         live_grep = {

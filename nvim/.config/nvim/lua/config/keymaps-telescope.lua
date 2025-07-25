@@ -11,6 +11,7 @@ end, { desc = "Grep (Root Dir)" })
 vim.keymap.set("n", "<leader>sb", function()
   builtin.current_buffer_fuzzy_find({
     previewer = false,
+    sorting_strategy = "ascending",
   })
 end, { desc = "Search in the current buffer" })
 

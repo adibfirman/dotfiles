@@ -32,12 +32,13 @@ return {
             return ctx.mode ~= "cmdline" or not vim.tbl_contains({ "/", "?" }, vim.fn.getcmdtype())
           end,
         },
-        documentation = {
-          auto_show = true,
-        },
-        ghost_text = {
-          enabled = true,
-        },
+        documentation = { auto_show = true },
+        ghost_text = { enabled = true },
+      },
+      fuzzy = {
+        implementation = "prefer_rust_with_warning",
+        use_frecency = true,
+        use_proximity = true,
       },
       sources = {
         default = { "lsp", "path", "snippets", "lazydev", "buffer", "omni" },
