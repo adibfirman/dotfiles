@@ -19,10 +19,30 @@ return {
       },
       presets = {
         bottom_search = true,
-        command_palette = true,
         long_message_to_split = true,
         inc_rename = false,
         lsp_doc_border = false,
+        command_palette = {
+          views = {
+            cmdline_popup = {
+              position = {
+                row = "50%",
+                col = "50%",
+              },
+              size = {
+                min_width = 60,
+                width = "auto",
+                height = "auto",
+              },
+            },
+            cmdline_popupmenu = {
+              position = {
+                row = "67%",
+                col = "50%",
+              },
+            },
+          },
+        },
       },
       routes = {
         {
