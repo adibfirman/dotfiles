@@ -32,6 +32,7 @@ bob install 0.11.2
 - lua
 - [FZF](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
 - [Lazygit](https://github.com/jesseduffield/lazygit)
+- [go-version-manager](https://github.com/moovweb/gvm)
 - [luarocks](https://github.com/luarocks/luarocks)
 - [fd](https://github.com/sharkdp/fd)
 - Ripgrep `brew install ripgrep` or `yay -S ripgrep`
