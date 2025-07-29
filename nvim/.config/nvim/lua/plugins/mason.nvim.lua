@@ -20,6 +20,7 @@ return {
       "vetur-vls",
       "json-lsp",
       "prettierd",
+      "gopls",
     },
   },
   config = function(_, opts)

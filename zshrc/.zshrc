@@ -59,4 +59,8 @@ fi
 
 export PATH=$PATH:~/.cargo/bin
 export PATH=$PATH:~/.local/share/bob/nvim-bin
-export PATH=$PATH:~/go/bin
+
+# GoLang Stuff
+export GOPATH="$HOME/go"
+export PATH="$PATH:$GOPATH/bin"
+[[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
