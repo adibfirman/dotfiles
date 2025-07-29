@@ -5,7 +5,7 @@ return {
     local lint = require("lint")
     lint.linters_by_ft = {
       css = { "eslint_d" },
-      go = { "golangci_lint" },
+      go = { "golangcilint" },
       graphql = { "eslint_d" },
       html = { "eslint_d" },
       javascript = { "eslint_d" },
