@@ -10,6 +10,7 @@ return {
       formatters_by_ft = {
         astro = { "prettier", stop_after_first = true },
         css = { "prettierd", "prettier", stop_after_first = true },
+        go = { "goimports", "gofmt" },
         graphql = { "prettierd", "prettier", stop_after_first = true },
         html = { "prettierd", "prettier", stop_after_first = true },
         javascript = { "prettierd", "prettier", stop_after_first = true },

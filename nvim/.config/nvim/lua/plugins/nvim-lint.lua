@@ -4,15 +4,16 @@ return {
   config = function()
     local lint = require("lint")
     lint.linters_by_ft = {
-      javascript = { "eslint_d" },
-      typescript = { "eslint_d" },
-      javascriptreact = { "eslint_d" },
-      typescriptreact = { "eslint_d" },
-      svelte = { "eslint_d" },
       css = { "eslint_d" },
-      html = { "eslint_d" },
-      markdown = { "eslint_d" },
+      go = { "golangci_lint" },
       graphql = { "eslint_d" },
+      html = { "eslint_d" },
+      javascript = { "eslint_d" },
+      javascriptreact = { "eslint_d" },
+      markdown = { "eslint_d" },
+      svelte = { "eslint_d" },
+      typescript = { "eslint_d" },
+      typescriptreact = { "eslint_d" },
       vue = { "eslint_d" },
     }
 
