@@ -9,6 +9,9 @@ return {
             separator = " 󰿟 ",
           },
         },
+        kinds = {
+          dir_icon = "",
+        },
       },
       sources = {
         treesitter = {
