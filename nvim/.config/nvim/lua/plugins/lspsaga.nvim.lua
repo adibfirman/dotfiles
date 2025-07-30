@@ -13,8 +13,7 @@ return {
         sign = false,
       },
       symbol_in_winbar = {
-        enable = true,
-        hide_keyword = true,
+        enable = false,
       },
     })
   end,
