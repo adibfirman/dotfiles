@@ -1,7 +1,3 @@
-require("config.configs")
+require("config.options")
 require("config.lazy")
 require("config.keymaps")
-
-vim.diagnostic.config({
-  virtual_text = true,
-})

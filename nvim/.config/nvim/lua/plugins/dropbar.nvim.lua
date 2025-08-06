@@ -1,6 +1,6 @@
 return {
   "Bekaboo/dropbar.nvim",
-  tags = "*",
+  version = "*",
   config = function()
     require("dropbar").setup({
       icons = {

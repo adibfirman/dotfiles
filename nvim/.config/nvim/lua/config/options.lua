@@ -35,6 +35,11 @@ vim.wo.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 
 vim.g.edge_enable_italic = true
 
+-- Enable virtual text error inline on each buffer
+vim.diagnostic.config({
+  virtual_text = true,
+})
+
 local opt = vim.opt
 
 opt.autowrite = true -- Enable auto write
@@ -97,6 +102,7 @@ opt.wildmode = "longest:full,full" -- Command-line completion mode
 opt.winminwidth = 5 -- Minimum window width
 opt.wrap = false -- Disable line wrap
 opt.smoothscroll = true
+opt.winborder = "rounded"
 
 -- Fix markdown indentation settings
 vim.g.markdown_recommended_style = 0
