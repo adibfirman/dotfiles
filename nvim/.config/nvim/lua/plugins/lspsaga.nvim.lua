@@ -11,6 +11,7 @@ return {
       lightbulb = {
         enabled = false,
         sign = false,
+        virtual_text = false,
       },
       symbol_in_winbar = {
         enable = false,

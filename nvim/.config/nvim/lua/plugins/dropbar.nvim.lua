@@ -6,7 +6,7 @@ return {
       icons = {
         ui = {
           bar = {
-            separator = " 󰿟 ",
+            separator = " ",
           },
         },
         kinds = {

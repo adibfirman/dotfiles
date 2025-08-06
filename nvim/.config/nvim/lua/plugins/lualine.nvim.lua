@@ -1,48 +1,64 @@
 return {
   "nvim-lualine/lualine.nvim",
+  dependencies = { "nvim-tree/nvim-web-devicons" },
   event = "VeryLazy",
-  branch = "master",
-  opts = {
-    options = {
-      theme = "auto",
-      component_separators = "",
-      section_separators = { right = "", left = "" },
-      globalstatus = true,
-    },
+  config = function()
     -- ----- reference position ------
     -- +-------------------------------------------------+
     -- | A | B | C                             X | Y | Z |
     -- +-------------------------------------------------+
-    sections = {
-      lualine_a = {
-        {
-          "mode",
-          separator = { right = "" },
-          padding = { left = 1 },
-          fmt = function(res)
-            return res:sub(1, 1)
-          end,
+
+    require("lualine").setup({
+      options = {
+        theme = "nord",
+        component_separators = "",
+        section_separators = { left = "", right = "" },
+        disabled_filetypes = { "alpha", "Outline" },
+      },
+      sections = {
+        lualine_a = {
+          { "mode", separator = { left = " ", right = "" }, icon = "" },
+        },
+        lualine_b = {
+          {
+            "filetype",
+            icon_only = true,
+            padding = { left = 1, right = 0 },
+          },
+          "filename",
+        },
+        lualine_c = {
+          {
+            "branch",
+            icon = "",
+          },
+          {
+            "diff",
+            symbols = { added = " ", modified = " ", removed = " " },
+            colored = false,
+          },
+        },
+        lualine_x = {
+          {
+            "diagnostics",
+            symbols = { error = " ", warn = " ", info = " ", hint = " " },
+            update_in_insert = true,
+          },
+        },
+        lualine_y = { "lsp_status" },
+        lualine_z = {
+          { "location", separator = { left = "", right = " " }, icon = "" },
         },
       },
-      lualine_b = { "branch" },
-      lualine_c = {
-        "diff",
-        "diagnostic",
+      inactive_sections = {
+        lualine_a = { "filename" },
+        lualine_b = {},
+        lualine_c = {},
+        lualine_x = {},
+        lualine_y = {},
+        lualine_z = { "location" },
       },
-      lualine_x = {
-        {
-          "lsp_status",
-          separator = { left = "" },
-          color = { bg = "#414550" },
-        },
-      },
-      lualine_y = { "filetype", "progress" },
-      lualine_z = {
-        { "location", padding = { right = 1 } },
-      },
-    },
-    tabline = {},
-    winbar = {},
-    extensions = {},
-  },
+      extensions = { "toggleterm", "trouble" },
+    })
+  end,
 }
