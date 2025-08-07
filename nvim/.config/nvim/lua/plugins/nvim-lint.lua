@@ -8,7 +8,7 @@ return {
       args = {
         "run",
         "--output.json.path=stdout",
-        -- Overwrite values possibly set in .golangci.yml
+        -- Overwrite values possibly set in ".golangci.yml" file
         "--output.text.path=",
         "--output.tab.path=",
         "--output.html.path=",
@@ -26,17 +26,17 @@ return {
     }
 
     lint.linters_by_ft = {
-      css = { "eslint_d" },
+      css = { "quick-lint-js" },
       go = { "golangcilint" },
-      graphql = { "eslint_d" },
-      html = { "eslint_d" },
-      javascript = { "eslint_d" },
-      javascriptreact = { "eslint_d" },
-      markdown = { "eslint_d" },
-      svelte = { "eslint_d" },
-      typescript = { "eslint_d" },
-      typescriptreact = { "eslint_d" },
-      vue = { "eslint_d" },
+      graphql = { "quick-lint-js" },
+      html = { "quick-lint-js" },
+      javascript = { "quick-lint-js" },
+      javascriptreact = { "quick-lint-js" },
+      markdown = { "quick-lint-js" },
+      svelte = { "quick-lint-js" },
+      typescript = { "quick-lint-js" },
+      typescriptreact = { "quick-lint-js" },
+      vue = { "quick-lint-js" },
     }
 
     local lint_group = vim.api.nvim_create_augroup("list", { clear = true })

@@ -8,7 +8,7 @@
   "goimports": "v0.35.0",
   "golangci-lint": "v2.3.0",
   "gopls": "v0.20.0",
-  "harper-ls": "v0.20.0",
+  "harper-ls": "v0.56.0",
   "json-lsp": "4.10.0",
   "lua-language-server": "3.13.6",
   "luacheck": "1.1.0",
