@@ -32,6 +32,7 @@ return {
       html = { "quick-lint-js" },
       javascript = { "quick-lint-js" },
       javascriptreact = { "quick-lint-js" },
+      lua = { "luacheck" },
       markdown = { "quick-lint-js" },
       svelte = { "quick-lint-js" },
       typescript = { "quick-lint-js" },
