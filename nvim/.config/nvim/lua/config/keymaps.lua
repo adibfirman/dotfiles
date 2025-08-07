@@ -8,12 +8,6 @@ vim.keymap.set("n", "<leader>nh", "<cmd>Notifications<cr>", { desc = "Show histo
 -- Git stuff
 vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "Lazy Git" })
 
--- open directory
-vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer" })
-
--- copy path when the during the oil is active
-vim.keymap.set("n", "<leader>cp", "<cmd>:lua OilCopyFullPath()<cr>", { desc = "Copy Current File Path with Oil", remap = true, silent = true }) -- this function is implemented under the plugins config, check plugins/oil
-
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
 vim.keymap.set("n", "gd", "<cmd>Lspsaga goto_definition<cr>", { desc = "Goto Definition" })
@@ -52,3 +46,4 @@ vim.keymap.set({ "i", "n", "s" }, "<esc>", function()
 end, { expr = true, desc = "Escape and Clear hlsearch" })
 
 require("config.keymaps-telescope")
+require("config.keymaps-directory")
