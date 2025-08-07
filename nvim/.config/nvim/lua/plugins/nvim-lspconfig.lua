@@ -13,12 +13,23 @@ return {
       capabilities = capabilities,
     })
 
-    vim.lsp.enable("astro")
-    vim.lsp.enable("jsonls")
-    vim.lsp.enable("lua_ls")
-    vim.lsp.enable("ts_ls")
-    vim.lsp.enable("vtsls")
-    vim.lsp.enable("vue_ls")
-    vim.lsp.enable("gopls")
+    local list_lsp = {
+      "astro",
+      "css_variables",
+      "cssls",
+      "eslint",
+      "gopls",
+      "harper_ls",
+      "jsonls",
+      "lua_ls",
+      "quick_lint_js",
+      "ts_ls",
+      "vtsls",
+      "vue_ls",
+    }
+
+    for _, v in ipairs(list_lsp) do
+      vim.lsp.enable(v)
+    end
   end,
 }
