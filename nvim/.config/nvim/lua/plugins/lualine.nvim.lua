@@ -3,14 +3,15 @@ return {
   dependencies = { "nvim-tree/nvim-web-devicons" },
   event = "VeryLazy",
   config = function()
+    vim.api.nvim_set_hl(0, "StatusLine", { bg = nil })
+
     -- ----- reference position ------
     -- +-------------------------------------------------+
     -- | A | B | C                             X | Y | Z |
     -- +-------------------------------------------------+
-
     require("lualine").setup({
       options = {
-        theme = "nord",
+        theme = "iceberg_dark",
         component_separators = "",
         section_separators = { left = "", right = "" },
         disabled_filetypes = { "alpha", "Outline" },
@@ -20,11 +21,11 @@ return {
           { "mode", separator = { left = " ", right = "" }, icon = "" },
         },
         lualine_b = {
-          {
-            "filetype",
-            icon_only = true,
-            padding = { left = 1, right = 0 },
-          },
+          -- {
+          --   "filetype",
+          --   icon_only = true,
+          --   padding = { left = 1, right = 0 },
+          -- },
           "filename",
         },
         lualine_c = {
