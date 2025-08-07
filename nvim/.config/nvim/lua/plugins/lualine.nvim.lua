@@ -21,11 +21,6 @@ return {
           { "mode", separator = { left = " ", right = "" }, icon = "" },
         },
         lualine_b = {
-          -- {
-          --   "filetype",
-          --   icon_only = true,
-          --   padding = { left = 1, right = 0 },
-          -- },
           "filename",
         },
         lualine_c = {
