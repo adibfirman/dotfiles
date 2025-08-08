@@ -26,14 +26,17 @@ return {
     }
 
     lint.linters_by_ft = {
-      css = { "quick-lint-js" },
+      css = { "stylelint" },
       go = { "golangcilint" },
       graphql = { "quick-lint-js" },
       html = { "quick-lint-js" },
       javascript = { "quick-lint-js" },
       javascriptreact = { "quick-lint-js" },
+      less = { "stylelint" },
       lua = { "luacheck" },
       markdown = { "quick-lint-js" },
+      sass = { "stylelint" },
+      scss = { "stylelint" },
       svelte = { "quick-lint-js" },
       typescript = { "quick-lint-js" },
       typescriptreact = { "quick-lint-js" },

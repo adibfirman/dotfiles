@@ -7,6 +7,9 @@ return {
   opts = {
     ensure_installed = {
       "ast-grep",
+      "astro-language-server",
+      "css-lsp",
+      "css-variables-language-server",
       "eslint-lsp",
       "gofumpt",
       "goimports",
@@ -20,6 +23,8 @@ return {
       "prettier",
       "prettierd",
       "quick-lint-js",
+      "stylelint",
+      "stylelint-lsp",
       "stylua",
       "typescript-language-server",
       "vetur-vls",
@@ -39,7 +44,7 @@ return {
       end, 100)
     end)
 
-    -- ensure installed all the package from options "opts.ensure_installed"
+    -- Ensure installed all the package from options "opts.ensure_installed"
     mr.refresh(function()
       for _, tool in ipairs(opts.ensure_installed) do
         local p = mr.get_package(tool)

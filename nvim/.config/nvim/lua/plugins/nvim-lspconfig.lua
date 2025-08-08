@@ -23,6 +23,7 @@ return {
       "jsonls",
       "lua_ls",
       "quick_lint_js",
+      "stylelint_lsp",
       "ts_ls",
       "vtsls",
       "vue_ls",
