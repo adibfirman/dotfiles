@@ -33,7 +33,7 @@ return {
         return {
           async = false,
           lsp_format = "fallback",
-          timeout_ms = 500,
+          timeout_ms = 3000,
         }
       end,
     })
