@@ -15,6 +15,7 @@ return {
 
     local list_lsp = {
       "astro",
+      "biome",
       "css_variables",
       "cssls",
       "eslint",

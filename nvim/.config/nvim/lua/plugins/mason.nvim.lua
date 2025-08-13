@@ -8,6 +8,7 @@ return {
     ensure_installed = {
       "ast-grep",
       "astro-language-server",
+      "biome",
       "css-lsp",
       "css-variables-language-server",
       "eslint-lsp",
