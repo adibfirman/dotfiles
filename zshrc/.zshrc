@@ -64,3 +64,11 @@ export PATH=$PATH:~/.local/share/bob/nvim-bin
 export GOPATH="$HOME/go"
 export PATH="$PATH:$GOPATH/bin"
 [[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
+
+# pnpm
+export PNPM_HOME="$HOME/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
