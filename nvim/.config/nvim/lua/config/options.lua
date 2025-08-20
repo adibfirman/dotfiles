@@ -42,7 +42,6 @@ vim.diagnostic.config({
 
 local opt = vim.opt
 
-opt.autoread = true -- Enable auto sync buffer when the file changes in other env
 opt.autowrite = true -- Enable auto write
 -- only set clipboard if not in ssh, to make sure the OSC 52
 -- integration works automatically. Requires Neovim >= 0.10.0
@@ -75,9 +74,9 @@ opt.mouse = "a" -- Enable mouse mode
 opt.number = true -- Print line number
 opt.pumblend = 10 -- Popup blend
 opt.pumheight = 10 -- Maximum number of entries in a popup
-opt.relativenumber = false -- Relative line numbers
+opt.relativenumber = true -- Relative line numbers
 -- if options "relativenumber" is "true" then, uncomment below options
--- opt.statuscolumn = '%C%s%{%v:lnum!=line(".")?"%=".v:relnum." ":v:lnum%}'
+opt.statuscolumn = '%C%s%{%v:lnum!=line(".")?"%=".v:relnum." ":v:lnum%}'
 opt.ruler = false -- Disable the default ruler
 opt.scrolloff = 4 -- Lines of context
 opt.sessionoptions = { "buffers", "curdir", "tabpages", "winsize", "help", "globals", "skiprtp", "folds" }
