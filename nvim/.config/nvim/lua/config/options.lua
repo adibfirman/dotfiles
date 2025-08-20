@@ -42,6 +42,7 @@ vim.diagnostic.config({
 
 local opt = vim.opt
 
+opt.autoread = true -- Enable auto sync buffer when the file changes in other env
 opt.autowrite = true -- Enable auto write
 -- only set clipboard if not in ssh, to make sure the OSC 52
 -- integration works automatically. Requires Neovim >= 0.10.0
