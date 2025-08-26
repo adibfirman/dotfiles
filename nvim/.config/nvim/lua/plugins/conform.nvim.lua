@@ -13,7 +13,7 @@ return {
         sass = { "prettierd", "prettier", stop_after_first = true },
         scss = { "prettierd", "prettier", stop_after_first = true },
         less = { "prettierd", "prettier", stop_after_first = true },
-        go = { "goimports", "gofmt" },
+        go = { "golangci-lint" },
         graphql = { "prettierd", "prettier", stop_after_first = true },
         html = { "prettierd", "prettier", stop_after_first = true },
         javascript = { "prettierd", "prettier", stop_after_first = true },
