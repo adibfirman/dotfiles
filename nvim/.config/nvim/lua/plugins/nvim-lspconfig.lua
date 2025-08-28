@@ -22,6 +22,7 @@ return {
       "gopls",
       "jsonls",
       "lua_ls",
+      "tailwindcss",
       "ts_ls",
       "vtsls",
       "vue_ls",

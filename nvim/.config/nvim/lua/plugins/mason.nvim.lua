@@ -23,6 +23,7 @@ return {
       "prettier",
       "prettierd",
       "stylua",
+      "tailwindcss-language-server",
       "typescript-language-server",
       "vetur-vls",
       "vue-language-server",
