@@ -3,7 +3,7 @@ theme = kanagawa-wave
 # Font configuration
 font-family = CaskaydiaCove Nerd Font
 font-style = SemiBold
-font-size = 9
+font-size = 12
 font-feature = "ss01"
 font-feature = "ss02"
 font-feature = "ss03"
@@ -11,10 +11,10 @@ font-feature = "ss04"
 font-feature = "liga"
 
 # Window settings
-window-padding-x = 8
-window-padding-y = 8
+# window-padding-x = 8
+# window-padding-y = 8
 window-decoration = false
-background-opacity = 0.98
+# background-opacity = 0.98
 gtk-titlebar = false
 mouse-hide-while-typing = true
 
