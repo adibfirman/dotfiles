@@ -76,7 +76,8 @@ opt.pumblend = 10 -- Popup blend
 opt.pumheight = 10 -- Maximum number of entries in a popup
 opt.relativenumber = true -- Relative line numbers
 -- if options "relativenumber" is "true" then, uncomment below options
-opt.statuscolumn = '%C%s%{%v:lnum!=line(".")?"%=".v:relnum." ":v:lnum%}'
+-- opt.statuscolumn = '%C%s%{%v:lnum!=line(".")?"%=".v:relnum." ":v:lnum%}'
+opt.statuscolumn = [[%!v:lua.require'snacks.statuscolumn'.get()]]
 opt.ruler = false -- Disable the default ruler
 opt.scrolloff = 4 -- Lines of context
 opt.sessionoptions = { "buffers", "curdir", "tabpages", "winsize", "help", "globals", "skiprtp", "folds" }

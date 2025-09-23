@@ -6,7 +6,7 @@ vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 vim.keymap.set("n", "<leader>nh", "<cmd>Notifications<cr>", { desc = "Show history of notification" })
 
 -- Git stuff
-vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "Lazy Git" })
+vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazy Git" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
@@ -29,6 +29,9 @@ vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Go to Right Window", remap = tr
 vim.keymap.set("n", "<leader>wo", "<C-w>o", { desc = "Delete others split window", remap = true, silent = true })
 vim.keymap.set("n", "<leader>wd", "<C-W>c", { desc = "Delete Window", remap = true })
 vim.keymap.set("n", "<leader>wm", "<cmd>FocusMaximise<cr>", { desc = "Maximize window for focus", remap = true })
+
+-- find and replace
+vim.keymap.set("n", "<leader>sr", "<cmd>GrugFar<cr>", { desc = "Find and Replace" })
 
 -- buffers
 vim.keymap.set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev Buffer" })

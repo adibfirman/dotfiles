@@ -15,7 +15,7 @@ local function confirm_quit_oil()
   else
     -- First press: set pending and show message
     oil_quit_pending = true
-    vim.notify("Press 'q' again to quit Oil", vim.log.levels.INFO)
+    vim.notify("Press 'q' again to quit", vim.log.levels.INFO)
 
     -- Reset after 1.5 seconds
     oil_quit_timer = vim.loop.new_timer()
@@ -78,7 +78,7 @@ vim.api.nvim_create_autocmd("FileType", {
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "oil",
   callback = function()
-    vim.keymap.set("n", "<leader>ge", open_dir_in_file_manager, {
+    vim.keymap.set("n", "<leader>o", open_dir_in_file_manager, {
       buffer = true,
       desc = "Open current dir in system file manager",
     })
