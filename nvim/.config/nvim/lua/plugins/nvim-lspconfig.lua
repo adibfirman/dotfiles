@@ -22,14 +22,16 @@ return {
       "gopls",
       "jsonls",
       "lua_ls",
+      "marksman",
+      "mdx_analyzer",
       "tailwindcss",
       "ts_ls",
       "vtsls",
       "vue_ls",
     }
 
-    for _, v in ipairs(list_lsp) do
-      vim.lsp.enable(v)
+    for _, lsp in ipairs(list_lsp) do
+      vim.lsp.enable(lsp)
     end
   end,
 }

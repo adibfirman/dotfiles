@@ -6,7 +6,24 @@ vim.keymap.set("v", ">", ">gv", { desc = "Better indent to right" })
 vim.keymap.set("n", "<leader>nh", "<cmd>Notifications<cr>", { desc = "Show history of notification" })
 
 -- Git stuff
-vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazy Git" })
+-- vim.keymap.set("n", "<leader>gg", "<cmd>:lua Snacks.lazygit.open()<cr>", { desc = "Lazy Git" })
+vim.keymap.set("n", "<leader>gg", function()
+  local buf_path = vim.api.nvim_buf_get_name(0)
+  if buf_path == "" then
+    buf_path = vim.loop.cwd() -- fallback if buffer has no name
+  end
+  local dir = vim.fn.fnamemodify(buf_path, ":p:h")
+
+  -- ask git for the root of this directory
+  local git_root = vim.fn.systemlist("git -C " .. vim.fn.shellescape(dir) .. " rev-parse --show-toplevel")[1]
+
+  -- fallback: if not a git repo, just use buffer dir to open it
+  if git_root == nil or git_root == "" then
+    git_root = dir
+  end
+
+  require("snacks").lazygit({ cwd = git_root })
+end, { desc = "Lazygit (git root of buffer)" })
 
 -- LSP
 vim.keymap.set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })

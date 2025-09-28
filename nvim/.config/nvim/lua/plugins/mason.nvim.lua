@@ -20,6 +20,8 @@ return {
       "lua-language-server",
       "luacheck",
       "luaformatter",
+      "marksman",
+      "mdx-analyzer",
       "prettier",
       "prettierd",
       "stylua",
