@@ -1,4 +1,5 @@
 -- Inside your Neovim config
+local initial_cwd = vim.fn.getcwd()
 local oil_quit_timer = nil
 local oil_quit_pending = false
 
@@ -33,7 +34,7 @@ local copy_full_path = function()
   local entry = oil.get_cursor_entry()
 
   if entry and entry.name then
-    local full_path = require("oil").get_current_dir() .. entry.name
+    local full_path = vim.fn.fnamemodify(require("oil").get_current_dir() .. entry.name, ":p"):gsub("^" .. vim.pesc(initial_cwd .. "/"), "")
     vim.fn.setreg("+", full_path)
     vim.notify("Path Copied: " .. full_path)
   else
