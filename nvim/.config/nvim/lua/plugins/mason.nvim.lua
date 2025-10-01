@@ -11,6 +11,8 @@ return {
       "biome",
       "css-lsp",
       "css-variables-language-server",
+      "docker-compose-language-service",
+      "docker-language-server",
       "eslint-lsp",
       "gofumpt",
       "goimports",

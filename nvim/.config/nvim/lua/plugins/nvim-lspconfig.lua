@@ -17,6 +17,8 @@ return {
       "biome",
       "css_variables",
       "cssls",
+      "docker_compose_language_service",
+      "docker_language_server",
       "eslint",
       "golangci_lint_ls",
       "gopls",
