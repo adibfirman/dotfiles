@@ -15,6 +15,7 @@ return {
         component_separators = "",
         section_separators = { left = "", right = "" },
         disabled_filetypes = { "alpha", "Outline" },
+        globalstatus = true,
       },
       sections = {
         lualine_a = {
