@@ -96,3 +96,20 @@ vim.api.nvim_create_autocmd("FileType", {
     })
   end,
 })
+
+-- Apply to "always show preview"
+vim.api.nvim_create_autocmd("User", {
+  pattern = "OilEnter",
+  callback = function()
+    local oil = require("oil")
+    oil.open_preview()
+  end,
+})
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "oil",
+  callback = function()
+    vim.wo.number = false
+    vim.wo.relativenumber = false
+  end,
+})

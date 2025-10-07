@@ -18,8 +18,13 @@ return {
         end,
       },
       float = {
-        max_width = 0.6,
-        max_height = 0.4,
+        max_width = 0.9,
+        max_height = 0.7,
+      },
+      preview = {
+        max_width = 0.5, -- or any ratio you like
+        min_width = 40,
+        border = "rounded",
       },
     })
   end,
