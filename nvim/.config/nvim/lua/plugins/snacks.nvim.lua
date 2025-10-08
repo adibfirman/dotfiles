@@ -8,6 +8,22 @@ return {
       lazygit = { enabled = true },
       scope = { enabled = true },
       indent = { enabled = true },
+      zen = {
+        enabled = true,
+        toggles = {
+          dim = false,
+          git_signs = true,
+          mini_diff_signs = true,
+          diagnostics = true,
+          inlay_hints = true,
+        },
+        win = {
+          backdrop = {
+            transparent = false,
+            blend = 99,
+          },
+        },
+      },
       dashboard = {
         enabled = true,
         width = 72,
