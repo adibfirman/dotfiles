@@ -102,14 +102,8 @@ vim.api.nvim_create_autocmd("User", {
   pattern = "OilEnter",
   callback = function()
     local oil = require("oil")
-    oil.open_preview()
-  end,
-})
-
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "oil",
-  callback = function()
-    vim.wo.number = false
-    vim.wo.relativenumber = false
+    if oil.get_cursor_entry() then
+      oil.open_preview()
+    end
   end,
 })
