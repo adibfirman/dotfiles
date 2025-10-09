@@ -16,6 +16,9 @@ return {
       symbol_in_winbar = {
         enable = false,
       },
+      beacon = {
+        enable = false,
+      },
     })
   end,
 }
