@@ -40,6 +40,9 @@ bob install 0.11.2
 - Stylua `brew install stylua` or `yay -S stylua`
 - cmake `brew install cmake` or `yay -S cmake`
 
+## Additional
+- [OpenCode](https://opencode.ai/)
+
 ## Installation ⚡
 ```bash
 git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
