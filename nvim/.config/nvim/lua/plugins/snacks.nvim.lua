@@ -17,6 +17,10 @@ return {
           diagnostics = true,
           inlay_hints = true,
         },
+        show = {
+          statusline = true,
+          tabline = true,
+        },
         win = {
           backdrop = {
             transparent = false,
