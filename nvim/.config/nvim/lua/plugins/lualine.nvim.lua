@@ -22,13 +22,12 @@ return {
           { "mode", separator = { left = " ", right = "" }, icon = "" },
         },
         lualine_b = {
-          "filename",
-        },
-        lualine_c = {
           {
             "branch",
             icon = "",
           },
+        },
+        lualine_c = {
           {
             "diff",
             symbols = { added = " ", modified = " ", removed = " " },
