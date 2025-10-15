@@ -16,6 +16,9 @@ return {
         progress = {
           enabled = false,
         },
+        hover = {
+          enabled = false,
+        },
       },
       presets = {
         bottom_search = true,
@@ -52,6 +55,23 @@ return {
               { find = "before #%d+" },
               { find = "after #%d+" },
             },
+          },
+          opts = { skip = true },
+        },
+        -- Suppress Tailwind hover "no info"
+        {
+          filter = {
+            event = "notify",
+            find = "No information available",
+          },
+          opts = { skip = true },
+        },
+        -- Optionally suppress other unwanted hover spam
+        {
+          filter = {
+            event = "lsp",
+            kind = "hover",
+            find = "no hover information",
           },
           opts = { skip = true },
         },
