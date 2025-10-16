@@ -40,6 +40,9 @@ bob install 0.11.2
 - Stylua `brew install stylua` or `yay -S stylua`
 - cmake `brew install cmake` or `yay -S cmake`
 - [OpenCode](https://opencode.ai/)
+- tecnotic `yay -S tectonic`
+- mmdc (required pnpm) `pnpm add -g @mermaid-js/mermaid-cli`
+- ImageMagick `yay -S imagemagick`
 
 ## Installation ⚡
 ```bash

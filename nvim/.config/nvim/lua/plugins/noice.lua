@@ -4,7 +4,7 @@ return {
   version = "*",
   dependencies = {
     "MunifTanjim/nui.nvim",
-    "rcarriga/nvim-notify",
+    -- "rcarriga/nvim-notify",
   },
   config = function()
     require("noice").setup({
@@ -76,9 +76,9 @@ return {
           opts = { skip = true },
         },
       },
-      override = {
-        ["vim.notify"] = true,
-      },
+      -- override = {
+      --   ["vim.notify"] = true,
+      -- },
     })
   end,
 }

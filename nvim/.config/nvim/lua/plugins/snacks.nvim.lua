@@ -5,9 +5,36 @@ return {
   version = "*",
   config = function()
     require("snacks").setup({
-      lazygit = { enabled = true },
+      lazygit = {
+        theme = {
+          selectedLineBgColor = { bg = "CursorLine" },
+        },
+        win = {
+          width = 0,
+          height = 0,
+        },
+      },
       scope = { enabled = true },
       indent = { enabled = true },
+      notifier = {
+        enabled = true,
+        top_down = true,
+      },
+      styles = {
+        snacks_image = {
+          relative = "editor",
+          col = -1,
+        },
+      },
+      image = {
+        enabled = true,
+        doc = {
+          inline = false,
+          float = true,
+          max_width = 60,
+          max_height = 30,
+        },
+      },
       zen = {
         enabled = true,
         toggles = {
