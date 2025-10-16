@@ -16,6 +16,67 @@ return {
       },
       scope = { enabled = true },
       indent = { enabled = true },
+      picker = {
+        debug = {
+          scores = false, -- show scores in the list
+        },
+        layout = {
+          preset = "ivy",
+          cycle = false,
+        },
+        layouts = {
+          ivy = {
+            layout = {
+              box = "vertical",
+              backdrop = false,
+              row = -1,
+              width = 0,
+              height = 0.5,
+              border = "top",
+              title = " {title} {live} {flags}",
+              title_pos = "left",
+              { win = "input", height = 1, border = "bottom" },
+              {
+                box = "horizontal",
+                { win = "list", border = "none" },
+                { win = "preview", title = "{preview}", width = 0.5, border = "left" },
+              },
+            },
+          },
+          vertical = {
+            layout = {
+              backdrop = false,
+              width = 0.8,
+              min_width = 80,
+              height = 0.8,
+              min_height = 30,
+              box = "vertical",
+              border = "rounded",
+              title = "{title} {live} {flags}",
+              title_pos = "center",
+              { win = "input", height = 1, border = "bottom" },
+              { win = "list", border = "none" },
+              { win = "preview", title = "{preview}", height = 0.4, border = "top" },
+            },
+          },
+        },
+        matcher = {
+          frecency = true,
+        },
+        win = {
+          input = {
+            keys = {
+              ["<Esc>"] = { "close", mode = { "n", "i" } },
+            },
+          },
+        },
+        formatters = {
+          file = {
+            filename_first = true, -- display filename before the file path
+            truncate = 80,
+          },
+        },
+      },
       notifier = {
         enabled = true,
         top_down = true,

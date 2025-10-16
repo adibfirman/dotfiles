@@ -65,5 +65,5 @@ vim.keymap.set({ "i", "n", "s" }, "<esc>", function()
   return "<esc>"
 end, { expr = true, desc = "Escape and Clear hlsearch" })
 
-require("config.keymaps-telescope")
 require("config.keymaps-directory")
+require("config.keymaps-picker")
