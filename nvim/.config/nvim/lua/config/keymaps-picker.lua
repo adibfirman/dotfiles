@@ -28,6 +28,23 @@ end, { desc = "Find LSP Symbols" })
 
 vim.keymap.set("n", "<leader>fb", function()
   picker.buffers({
+    on_show = function()
+      vim.cmd.stopinsert()
+    end,
+    finder = "buffers",
+    format = "buffer",
+    hidden = false,
+    unloaded = true,
+    current = true,
+    sort_lastused = true,
+    win = {
+      input = {
+        keys = {
+          ["d"] = "bufdelete",
+        },
+      },
+      list = { keys = { ["d"] = "bufdelete" } },
+    },
     layout = "vscode",
   })
 end, { desc = "Find buffers" })
