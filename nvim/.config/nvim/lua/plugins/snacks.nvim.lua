@@ -17,6 +17,22 @@ return {
       scope = { enabled = true },
       indent = { enabled = true },
       picker = {
+        sources = {
+          grep = {
+            exclude = {
+              "*.log",
+              "node_modules/**",
+              "build/**",
+              "*-lock.json",
+              "yarn.lock",
+              "pnpm-lock.yaml",
+              "bun.lockb",
+            },
+          },
+          filter = {
+            default = true,
+          },
+        },
         debug = {
           scores = false, -- show scores in the list
         },

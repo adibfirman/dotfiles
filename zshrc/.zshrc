@@ -83,3 +83,6 @@ esac
 export ANDROID_HOME=/opt/android-sdk
 export PATH=$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH
 # End
+
+# Local Bin
+export PATH="$HOME/.local/bin:$PATH"

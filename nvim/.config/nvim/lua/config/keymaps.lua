@@ -53,7 +53,7 @@ set("n", "<leader>wd", "<C-W>c", { desc = "Delete Window", remap = true })
 set("n", "<leader>wm", "<cmd>FocusMaximise<cr>", { desc = "Maximize window for focus", remap = true })
 
 -- find and replace
-set("n", "<leader>sr", "<cmd>GrugFar<cr>", { desc = "Find and Replace" })
+set("n", "<leader>fr", "<cmd>GrugFar<cr>", { desc = "Find and Replace" })
 
 -- buffers
 set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev Buffer" })
@@ -62,6 +62,7 @@ set("n", "<leader>bb", "<cmd>e #<cr>", { desc = "Switch to Other Buffer" })
 set("n", "<leader>bd", "<cmd>:lua Snacks.bufdelete() <cr>", { desc = "Delete Buffer" })
 set("n", "<leader>bo", "<cmd>:lua Snacks.bufdelete.other() <cr>", { desc = "Delete Other Buffers" })
 set("n", "<leader>z", "<cmd>:lua Snacks.zen.zen() <cr>", { desc = "Zen Mode / Focus Mode" })
+set("n", "<leader>bD", ":bd<CR>", { desc = "Delete buffer and close window" })
 
 -- Clear search and stop snippet on escape
 set({ "i", "n", "s" }, "<esc>", function()

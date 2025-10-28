@@ -12,7 +12,7 @@ font-feature = "liga"
 
 # Window settings
 window-padding-y = 8
-window-decoration = false
+# window-decoration = false
 gtk-titlebar = false
 mouse-hide-while-typing = true
 
