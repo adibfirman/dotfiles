@@ -7,6 +7,11 @@ set("v", ">", ">gv", { desc = "Better indent to right" })
 -- notification stuff
 set("n", "<leader>nh", "<cmd>Notifications<cr>", { desc = "Show history of notification" })
 
+-- show which-key helpers
+set("n", "<leader>?", function()
+  require("which-key").show({ global = false })
+end, { desc = "Buffer Local Keymaps (which-key)" })
+
 -- Git stuff
 set("n", "<leader>gg", function()
   local buf_path = vim.api.nvim_buf_get_name(0)
