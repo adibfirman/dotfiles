@@ -26,6 +26,10 @@ set("n", "<leader>gg", function()
   require("snacks").lazygit({ cwd = git_root })
 end, { desc = "Lazygit (git root of buffer)" })
 
+set("n", "<leader>gb", function()
+  require("snacks").git.blame_line()
+end, { desc = "Git Blame Line" })
+
 -- LSP
 set({ "n", "v" }, "<leader>ca", "<cmd>Lspsaga code_action<cr>", { desc = "Code Action" })
 set("n", "gd", "<cmd>Lspsaga goto_definition<cr>", { desc = "Goto Definition" })
