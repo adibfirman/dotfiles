@@ -23,6 +23,7 @@ end, { desc = "Live Grep" })
 vim.keymap.set("n", "<leader>ss", function()
   picker.lsp_symbols({
     layout = "vertical",
+    filter = { default = true },
   })
 end, { desc = "Find LSP Symbols" })
 

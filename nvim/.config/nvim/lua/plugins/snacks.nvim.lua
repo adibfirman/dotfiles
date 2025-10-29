@@ -29,9 +29,6 @@ return {
               "bun.lockb",
             },
           },
-          filter = {
-            default = true,
-          },
         },
         debug = {
           scores = false, -- show scores in the list
