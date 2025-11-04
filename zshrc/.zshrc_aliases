@@ -16,7 +16,9 @@ alias gm="git merge"
 alias gf="git fetch"
 alias gw="git worktree"
 alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
-alias git-count-commit="git rev-list --count HEAD ^master"
+git-count-commit() {
+  git rev-list --count HEAD ^$1
+}
 
 # usage: kill-port 3000
 kill-port() {
@@ -35,4 +37,17 @@ max-node-memory() {
   echo "==== Set node js memory to 8GB ===="
   export NODE_OPTIONS="--max-old-space-size=8192"
   echo "==== Done ===="
+}
+
+git-squash-commits() {
+  local count=$(git rev-list --count HEAD ^$1)
+  if (( count > 1 )); then
+    echo "Squash $count commits from branch $1? (y/n)"
+    read -q REPLY
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      git rebase -i HEAD~$count
+    fi
+  else
+    echo "Only $count commit(s), nothing to squash."
+  fi
 }
