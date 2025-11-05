@@ -11,7 +11,6 @@
         "-y",
         "@upstash/context7-mcp@latest"
       ],
-      "enabled": true
     },
     "sequential-thinking": {
       "type": "local",
@@ -20,6 +19,27 @@
         "-y",
         "@modelcontextprotocol/server-sequential-thinking"
       ]
+    },
+    "figma-mcp": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "figma-developer-mcp",
+        "--figma-api-key=get it from your account settings",
+        "--stdio"
+      ]
+    },
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@playwright/mcp@latest",
+        "--extension"
+      ],
+      "environment": {
+        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "your key check in here https://github.com/microsoft/playwright-mcp/blob/main/extension/README.md"
+      }
     }
   }
 }
