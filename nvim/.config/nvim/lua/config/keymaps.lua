@@ -59,7 +59,7 @@ set("n", "<C-k>", "<C-w>k", { desc = "Go to Upper Window", remap = true })
 set("n", "<C-l>", "<C-w>l", { desc = "Go to Right Window", remap = true })
 set("n", "<leader>wo", "<C-w>o", { desc = "Delete others split window", remap = true, silent = true })
 set("n", "<leader>wd", "<C-W>c", { desc = "Delete Window", remap = true })
-set("n", "<leader>wm", "<cmd>FocusMaximise<cr>", { desc = "Maximize window for focus", remap = true })
+-- set("n", "<leader>wm", "<cmd>FocusMaximise<cr>", { desc = "Maximize window for focus", remap = true })
 
 -- find and replace
 set("n", "<leader>fr", "<cmd>GrugFar<cr>", { desc = "Find and Replace" })
@@ -83,10 +83,19 @@ end, { expr = true, desc = "Escape and Clear hlsearch" })
 -- setup multi cursor
 set({ "n", "x" }, "<c-d>", function()
   require("multicursor-nvim").matchAddCursor(1)
-end)
+end, { desc = "Multiple cursor in the same word selected go down" })
 set({ "n", "x" }, "<c>D", function()
   require("multicursor-nvim").matchSkipCursor(1)
-end)
+end, { desc = "Multiple cursor in the same word selected go up" })
+
+-- auto write log
+set({ "n", "v" }, "<leader>l", function()
+  require("chainsaw").variableLog()
+end, { desc = "insert log under the cursor" })
+
+set({ "n", "v" }, "<leader>lc", function()
+  require("chainsaw").removeLogs()
+end, { desc = "Clear all logs marked" })
 
 require("config.keymaps-directory")
 require("config.keymaps-picker")
