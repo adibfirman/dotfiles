@@ -11,7 +11,8 @@ return {
     -- +-------------------------------------------------+
     require("lualine").setup({
       options = {
-        theme = "iceberg_dark",
+        theme = "auto",
+        -- theme = "iceberg_dark", // for kanagawa theme
         component_separators = "",
         section_separators = { left = "", right = "" },
         disabled_filetypes = { "alpha", "Outline" },
