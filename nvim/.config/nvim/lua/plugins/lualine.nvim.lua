@@ -48,14 +48,6 @@ return {
           { "location", separator = { left = "", right = " " }, icon = "" },
         },
       },
-      inactive_sections = {
-        lualine_a = { "filename" },
-        lualine_b = {},
-        lualine_c = {},
-        lualine_x = {},
-        lualine_y = {},
-        lualine_z = { "location" },
-      },
       extensions = { "toggleterm", "trouble" },
     })
   end,
