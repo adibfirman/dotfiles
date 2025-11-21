@@ -24,7 +24,8 @@ bob install 0.11.2
 
 ## Prerequisites 🛠️
 - Git
-- [Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/CascadiaCode.zip)
+# - [Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/CascadiaCode.zip)
+- [Font Style](https://fonts.google.com/specimen/Kode+Mono)
 - GNU Stow `brew install stow` or `yay -S stow`
 - ZSH `brew install zsh` or `yay -S zsh`
 - Starship `brew install starship` or `yay -S starship`
