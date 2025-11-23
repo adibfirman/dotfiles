@@ -14,7 +14,6 @@ vim.keymap.set("n", "<leader>sg", function()
   picker.grep({
     hidden = true,
     supports_live = false,
-    args = { "--no-ignore" },
     dirs = { vim.fn.getcwd() },
     regex = true,
   })
