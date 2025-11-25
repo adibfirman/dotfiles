@@ -24,6 +24,7 @@ return {
       "luaformatter",
       "marksman",
       "mdx-analyzer",
+      "pbls",
       "prettier",
       "prettierd",
       "stylua",

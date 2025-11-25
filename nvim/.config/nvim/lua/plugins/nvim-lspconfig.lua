@@ -26,6 +26,7 @@ return {
       "lua_ls",
       "marksman",
       "mdx_analyzer",
+      "pbls",
       "tailwindcss",
       "ts_ls",
       "vtsls",
