@@ -61,6 +61,14 @@ if [[ $(uname) == 'Darwin' ]]; then
   # export related android path
   export ANDROID_HOME=/Users/$USER/Library/Android/sdk
   export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools"
+
+  export CPPFLAGS="-I/opt/homebrew/opt/openjdk@17/include"
+  export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
+else
+  # Android Stuff on Linux
+  export ANDROID_HOME=/opt/android-sdk
+  export PATH=$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH
+  # End
 fi
 
 export PATH=$PATH:~/.cargo/bin
@@ -78,11 +86,6 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
-
-# Android Stuff
-export ANDROID_HOME=/opt/android-sdk
-export PATH=$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH
-# End
 
 # Local Bin
 export PATH="$HOME/.local/bin:$PATH"
