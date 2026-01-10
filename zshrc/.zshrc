@@ -11,6 +11,9 @@ SAVEHIST=50000
 # import related work file
 [ -f ~/.zshrc_work ] && source ~/.zshrc_work
 
+# import secrets (API keys, tokens, etc.)
+[ -f ~/.zshrc_secrets ] && source ~/.zshrc_secrets
+
 # initialise completions with ZSH's compinit
 autoload -Uz compinit && compinit
 

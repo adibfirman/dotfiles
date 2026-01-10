@@ -1,0 +1,19 @@
+# Secrets and sensitive environment variables
+.zshrc_secrets
+zshrc/.zshrc_secrets
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Local environment files
+.env
+.env.local
+.env.*.local

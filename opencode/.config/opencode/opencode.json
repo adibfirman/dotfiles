@@ -10,7 +10,7 @@
         "npx",
         "-y",
         "@upstash/context7-mcp@latest"
-      ],
+      ]
     },
     "sequential-thinking": {
       "type": "local",
@@ -27,7 +27,7 @@
         "npx",
         "-y",
         "figma-developer-mcp",
-        "--figma-api-key=get it from your account settings",
+        "--figma-api-key=${FIGMA_API_KEY}",
         "--stdio"
       ]
     },
@@ -39,7 +39,7 @@
         "--extension"
       ],
       "environment": {
-        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "your key check in here https://github.com/microsoft/playwright-mcp/blob/main/extension/README.md"
+        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "${PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
       }
     }
   }
