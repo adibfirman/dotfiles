@@ -44,6 +44,7 @@ bob install 0.11.2
 - tecnotic `yay -S tectonic`
 - mmdc (required pnpm) `pnpm add -g @mermaid-js/mermaid-cli`
 - ImageMagick `yay -S imagemagick`
+- [Lazydocker](https://github.com/jesseduffield/lazydocker)
 
 ## Installation ⚡
 ```bash
