@@ -3,6 +3,9 @@
   "tui": {
     "scroll_speed": 3
   },
+  "plugin": [
+    "opencode-anthropic-auth"
+  ],
   "mcp": {
     "context7": {
       "type": "local",
