@@ -3,6 +3,7 @@
   "tui": {
     "scroll_speed": 3
   },
+  "default_agent": "plan",
   "plugin": [
     "opencode-anthropic-auth"
   ],

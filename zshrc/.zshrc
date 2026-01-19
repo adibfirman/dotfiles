@@ -67,6 +67,9 @@ if [[ $(uname) == 'Darwin' ]]; then
 
   export CPPFLAGS="-I/opt/homebrew/opt/openjdk@17/include"
   export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
+
+  # gcloud cli
+  export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
 else
   # Android Stuff on Linux
   export ANDROID_HOME=/opt/android-sdk
