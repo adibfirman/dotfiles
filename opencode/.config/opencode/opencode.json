@@ -7,6 +7,16 @@
   "plugin": [
     "opencode-anthropic-auth"
   ],
+  "agent": {
+    "plan": {
+      "model": "anthropic/claude-opus-4-5",
+      "color": "#3498DB"
+    },
+    "build": {
+      "model": "anthropic/claude-sonnet-4-5",
+      "color": "#E74C3C"
+    }
+  },
   "mcp": {
     "context7": {
       "type": "local",
