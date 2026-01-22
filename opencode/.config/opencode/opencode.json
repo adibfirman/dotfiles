@@ -10,7 +10,10 @@
   "agent": {
     "plan": {
       "model": "anthropic/claude-opus-4-5",
-      "color": "#3498DB"
+      "color": "#3498DB",
+      "allow": [
+        "beads:*"
+      ]
     },
     "build": {
       "model": "anthropic/claude-sonnet-4-5",
