@@ -26,6 +26,21 @@ zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' rehash true  # Auto-update PATH completions
 
+# Zinit Plugin Manager (auto-installs if missing)
+ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+if [[ ! -d "$ZINIT_HOME" ]]; then
+  mkdir -p "$(dirname $ZINIT_HOME)"
+  git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+fi
+source "${ZINIT_HOME}/zinit.zsh"
+
+# Zsh Plugins
+zinit light zsh-users/zsh-autosuggestions
+zinit light zsh-users/zsh-syntax-highlighting
+
+# Accept autosuggestion with Tab key
+bindkey '\t' autosuggest-accept
+
 # Starship prompt
 eval "$(starship init zsh)"
 eval "$(starship completions zsh)"
@@ -42,13 +57,6 @@ fi
 # Key bindings for completion menu
 zstyle ':completion:*' menu select
 bindkey '^[[Z' reverse-menu-complete
-
-# loads plugins zsh
-plugins=(
-  git
-  docker
-  npm
-)
 
 # init nvm (node version manager)
 export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
