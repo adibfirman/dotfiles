@@ -24,6 +24,9 @@
         },
         "sonnet-4.5-thinking": {
           "name": "Cursor Agent Sonnet 4.5 Thinking"
+        },
+        "opus-4.5": {
+          "name": "Cursor Agent Opus 4.5"
         }
       }
     }
@@ -34,7 +37,8 @@
       "color": "#3498DB",
       "allow": [
         "beads:*"
-      ]
+      ],
+      "prompt": "When you need to ask questions for clarification, always place them at the END of your response, never in the middle of your output text."
     },
     "build": {
       "model": "anthropic/claude-sonnet-4-5",
