@@ -39,7 +39,7 @@ zinit light zsh-users/zsh-autosuggestions
 zinit light zsh-users/zsh-syntax-highlighting
 
 # Accept autosuggestion with Tab key
-bindkey '\t' autosuggest-accept
+# bindkey '\t' autosuggest-accept
 
 # Starship prompt
 eval "$(starship init zsh)"

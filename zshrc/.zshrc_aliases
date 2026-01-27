@@ -51,3 +51,32 @@ git-squash-commits() {
     echo "Only $count commit(s), nothing to squash."
   fi
 }
+
+# Auto-detect package manager based on lock files
+detect-pm() {
+  local dir="$PWD"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/bun.lockb" ]] || [[ -f "$dir/bun.lock" ]]; then
+      echo "bun"
+      return
+    elif [[ -f "$dir/pnpm-lock.yaml" ]]; then
+      echo "pnpm"
+      return
+    elif [[ -f "$dir/yarn.lock" ]]; then
+      echo "yarn"
+      return
+    elif [[ -f "$dir/package-lock.json" ]]; then
+      echo "npm"
+      return
+    fi
+    dir="$(dirname "$dir")"
+  done
+  echo "pnpm"  # fallback to pnpm
+}
+
+# Universal package manager command
+pm() {
+  local manager=$(detect-pm)
+  echo "Using: $manager"
+  $manager "$@"
+}

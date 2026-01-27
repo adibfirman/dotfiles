@@ -4,7 +4,7 @@ return {
   lazy = false,
   dependencies = { "nvim-tree/nvim-web-devicons" },
   keys = {
-    { "<leader>e", "<cmd>NvimTreeToggle<CR>", desc = "File Explorer" },
+    { "<leader>e", "<cmd>NvimTreeFindFileToggle<CR>", desc = "File Explorer" },
   },
   config = function()
     -- Disable netrw
@@ -41,6 +41,27 @@ return {
           vim.fn.jobstart({ "explorer", path }, { detach = true })
         end
       end, opts("Open in File Manager"))
+
+      -- Auto-close tree when opening a file
+      vim.keymap.set("n", "<CR>", function()
+        api.node.open.edit(nil, { quit_on_open = true })
+      end, opts("Open and Close Tree"))
+
+      vim.keymap.set("n", "o", function()
+        api.node.open.edit(nil, { quit_on_open = true })
+      end, opts("Open and Close Tree"))
+
+      vim.keymap.set("n", "<C-v>", function()
+        api.node.open.vertical(nil, { quit_on_open = true })
+      end, opts("Open: Vertical Split and Close Tree"))
+
+      vim.keymap.set("n", "<C-x>", function()
+        api.node.open.horizontal(nil, { quit_on_open = true })
+      end, opts("Open: Horizontal Split and Close Tree"))
+
+      vim.keymap.set("n", "<C-t>", function()
+        api.node.open.tab(nil, { quit_on_open = true })
+      end, opts("Open: New Tab and Close Tree"))
     end
 
     require("nvim-tree").setup({
@@ -57,6 +78,7 @@ return {
       filters = {
         dotfiles = false, -- Show hidden files
         custom = { ".DS_Store", ".git" },
+        exclude = { ".github" },
       },
       renderer = {
         highlight_git = true, -- Keep filename colors based on git status
