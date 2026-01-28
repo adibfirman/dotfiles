@@ -97,4 +97,5 @@ set({ "n", "v" }, "<leader>lc", function()
   require("chainsaw").removeLogs()
 end, { desc = "Clear all logs marked" })
 
+require("config.keymaps-directory")
 require("config.keymaps-picker")
