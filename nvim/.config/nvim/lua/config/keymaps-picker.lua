@@ -15,7 +15,7 @@ vim.keymap.set("n", "<leader>sg", function()
     hidden = true,
     supports_live = false,
     dirs = { vim.fn.getcwd() },
-    regex = true,
+    regex = false,
   })
 end, { desc = "Live Grep" })
 
