@@ -6,7 +6,6 @@
   "default_agent": "plan",
   "plugin": [
     "opencode-anthropic-auth",
-    "opencode-cursor-auth@1.0.16"
   ],
   "agent": {
     "plan": {
@@ -30,14 +29,6 @@
         "-y",
         "@upstash/context7-mcp@latest"
       ]
-    },
-    "mobile-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "@mobilenext/mobile-mcp@latest"
-      ],
-      "enabled": false
     },
     "sequential-thinking": {
       "type": "local",
@@ -74,8 +65,7 @@
         "--ws-port",
         "60284"
       ],
-      "enabled": true,
       "type": "local"
     }
-  }
+  },
 }
