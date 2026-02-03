@@ -67,6 +67,15 @@
       "environment": {
         "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "{env:PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
       }
+    },
+    "pencil": {
+      "command": [
+        "/Applications/Pencil.app/Contents/Resources/app.asar.unpacked/out/mcp-server-darwin-arm64",
+        "--ws-port",
+        "60284"
+      ],
+      "enabled": true,
+      "type": "local"
     }
   }
 }
