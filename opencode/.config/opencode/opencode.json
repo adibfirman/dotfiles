@@ -9,7 +9,6 @@
   ],
   "agent": {
     "plan": {
-      "model": "anthropic/claude-opus-4-5",
       "color": "#3498DB",
       "allow": [
         "beads:*"
@@ -17,11 +16,22 @@
       "prompt": "When you need to ask questions for clarification, always place them at the END of your response, never in the middle of your output text."
     },
     "build": {
-      "model": "anthropic/claude-sonnet-4-5",
       "color": "#E74C3C"
     }
   },
   "mcp": {
+    "zai-mcp-server": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@z_ai/mcp-server"
+      ],
+      "environment": {
+        "Z_AI_API_KEY": "{env:Z_AI_API_KEY}",
+        "Z_AI_MODE": "ZAI"
+      }
+    },
     "context7": {
       "type": "local",
       "command": [
