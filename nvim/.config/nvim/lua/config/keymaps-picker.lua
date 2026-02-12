@@ -19,6 +19,15 @@ vim.keymap.set("n", "<leader>sg", function()
   })
 end, { desc = "Live Grep" })
 
+vim.keymap.set("n", "<leader>sb", function()
+  picker.lines({
+    matcher = { fuzzy = false },
+    layout = {
+      preset = "select",
+    },
+  })
+end, { desc = "Search Buffer (Literal)" })
+
 vim.keymap.set("n", "<leader>ss", function()
   picker.lsp_symbols({
     layout = "vertical",
