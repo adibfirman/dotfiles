@@ -1,0 +1,10 @@
+{
+  "skills": [
+    {
+      "name": "react-native-best-practices",
+      "source": "https://github.com/callstackincubator/agent-skills",
+      "path": "skills/react-native-best-practices",
+      "branch": "main"
+    }
+  ]
+}
