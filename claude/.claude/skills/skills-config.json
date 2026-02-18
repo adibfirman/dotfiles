@@ -5,6 +5,18 @@
       "source": "https://github.com/callstackincubator/agent-skills",
       "path": "skills/react-native-best-practices",
       "branch": "main"
+    },
+    {
+      "name": "composition-patterns",
+      "source": "https://github.com/vercel-labs/agent-skills",
+      "path": "skills/composition-patterns",
+      "branch": "main"
+    },
+    {
+      "name": "react-best-practices",
+      "source": "https://github.com/vercel-labs/agent-skills",
+      "path": "skills/react-best-practices",
+      "branch": "main"
     }
   ]
 }

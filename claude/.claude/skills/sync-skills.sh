@@ -148,7 +148,7 @@ sync_skill() {
     fi
     
     # Configure sparse-checkout
-    cd "$TEMP_DIR"
+    (cd "$TEMP_DIR"
     if ! git sparse-checkout set "$path" 2>&1 | sed 's/^/  /'; then
         echo -e "${RED}  ✗ Failed to configure sparse-checkout${NC}"
         FAILED_SKILLS+=("$name (sparse-checkout failed)")
@@ -161,6 +161,7 @@ sync_skill() {
         FAILED_SKILLS+=("$name (checkout failed)")
         return 1
     fi
+    )
     
     # Check if skill directory exists in temp
     if [[ ! -d "$TEMP_DIR/$path" ]]; then
