@@ -1,5 +1,6 @@
 export EDITOR="nvim"
 export SUDO_EDITOR="$EDITOR"
+export SNACKS_GHOSTTY=true
 
 HISTFILE=~/.history
 HISTSIZE=10000
