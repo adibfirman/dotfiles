@@ -62,7 +62,9 @@ local function open_dir_in_file_manager()
 end
 
 -- open directory
-vim.keymap.set("n", "<leader>e", "<cmd>Oil --float<cr>", { desc = "File Explorer" })
+vim.keymap.set("n", "<leader>e", function()
+  require("oil").open_float(nil, { preview = { vertical = true } })
+end, { desc = "File Explorer with Preview" })
 
 -- copy current path
 vim.api.nvim_create_autocmd("FileType", {
