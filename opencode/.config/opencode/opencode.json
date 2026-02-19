@@ -57,5 +57,13 @@
         "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "{env:PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
       }
     },
+    "ios-simulator": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "ios-simulator-mcp"
+      ],
+    }
   },
 }

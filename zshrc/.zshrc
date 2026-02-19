@@ -12,7 +12,13 @@ SAVEHIST=50000
 [ -f ~/.zshrc_work ] && source ~/.zshrc_work
 
 # import secrets (API keys, tokens, etc.)
-[ -f ~/.zshrc_secrets ] && source ~/.zshrc_secrets
+# Use SECRETS_PROFILE=work to load ~/.zshrc_secrets_work instead of default
+SECRETS_PROFILE="${SECRETS_PROFILE:-}"
+if [[ -n "$SECRETS_PROFILE" ]]; then
+  [ -f ~/.zshrc_secrets_$SECRETS_PROFILE ] && source ~/.zshrc_secrets_$SECRETS_PROFILE
+else
+  [ -f ~/.zshrc_secrets ] && source ~/.zshrc_secrets
+fi
 
 # initialise completions with ZSH's compinit
 autoload -Uz compinit && compinit

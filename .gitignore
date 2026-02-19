@@ -1,6 +1,7 @@
 # Secrets and sensitive environment variables
 .zshrc_secrets
 zshrc/.zshrc_secrets
+zshrc/.zshrc_secrets_work
 
 # OS files
 .DS_Store
