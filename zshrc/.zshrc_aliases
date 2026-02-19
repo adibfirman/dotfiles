@@ -89,3 +89,15 @@ pm() {
   echo "Using: $manager"
   $manager "$@"
 }
+
+# Use zsh-secrets-work env
+switch-to-work-secrets() {
+  export SECRETS_PROFILE=work
+  zsh
+}
+
+# Use zsh-secrets-personal env
+switch-to-work-secrets() {
+  export SECRETS_PROFILE=""
+  zsh
+}
