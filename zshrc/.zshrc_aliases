@@ -97,7 +97,7 @@ switch-to-work-secrets() {
 }
 
 # Use zsh-secrets-personal env
-switch-to-work-secrets() {
+switch-to-personal-secrets() {
   export SECRETS_PROFILE=""
   zsh
 }
