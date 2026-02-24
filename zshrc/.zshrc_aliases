@@ -90,14 +90,16 @@ pm() {
   $manager "$@"
 }
 
-# Use zsh-secrets-work env
-switch-to-work-secrets() {
-  export SECRETS_PROFILE=work
-  zsh
-}
-
-# Use zsh-secrets-personal env
-switch-to-personal-secrets() {
-  export SECRETS_PROFILE=""
-  zsh
+# Switch to any secrets profile (usage: switch-secrets work, switch-secrets personal, etc.)
+switch-secrets() {
+  local profile="${1:-personal}"
+  if [[ "$profile" == "personal" ]]; then
+    echo "" > ~/.current_secrets_profile
+    export SECRETS_PROFILE=""
+  else
+    echo "$profile" > ~/.current_secrets_profile
+    export SECRETS_PROFILE="$profile"
+  fi
+  echo "Switched to $profile secrets. Starting new shell..."
+  exec zsh
 }

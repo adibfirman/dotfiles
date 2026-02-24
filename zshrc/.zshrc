@@ -14,11 +14,22 @@ SAVEHIST=50000
 
 # import secrets (API keys, tokens, etc.)
 # Use SECRETS_PROFILE=work to load ~/.zshrc_secrets_work instead of default
-SECRETS_PROFILE="${SECRETS_PROFILE:-}"
+# Load persisted profile preference, fallback to env var or empty
+SECRETS_PROFILE_FILE="$HOME/.current_secrets_profile"
+SECRETS_PROFILE="${SECRETS_PROFILE:-$(cat "$SECRETS_PROFILE_FILE" 2>/dev/null)}"
 if [[ -n "$SECRETS_PROFILE" ]]; then
   [ -f ~/.zshrc_secrets_$SECRETS_PROFILE ] && source ~/.zshrc_secrets_$SECRETS_PROFILE
 else
   [ -f ~/.zshrc_secrets ] && source ~/.zshrc_secrets
+fi
+
+# Print secrets profile status (only for interactive shells)
+if [[ -o interactive ]]; then
+  if [[ -n "$SECRETS_PROFILE" ]]; then
+    echo "\033[1;33m[secrets: $SECRETS_PROFILE]\033[0m"
+  else
+    echo "\033[1;33m[secrets: personal]\033[0m"
+  fi
 fi
 
 # initialise completions with ZSH's compinit
