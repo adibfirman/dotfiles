@@ -31,13 +31,16 @@
     "sequential-thinking": {
       "type": "local",
       "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
+        "docker",
+        "run",
+        "--rm",
+        "-i",
+        "mcp/sequentialthinking"
       ]
     },
     "figma-mcp": {
       "type": "local",
+      "enabled": false,
       "command": [
         "npx",
         "-y",
@@ -59,11 +62,33 @@
     },
     "ios-simulator": {
       "type": "local",
+      "enabled": false,
       "command": [
         "npx",
         "-y",
         "ios-simulator-mcp"
       ],
+    },
+    "sonarqube": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "--init",
+        "--pull=always",
+        "-e",
+        "SONARQUBE_TOKEN",
+        "-e",
+        "SONARQUBE_ORG",
+        "mcp/sonarqube"
+      ],
+      "environment": {
+        "SONARQUBE_TOKEN": "{env:SONARQUBE_TOKEN}",
+        "SONARQUBE_ORG": "{env:SONARQUBE_ORG}"
+      }
     }
   },
 }
