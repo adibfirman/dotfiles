@@ -10,10 +10,7 @@
   "agent": {
     "plan": {
       "color": "#3498DB",
-      "allow": [
-        "beads:*"
-      ],
-      "prompt": "When you need to ask questions for clarification, always place them at the END of your response, never in the middle of your output text."
+      "description": "When you need to ask questions for clarification, always place them at the END of your response, never in the middle of your output text."
     },
     "build": {
       "color": "#E74C3C"
