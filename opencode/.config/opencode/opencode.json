@@ -86,6 +86,22 @@
         "SONARQUBE_TOKEN": "{env:SONARQUBE_TOKEN}",
         "SONARQUBE_ORG": "{env:SONARQUBE_ORG}"
       }
+    },
+    "mcp-atlassian": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "uvx",
+        "mcp-atlassian"
+      ],
+      "environment": {
+        "JIRA_URL": "{env:JIRA_URL}",
+        "JIRA_USERNAME": "{env:JIRA_USERNAME}",
+        "JIRA_API_TOKEN": "{env:JIRA_API_TOKEN}",
+        "CONFLUENCE_URL": "{env:CONFLUENCE_URL}",
+        "CONFLUENCE_USERNAME": "{env:CONFLUENCE_USERNAME}",
+        "CONFLUENCE_API_TOKEN": "{env:CONFLUENCE_API_TOKEN}"
+      }
     }
   },
 }
