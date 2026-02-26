@@ -52,6 +52,8 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | Tool | Installation | Notes |
 |------|--------------|-------|
 | [Bob (Neovim version manager)](https://github.com/MordechaiHadad/bob) | `cargo install bob-nvim` | Install Rust/Cargo first |
+| [UV](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh | sh` | Python package manager |
+| UVX | (comes with UV) | Python tool runner |
 | Tree-sitter | `brew install tree-sitter` / `yay -S tree-sitter` | Required for Neovim |
 | Lua | `brew install lua` / `yay -S lua` | Scripting |
 | Luarocks | [GitHub](https://github.com/luarocks/luarocks) | Lua package manager |

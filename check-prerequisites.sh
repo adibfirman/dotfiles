@@ -22,7 +22,7 @@ NC='\033[0m' # No Color
 OS=""
 PKG_MGR=""
 AUTO_CONFIRM=false
-declare -A SKIP_MAP
+SKIP_LIST=()
 
 # Tool definitions: "Display Name|command_name|check_version_flag"
 TOOLS=(
@@ -36,10 +36,13 @@ TOOLS=(
     "fd|fd|--version"
     "Cargo|cargo|--version"
     "Bob|bob|--version"
+    "UV|uv|--version"
+    "UVX|uvx|--version"
     "Neovim|nvim|--version"
     "Tree-sitter|tree-sitter|--version"
     "Lua|lua|-v"
     "Luarocks|luarocks|--version"
+    "Stylua|stylua|--version"
     "CMake|cmake|--version"
     "NVM|nvm|--version"
     "GVM|gvm|version"
@@ -78,19 +81,19 @@ print_step() {
 }
 
 print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}[OK]${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}[FAIL]${NC} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 print_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 # ============================================
@@ -229,7 +232,7 @@ show_toggle_menu() {
             local left_tool="${TOOLS[$left_idx]}"
             local left_name="${left_tool%%|*}"
             local left_mark="[ ]"
-            [ "${selected[$left_idx]}" -eq 1 ] && left_mark="[✓]"
+            [ "${selected[$left_idx]}" -eq 1 ] && left_mark="[x]"
             
             if [ "$left_idx" -eq "$current" ]; then
                 printf "> ${GREEN}%s${NC} %-20s " "$left_mark" "$left_name"
@@ -242,7 +245,7 @@ show_toggle_menu() {
                 local right_tool="${TOOLS[$right_idx]}"
                 local right_name="${right_tool%%|*}"
                 local right_mark="[ ]"
-                [ "${selected[$right_idx]}" -eq 1 ] && right_mark="[✓]"
+                [ "${selected[$right_idx]}" -eq 1 ] && right_mark="[x]"
                 
                 if [ "$right_idx" -eq "$current" ]; then
                     printf "> ${GREEN}%s${NC} %-20s" "$right_mark" "$right_name"
@@ -314,13 +317,13 @@ show_toggle_menu() {
     # Show cursor
     tput cnorm 2>/dev/null || true
     
-    # Build skip map
-    SKIP_MAP=()
+    # Build skip list
+    SKIP_LIST=()
     for ((i=0; i<total; i++)); do
         if [ "${selected[$i]}" -eq 1 ]; then
             local tool="${TOOLS[$i]}"
             local name="${tool%%|*}"
-            SKIP_MAP["$name"]=1
+            SKIP_LIST+=("$name")
         fi
     done
     
@@ -333,7 +336,12 @@ show_toggle_menu() {
 
 should_skip() {
     local display_name="$1"
-    [ "${SKIP_MAP[$display_name]}" = "1" ]
+    for skip_item in "${SKIP_LIST[@]}"; do
+        if [ "$skip_item" = "$display_name" ]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 get_tool_info() {
@@ -446,7 +454,7 @@ install_tool() {
         exit 1
     fi
     
-    echo "        ${BLUE}ℹ${NC} Installing: $install_cmd"
+    echo -e "        ${BLUE}[INFO]${NC} Installing: $install_cmd"
     
     if eval "$install_cmd" 2>&1; then
         print_success "        Installed successfully"
@@ -533,6 +541,9 @@ get_install_command() {
         "Bob")
             echo "cargo install bob-nvim"
             ;;
+        "UV"|"UVX")
+            echo "curl -LsSf https://astral.sh/uv/install.sh | sh"
+            ;;
         "Neovim")
             echo "bob install 0.11.2 && bob use 0.11.2"
             ;;
@@ -555,6 +566,13 @@ get_install_command() {
                 macos) echo "brew install luarocks" ;;
                 arch) echo "yay -S --noconfirm luarocks" ;;
                 debian) echo "sudo apt install -y luarocks" ;;
+            esac
+            ;;
+        "Stylua")
+            case "$OS" in
+                macos) echo "brew install stylua" ;;
+                arch) echo "yay -S --noconfirm stylua" ;;
+                debian) echo "cargo install stylua" ;;
             esac
             ;;
         "CMake")
@@ -680,10 +698,13 @@ step_development_tools() {
     
     run_check "Cargo"
     run_check "Bob"
+    run_check "UV"
+    run_check "UVX"
     run_check "Neovim"
     run_check "Tree-sitter"
     run_check "Lua"
     run_check "Luarocks"
+    run_check "Stylua"
     run_check "CMake"
     
     echo ""
@@ -738,25 +759,25 @@ print_summary() {
     
     echo ""
     print_info "Summary:"
-    echo "  ${GREEN}✓${NC} Passed: $PASSED"
-    echo "  ${YELLOW}⚠${NC} Skipped: $SKIPPED"
-    
+    echo -e "  ${GREEN}[OK]${NC} Passed: $PASSED"
+    echo -e "  ${YELLOW}[WARN]${NC} Skipped: $SKIPPED"
+
     if [ $FAILED -gt 0 ]; then
-        echo "  ${RED}✗${NC} Failed: $FAILED"
+        echo -e "  ${RED}[FAIL]${NC} Failed: $FAILED"
     fi
     
     echo ""
     print_warning "Manual steps required:"
     echo "  Install Kode Mono Font manually:"
-    echo "    ${CYAN}https://fonts.google.com/specimen/Kode+Mono${NC}"
+    echo -e "    ${CYAN}https://fonts.google.com/specimen/Kode+Mono${NC}"
     
     echo ""
     print_info "Next steps:"
     echo "  1. Run dotfiles setup:"
-    echo "     ${CYAN}stow */${NC}"
+    echo -e "     ${CYAN}stow */${NC}"
     echo ""
     echo "  2. Setup Tmux plugins:"
-    echo "     ${CYAN}./tmux/check-plugins.sh${NC}"
+    echo -e "     ${CYAN}./tmux/check-plugins.sh${NC}"
     
     echo ""
     echo -e "${BOLD}========================================${NC}"
