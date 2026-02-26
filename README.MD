@@ -1,67 +1,173 @@
-# Dotfiles 🖥️
+# Dotfiles
 
-**My cross-platform development environment setup**  
-*Consistent across macOS and Linux*
+My cross-platform development environment setup — consistent across macOS and Linux.
 
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+## Table of Contents
 
-## Overview 🔍
+- [Overview](#overview)
+- [What's Included](#whats-included)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Component Setup](#component-setup)
+- [FAQ & Troubleshooting](#faq--troubleshooting)
 
-This repository contains my system configurations for:
-- **Editor**: Neovim (Lua config)
-- **Terminal**: Ghostty, Alacritty
-- **Shell**: Zsh + Zinit, Starship, Tmux
+## Overview
 
-Designed to work seamlessly on both **macOS** and **Linux**.
+This repository contains system configurations managed with [GNU Stow](https://www.gnu.org/software/stow/) for symlink management. Designed to work seamlessly on both macOS and Linux (Arch-based distributions).
 
-## Neovim Installation
+## What's Included
+
+| Component | Configuration |
+|-----------|---------------|
+| **Editor** | Neovim (Lua-based config with Lazy.nvim) |
+| **Terminal** | Ghostty, Alacritty |
+| **Shell** | Zsh + Zinit plugin manager |
+| **Prompt** | Starship |
+| **Multiplexer** | Tmux + TPM |
+| **AI Assistant** | OpenCode, Claude skills |
+
+## Prerequisites
+
+### Core Tools
+
+| Tool | macOS | Arch Linux | Purpose |
+|------|-------|------------|---------|
+| Git | Pre-installed | `pacman -S git` | Version control |
+| GNU Stow | `brew install stow` | `yay -S stow` | Symlink management |
+| Zsh | `brew install zsh` | `yay -S zsh` | Shell |
+| [Kode Mono Font](https://fonts.google.com/specimen/Kode+Mono) | Manual install | Manual install | Terminal font |
+
+### Terminal & Shell
+
+| Tool | macOS | Arch Linux |
+|------|-------|------------|
+| Starship | `brew install starship` | `yay -S starship` |
+| Tmux | `brew install tmux` | `yay -S tmux` |
+| FZF | `brew install fzf` | `yay -S fzf` |
+| Ripgrep | `brew install ripgrep` | `yay -S ripgrep` |
+| fd | `brew install fd` | `yay -S fd` |
+
+### Development Tools
+
+| Tool | Installation | Notes |
+|------|--------------|-------|
+| [Bob (Neovim version manager)](https://github.com/MordechaiHadad/bob) | `cargo install bob-nvim` | Install Rust/Cargo first |
+| Tree-sitter | `brew install tree-sitter` / `yay -S tree-sitter` | Required for Neovim |
+| Lua | `brew install lua` / `yay -S lua` | Scripting |
+| Luarocks | [GitHub](https://github.com/luarocks/luarocks) | Lua package manager |
+| Stylua | `brew install stylua` / `yay -S stylua` | Lua formatter |
+| CMake | `brew install cmake` / `yay -S cmake` | Build tool |
+
+### Version Managers
+
+| Tool | Installation |
+|------|--------------|
+| [NVM](https://github.com/nvm-sh/nvm) (Node) | curl script or package manager |
+| [GVM](https://github.com/moovweb/gvm) (Go) | curl script |
+
+### Git & Docker Tools
+
+| Tool | macOS | Arch Linux |
+|------|-------|------------|
+| [Lazygit](https://github.com/jesseduffield/lazygit) | `brew install lazygit` | `yay -S lazygit` |
+| [Lazydocker](https://github.com/jesseduffield/lazydocker) | `brew install lazydocker` | `yay -S lazydocker` |
+| Colima | `brew install colima` | — | Docker Desktop alternative for macOS |
+
+### Additional Tools
+
+| Tool | Installation | Purpose |
+|------|--------------|---------|
+| [OpenCode](https://opencode.ai/) | See website | AI coding assistant |
+| Tectonic | `yay -S tectonic` | LaTeX engine |
+| Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
+| ImageMagick | `brew install imagemagick` / `yay -S imagemagick` | Image processing |
+| xclip | `sudo apt install xclip` | Clipboard support (Linux) |
+
+## Installation
+
 ```bash
-# Make sure to install cargo first
-# https://github.com/MordechaiHadad/bob
+# Clone repository
+git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
+cd ~/.dotfiles
+
+# Stow individual components
+stow nvim
+stow zshrc
+stow tmux
+stow ghostty
+stow starship
+# etc.
+
+# Or stow all at once
+stow */
+```
+
+## Component Setup
+
+### Neovim
+
+```bash
+# Install Neovim via Bob (requires Rust/Cargo)
 cargo install bob-nvim
 bob install 0.11.2
 ```
 
-## Prerequisites 🛠️
-- Git
-# - [Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/CascadiaCode.zip)
-- [Font Style](https://fonts.google.com/specimen/Kode+Mono)
-- GNU Stow `brew install stow` or `yay -S stow`
-- ZSH `brew install zsh` or `yay -S zsh`
-- Starship `brew install starship` or `yay -S starship`
-- Tree-sitter `brew install tree-sitter` or `yay -S tree-sitter`
-- lua
-- [FZF](https://github.com/junegunn/fzf?tab=readme-ov-file#installation)
-- [Lazygit](https://github.com/jesseduffield/lazygit)
-- [go-version-manager](https://github.com/moovweb/gvm)
-- [Node Version Manager](https://github.com/nvm-sh/nvm)
-- [luarocks](https://github.com/luarocks/luarocks)
-- [fd](https://github.com/sharkdp/fd)
-- Ripgrep `brew install ripgrep` or `yay -S ripgrep`
-- Stylua `brew install stylua` or `yay -S stylua`
-- cmake `brew install cmake` or `yay -S cmake`
-- [OpenCode](https://opencode.ai/)
-- tecnotic `yay -S tectonic`
-- mmdc (required pnpm) `pnpm add -g @mermaid-js/mermaid-cli`
-- ImageMagick `yay -S imagemagick`
-- [Lazydocker](https://github.com/jesseduffield/lazydocker)
-- (optional) [opencode-cursor-auth](https://github.com/POSO-PocketSolutions/opencode-cursor-auth) -- run cursor-agent inside opencode
+### Tmux
 
-## Installation ⚡
+After installing `tmux`, run the plugin installation script:
+
 ```bash
-git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
-cd ~/.dotfiles
-stow <folder name>
+./tmux/check-plugins.sh
 ```
 
-## TMUX Installation
-After you install the `tmux` in your system, don't forget to apply the plugins by running the shell script under the `./tmux` folder
+This installs TPM (Tmux Plugin Manager) and all configured plugins.
 
-## FAQ & Troubleshooting ❓
-### Q1: lazygit not working "exit code xx" inside the neovim
+### Zsh
 
-You need to trigger by calling `lazygit` directly in the terminal (not inside neoivm).
+The Zsh configuration uses [Zinit](https://github.com/zdharma-continuum/zinit) for plugin management. It will auto-install on first shell startup.
 
-### Q2: when pressing "p" (paste) does not work in Linux
+## Directory Structure
 
-You need to install `xclip` first `sudo apt install xclip`
+```
+.
+├── alacritty/      # Alacritty terminal config
+├── bashrc/         # Bash configuration
+├── claude/         # Claude skills and configuration
+├── ghostty/        # Ghostty terminal config
+├── nvim/           # Neovim Lua configuration
+├── opencode/       # OpenCode configuration
+├── starship/       # Starship prompt config
+├── tmux/           # Tmux configuration + plugin installer
+└── zshrc/          # Zsh configuration + aliases
+```
+
+## FAQ & Troubleshooting
+
+### Q1: Lazygit exits with error code inside Neovim
+
+**Solution:** First run `lazygit` directly in the terminal (outside Neovim) to initialize its configuration, then it will work inside Neovim.
+
+### Q2: Paste (Ctrl+P) doesn't work on Linux
+
+**Solution:** Install clipboard support:
+
+```bash
+# Debian/Ubuntu
+sudo apt install xclip
+
+# Arch
+yay -S xclip
+```
+
+### Q3: Neovim treesitter parsers fail to compile
+
+**Solution:** Ensure `tree-sitter` CLI and `gcc/clang` are installed:
+
+```bash
+# macOS
+brew install tree-sitter
+xcode-select --install
+
+# Arch
+yay -S tree-sitter base-devel
+```
