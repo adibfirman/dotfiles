@@ -17,6 +17,12 @@
       "source": "https://github.com/vercel-labs/agent-skills",
       "path": "skills/react-best-practices",
       "branch": "main"
+    },
+    {
+      "name": "terraform-skill",
+      "source": "https://github.com/antonbabenko/terraform-skill",
+      "path": "terraform",
+      "branch": "master"
     }
   ]
 }
