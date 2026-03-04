@@ -24,13 +24,13 @@ else
 fi
 
 # Print secrets profile status (only for interactive shells)
-if [[ -o interactive ]]; then
-  if [[ -n "$SECRETS_PROFILE" ]]; then
-    echo "\033[1;33m[secrets: $SECRETS_PROFILE]\033[0m"
-  else
-    echo "\033[1;33m[secrets: personal]\033[0m"
-  fi
-fi
+# if [[ -o interactive ]]; then
+#   if [[ -n "$SECRETS_PROFILE" ]]; then
+#     echo "\033[1;33m[secrets: $SECRETS_PROFILE]\033[0m"
+#   else
+#     echo "\033[1;33m[secrets: personal]\033[0m"
+#   fi
+# fi
 
 # initialise completions with ZSH's compinit
 autoload -Uz compinit && compinit
