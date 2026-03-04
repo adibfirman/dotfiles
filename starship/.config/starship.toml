@@ -4,7 +4,7 @@ format = """
 \
 $username\
 $directory\
-$all$fill $time\
+$all$gcloud $aws$fill $time\
 $line_break$character"""
 
 palette = 'catppuccin_mocha'
@@ -89,7 +89,13 @@ vimcmd_replace_symbol = '[](bold fg:purple)'
 vimcmd_visual_symbol = '[](bold fg:lavender)'
 
 [gcloud]
-disabled = true
-symbol = '☁️ '
-format = 'on [$symbol$account(@$domain)(\($region\))]($style) '
+disabled = false
+symbol = 'cloud:gcp '
+format = '(via [$symbol$account(\($region\))]($style))'
 style = 'bold sapphire'
+
+[aws]
+disabled = false
+symbol = 'cloud:aws '
+format = '(via [$symbol$profile(\($region\))]($style)) '
+style = 'bold peach'
