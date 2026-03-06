@@ -19,10 +19,46 @@
       "branch": "main"
     },
     {
-      "name": "terraform-skill",
-      "source": "https://github.com/antonbabenko/terraform-skill",
-      "path": "terraform",
-      "branch": "master"
+      "name": "gitnexus-cli",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-cli",
+      "branch": "main"
+    },
+    {
+      "name": "gitnexus-debugging",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-debugging",
+      "branch": "main"
+    },
+    {
+      "name": "gitnexus-exploring",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-exploring",
+      "branch": "main"
+    },
+    {
+      "name": "gitnexus-guide",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-guide",
+      "branch": "main"
+    },
+    {
+      "name": "gitnexus-impact-analysis",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-impact-analysis",
+      "branch": "main"
+    },
+    {
+      "name": "gitnexus-pr-review",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-pr-review",
+      "branch": "main"
+    },
+    {
+      "name": "gitnexus-refactoring",
+      "source": "https://github.com/abhigyanpatwari/GitNexus",
+      "path": ".claude/skills/gitnexus/gitnexus-refactoring",
+      "branch": "main"
     }
   ]
 }
