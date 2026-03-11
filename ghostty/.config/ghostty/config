@@ -12,10 +12,14 @@ font-feature = "ss04"
 font-feature = "liga"
 
 # Window settings
-# window-padding-y = 8
-# window-decoration = false
+adjust-cell-height = -1
 gtk-titlebar = false
 mouse-hide-while-typing = true
+shell-integration-features = no-cursor
+window-padding-balance = true
+window-padding-color = background
+window-padding-x = 6
+window-padding-y = 2
 
 # Terminal settings
 term = xterm-256color
