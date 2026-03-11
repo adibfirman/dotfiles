@@ -14,16 +14,6 @@
     }
   },
   "mcp": {
-    "gitnexus": {
-      "type": "local",
-      "enabled": false,
-      "command": [
-        "npx",
-        "-y",
-        "gitnexus",
-        "mcp"
-      ],
-    },
     "context7": {
       "type": "local",
       "command": [

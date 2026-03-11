@@ -54,6 +54,7 @@ TOOLS=(
     "Mermaid CLI|mmdc|--version"
     "ImageMagick|convert|--version"
     "xclip|xclip|-version"
+    "RTK|rtk|--version"
 )
 
 TOTAL_CHECKS=0
@@ -635,6 +636,12 @@ get_install_command() {
                 debian) echo "sudo apt install -y xclip" ;;
             esac
             ;;
+        "RTK")
+            case "$OS" in
+                macos) echo "brew install rtk" ;;
+                *) echo "curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh" ;;
+            esac
+            ;;
         *)
             echo ""
             ;;
@@ -733,6 +740,7 @@ step_additional_tools() {
     print_step "Step 6/6: Additional Tools"
     
     run_check "OpenCode"
+    run_check "RTK"
     run_check "Tectonic"
     run_check "Mermaid CLI"
     run_check "ImageMagick"

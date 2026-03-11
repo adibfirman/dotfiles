@@ -24,7 +24,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | **Shell** | Zsh + Zinit plugin manager |
 | **Prompt** | Starship |
 | **Multiplexer** | Tmux + TPM |
-| **AI Assistant** | OpenCode, Claude skills |
+| **AI Assistant** | OpenCode (with RTK integration), Claude skills |
 
 ## Prerequisites
 
@@ -80,6 +80,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | Tool | Installation | Purpose |
 |------|--------------|---------|
 | [OpenCode](https://opencode.ai/) | See website | AI coding assistant |
+| [RTK](https://github.com/rtk-ai/rtk) | `brew install rtk` / [install script](https://github.com/rtk-ai/rtk#installation) | CLI proxy for LLM token savings (60-90%) |
 | Tectonic | `yay -S tectonic` | LaTeX engine |
 | Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
 | ImageMagick | `brew install imagemagick` / `yay -S imagemagick` | Image processing |
@@ -127,6 +128,18 @@ This installs TPM (Tmux Plugin Manager) and all configured plugins.
 ### Zsh
 
 The Zsh configuration uses [Zinit](https://github.com/zdharma-continuum/zinit) for plugin management. It will auto-install on first shell startup.
+
+### OpenCode + RTK Integration
+
+The OpenCode configuration includes an auto-loaded RTK rewrite plugin (`~/.config/opencode/plugins/rtk-rewrite.ts`) that transparently rewrites shell commands to use `rtk` for token-optimized output. This provides 60-90% token savings on common development commands like `git status`, `cargo test`, `npm run build`, etc.
+
+**How it works:**
+- Plugin auto-loads from `~/.config/opencode/plugins/` on OpenCode startup
+- Intercepts bash commands via `tool.execute.before` hook
+- Rewrites commands programmatically (e.g., `git status` → `rtk git status`)
+- Agent receives compressed output, reducing token consumption per session
+
+No manual configuration needed — the plugin is active once RTK is installed and OpenCode is running.
 
 ## Directory Structure
 
