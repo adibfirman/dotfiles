@@ -109,7 +109,9 @@
         "start-mcp-server",
         "--context",
         "ide-assistant",
-        "--project-from-cwd"
+        "--project-from-cwd",
+        "--enable-web-dashboard",
+        "false"
       ]
     }
   },
