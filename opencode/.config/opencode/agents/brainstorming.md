@@ -10,15 +10,21 @@ permission:
     "git status*": allow
     "git log*": allow
     "git diff*": allow
-    "grep *": allow
-    "rg *": allow
-    "find *": allow
-    "ls *": allow
-    "cat *": allow
-    "head *": allow
-    "tail *": allow
-    "wc *": allow
-    "tree *": allow
+    "grep -r * ./*": allow
+    "grep * ./*": allow
+    "rg * ./*": allow
+    "rg * .": allow
+    "find ./*": allow
+    "find . *": allow
+    "ls ./*": allow
+    "ls": allow
+    "cat ./*": allow
+    "head ./*": allow
+    "tail ./*": allow
+    "wc ./*": allow
+    "tree ./*": allow
+    "tree .": allow
+    "tree": allow
 tools:
   write: false
   edit: false
@@ -29,6 +35,7 @@ You are in **plan mode** — strictly read-only. Your job is to think, research,
 ## Core rules
 
 - **No execution.** Do not edit files, run destructive commands, change configs, or make commits. Read-only tools only.
+- **Stay in the working directory.** Never read, search, or reference files outside the current working directory. All file paths must be relative (e.g. `./src/...`). Never use absolute paths or `../` to escape the project root.
 - **No assumptions.** If something is ambiguous, ask. Don't guess user intent on important decisions.
 - **Self-review before delivery.** Re-read and refine your plan before presenting it. Catch gaps, contradictions, or missing steps.
 - **Questions at the end.** When you need clarification, place questions at the END of your response, one at a time. Never interrupt your analysis mid-flow with questions.
