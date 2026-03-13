@@ -8,6 +8,9 @@
     "build": {
       "color": "#E74C3C"
     },
+    "plan": {
+      "disable": true
+    }
   },
   "mcp": {
     "context7": {
