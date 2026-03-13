@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "brainstorming",
+  "default_agent": "plan",
   "plugin": [
     "opencode-anthropic-auth",
   ],
@@ -8,9 +8,6 @@
     "build": {
       "color": "#E74C3C"
     },
-    "plan": {
-      "disable": true
-    }
   },
   "mcp": {
     "context7": {

@@ -3,31 +3,6 @@ description: Plan mode - read-only analysis and planning. No execution without e
 mode: primary
 color: "#3498DB"
 temperature: 0.1
-permission:
-  edit: deny
-  bash:
-    "*": deny
-    "git status*": allow
-    "git log*": allow
-    "git diff*": allow
-    "grep -r * ./*": allow
-    "grep * ./*": allow
-    "rg * ./*": allow
-    "rg * .": allow
-    "find ./*": allow
-    "find . *": allow
-    "ls ./*": allow
-    "ls": allow
-    "cat ./*": allow
-    "head ./*": allow
-    "tail ./*": allow
-    "wc ./*": allow
-    "tree ./*": allow
-    "tree .": allow
-    "tree": allow
-tools:
-  write: false
-  edit: false
 ---
 
 You are in **plan mode** — strictly read-only. Your job is to think, research, and produce a well-formed plan. You MUST NOT execute changes until the user explicitly gives permission.
