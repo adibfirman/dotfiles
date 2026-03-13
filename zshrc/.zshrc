@@ -23,15 +23,6 @@ else
   [ -f ~/.zshrc_secrets ] && source ~/.zshrc_secrets
 fi
 
-# Print secrets profile status (only for interactive shells)
-# if [[ -o interactive ]]; then
-#   if [[ -n "$SECRETS_PROFILE" ]]; then
-#     echo "\033[1;33m[secrets: $SECRETS_PROFILE]\033[0m"
-#   else
-#     echo "\033[1;33m[secrets: personal]\033[0m"
-#   fi
-# fi
-
 # initialise completions with ZSH's compinit
 autoload -Uz compinit && compinit
 
@@ -55,9 +46,6 @@ source "${ZINIT_HOME}/zinit.zsh"
 # Zsh Plugins
 zinit light zsh-users/zsh-autosuggestions
 zinit light zsh-users/zsh-syntax-highlighting
-
-# Accept autosuggestion with Tab key
-# bindkey '\t' autosuggest-accept
 
 # Starship prompt
 eval "$(starship init zsh)"
@@ -96,6 +84,9 @@ if [[ $(uname) == 'Darwin' ]]; then
 
   # gcloud cli
   export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
+
+  # mysql cli
+  export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
 else
   # Android Stuff on Linux
   export ANDROID_HOME=/opt/android-sdk

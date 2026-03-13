@@ -1,16 +1,15 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "plan",
+  "default_agent": "brainstorming",
   "plugin": [
     "opencode-anthropic-auth",
   ],
   "agent": {
-    "plan": {
-      "color": "#3498DB",
-      "description": "When you need to ask questions for clarification, always place them at the END of your response, never in the middle of your output text."
-    },
     "build": {
       "color": "#E74C3C"
+    },
+    "plan": {
+      "disable": true
     }
   },
   "mcp": {
@@ -44,6 +43,7 @@
     },
     "playwright": {
       "type": "local",
+      "enabled": false,
       "command": [
         "npx",
         "@playwright/mcp@latest",
@@ -112,6 +112,25 @@
         "--project-from-cwd",
         "--enable-web-dashboard",
         "false"
+      ]
+    },
+    "fff": {
+      "type": "local",
+      "command": [
+        "fff-mcp"
+      ]
+    },
+    "dbhub": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "npx",
+        "-y",
+        "@bytebase/dbhub@latest",
+        "--transport",
+        "stdio",
+        "--dsn",
+        "{env:DATABASE_URL}"
       ]
     }
   },
