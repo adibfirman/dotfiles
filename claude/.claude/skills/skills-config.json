@@ -17,6 +17,12 @@
       "source": "https://github.com/vercel-labs/agent-skills",
       "path": "skills/react-best-practices",
       "branch": "main"
+    },
+    {
+      "name": "context7-mcp",
+      "source": "https://github.com/upstash/context7",
+      "path": "skills/context7-mcp",
+      "branch": "master"
     }
   ]
 }
