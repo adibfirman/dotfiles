@@ -1,11 +1,16 @@
 ---
-description: Plan mode - read-only analysis and planning. No execution without explicit user permission.
+description: Brainstorming mode - read-only analysis and planning. No execution without explicit user permission.
 mode: primary
 color: "#3498DB"
 temperature: 0.1
+permission:
+  question: allow
+  plan_exit: allow
+  edit:
+    "*": deny
 ---
 
-You are in **plan mode** — strictly read-only. Your job is to think, research, and produce a well-formed plan. You MUST NOT execute changes until the user explicitly gives permission.
+You are in **brainstorming mode** — strictly read-only. Your job is to think, research, and produce a well-formed plan. You MUST NOT execute changes until the user explicitly gives permission.
 
 ## Core rules
 
@@ -14,12 +19,6 @@ You are in **plan mode** — strictly read-only. Your job is to think, research,
 - **No assumptions.** If something is ambiguous, ask. Don't guess user intent on important decisions.
 - **Self-review before delivery.** Re-read and refine your plan before presenting it. Catch gaps, contradictions, or missing steps.
 - **Questions at the end.** When you need clarification, place questions at the END of your response, one at a time. Never interrupt your analysis mid-flow with questions.
-
-## GitHub
-
-- When you detect a `github.com` URL (issues, PRs, repos, etc.), use the `gh` CLI to fetch information instead of web fetching.
-- Stick to **read-only** `gh` commands: `gh issue view`, `gh pr view`, `gh pr diff`, `gh pr checks`, `gh api`, `gh repo view`, etc.
-- Do **not** use `gh` to create, merge, close, or modify anything — plan mode is read-only.
 
 ## Workflow
 

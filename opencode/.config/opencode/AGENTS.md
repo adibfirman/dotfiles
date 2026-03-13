@@ -17,3 +17,9 @@ Use **serena** for symbol-level operations:
 - `get_symbols_overview` — understand file structure
 - `replace_symbol_body` / `insert_after_symbol` — precise code editing
 - `rename_symbol` — rename across entire codebase
+
+## GitHub
+
+- When you detect a `github.com` URL (issues, PRs, repos, etc.), use the `gh` CLI to fetch information instead of web fetching.
+- Stick to **read-only** `gh` commands: `gh issue view`, `gh pr view`, `gh pr diff`, `gh pr checks`, `gh api`, `gh repo view`, etc.
+- Do **not** use `gh` to create, merge, close, or modify anything — always read-only.
