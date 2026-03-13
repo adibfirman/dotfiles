@@ -55,7 +55,6 @@ TOOLS=(
     "ImageMagick|convert|--version"
     "xclip|xclip|-version"
     "RTK|rtk|--version"
-    "FFF MCP|fff-mcp|--version"
 )
 
 TOTAL_CHECKS=0
@@ -643,9 +642,6 @@ get_install_command() {
                 *) echo "curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh" ;;
             esac
             ;;
-        "FFF MCP")
-            echo "curl -fsSL https://raw.githubusercontent.com/dmtrKovalenko/fff.nvim/main/install-mcp.sh | bash"
-            ;;
         *)
             echo ""
             ;;
@@ -745,7 +741,6 @@ step_additional_tools() {
     
     run_check "OpenCode"
     run_check "RTK"
-    run_check "FFF MCP"
     run_check "Tectonic"
     run_check "Mermaid CLI"
     run_check "ImageMagick"

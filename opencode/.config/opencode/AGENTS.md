@@ -1,22 +1,59 @@
 # MCP Tool Usage
 
-## File Search & Content Grep
+## Serena — Semantic Code Toolkit
 
-For file search and content grep, prefer **fff** tools (`grep`, `find_files`, `multi_grep`) over serena's `search_for_pattern`.
+Prefer **serena** tools over raw file reads/greps for code operations. They are symbol-aware, token-efficient, and exploit relational structure.
 
-- fff is faster and returns frecency-ranked results (frequent/recent files first, git-dirty files boosted)
-- fff supports constraints: `*.rs`, `src/`, `!test/`, `git:modified`
-- Use `multi_grep` for OR logic across multiple patterns instead of sequential greps
+### Project Lifecycle
 
-## Code Navigation & Symbols
+- `check_onboarding_performed` — always call first when starting work on a project
+- `onboarding` — run if onboarding hasn't been performed yet (discovers project structure, build/test commands)
+- `activate_project` — switch between configured projects
 
-Use **serena** for symbol-level operations:
+### Code Navigation & Discovery
 
-- `find_symbol` — find classes, methods, functions by name
-- `find_referencing_symbols` — find where symbols are used
-- `get_symbols_overview` — understand file structure
-- `replace_symbol_body` / `insert_after_symbol` — precise code editing
-- `rename_symbol` — rename across entire codebase
+- `get_symbols_overview` — first tool to call on an unfamiliar file (classes, functions, variables at a glance)
+- `find_symbol` — find classes, methods, functions by name path; use `depth` to get children, `include_body` to read source
+- `find_referencing_symbols` — find where a symbol is used across the codebase
+- `search_for_pattern` — regex search across files (for non-symbol searches, config files, strings, comments)
+- `list_dir` — list files/directories with optional recursion
+- `find_file` — find files by name or wildcard mask
+- `read_file` — read a file (use sparingly; prefer symbolic tools for code)
+
+### Code Editing — Symbol Level (preferred)
+
+- `replace_symbol_body` — replace an entire symbol definition (function, method, class)
+- `insert_after_symbol` — insert new code after a symbol (e.g. add a method after another)
+- `insert_before_symbol` — insert code before a symbol (e.g. add imports, decorators)
+- `rename_symbol` — rename across the entire codebase via LSP refactoring
+
+### Code Editing — Line Level (when symbol-level is too coarse)
+
+- `replace_content` — find/replace in a file, optionally with regex
+- `replace_lines` — replace a range of lines with new content
+- `delete_lines` — delete a range of lines
+- `insert_at_line` — insert content at a specific line number
+- `create_text_file` — create or overwrite a file
+
+### Memory (persistent knowledge across conversations)
+
+- `list_memories` — see what's been remembered
+- `read_memory` — retrieve a memory by name
+- `write_memory` — save useful project knowledge for future sessions
+- `edit_memory` — update an existing memory
+- `delete_memory` — remove a memory
+
+### Thinking Tools (structured self-reflection)
+
+- `think_about_collected_information` — have I gathered enough context?
+- `think_about_task_adherence` — am I still on track with the task?
+- `think_about_whether_you_are_done` — is the task truly complete?
+
+### Other
+
+- `summarize_changes` — summarize what was changed in the codebase
+- `prepare_for_new_conversation` — prepare context handoff for a new session
+- `restart_language_server` — restart LSP if external edits cause stale state
 
 ## GitHub
 
