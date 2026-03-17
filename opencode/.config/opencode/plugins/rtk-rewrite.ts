@@ -2,304 +2,146 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 /**
  * RTK Command Rewrite Plugin for OpenCode
- * 
+ *
  * Transparently rewrites shell commands to use `rtk` for token-optimized output.
- * Based on rtk-ai/rtk src/discover/rules.rs registry.
- * 
+ * Based on github.com/martinstannard/openrtk pattern — regex rules with
+ * subcommand-level granularity so only commands rtk actually supports get rewritten.
+ *
  * Automatically loaded from ~/.config/opencode/plugins/
  */
 
-// ============================================
-// REWRITE RULES
-// ============================================
+/** Env-var prefix pattern: `FOO=bar BAZ=qux ` */
+const ENV_PREFIX_RE = /^([A-Za-z_][A-Za-z0-9_]*=[^ ]* +)+/
 
-// Each entry: [rtkCommand, [...prefixesToReplace]] (longest prefix first)
-const REWRITE_RULES: [string, string[]][] = [
-  ["rtk git",            ["git"]],
-  ["rtk gh",             ["gh"]],
-  ["rtk cargo",          ["cargo"]],
-  ["rtk pnpm",           ["pnpm"]],
-  ["rtk npm",            ["npm"]],
-  ["rtk npx",            ["npx"]],
-  ["rtk read",           ["cat", "head", "tail"]],
-  ["rtk grep",           ["rg", "grep"]],
-  ["rtk ls",             ["ls"]],
-  ["rtk find",           ["find"]],
-  ["rtk tsc",            ["pnpm tsc", "npx tsc", "tsc"]],
-  ["rtk lint",           ["npx eslint", "pnpm lint", "npx biome", "eslint", "biome", "lint"]],
-  ["rtk prettier",       ["npx prettier", "pnpm prettier", "prettier"]],
-  ["rtk next",           ["npx next build", "pnpm next build", "next build"]],
-  ["rtk vitest",         ["pnpm vitest", "npx vitest", "vitest", "jest"]],
-  ["rtk playwright",     ["npx playwright", "pnpm playwright", "playwright"]],
-  ["rtk prisma",         ["npx prisma", "pnpm prisma", "prisma"]],
-  ["rtk docker",         ["docker"]],
-  ["rtk kubectl",        ["kubectl"]],
-  ["rtk tree",           ["tree"]],
-  ["rtk diff",           ["diff"]],
-  ["rtk curl",           ["curl"]],
-  ["rtk wget",           ["wget"]],
-  ["rtk mypy",           ["python3 -m mypy", "python -m mypy", "mypy"]],
-  ["rtk ruff",           ["ruff"]],
-  ["rtk pytest",         ["python -m pytest", "pytest"]],
-  ["rtk pip",            ["pip3", "uv pip", "pip"]],
-  ["rtk go",             ["go"]],
-  ["rtk golangci-lint",  ["golangci-lint", "golangci"]],
-  ["rtk aws",            ["aws"]],
-  ["rtk psql",           ["psql"]],
+/**
+ * Command rewrite rules. Each entry maps a regex pattern (matched against the
+ * command body after stripping env-var prefixes) to a function that rewrites
+ * the command string through RTK.
+ *
+ * Order matters — first match wins.
+ */
+const RULES: [RegExp, (cmd: string) => string][] = [
+  // --- Git ---
+  [/^git\s+status(\s|$)/, (c) => c.replace(/^git status/, "rtk git status")],
+  [/^git\s+diff(\s|$)/, (c) => c.replace(/^git diff/, "rtk git diff")],
+  [/^git\s+log(\s|$)/, (c) => c.replace(/^git log/, "rtk git log")],
+  [/^git\s+add(\s|$)/, (c) => c.replace(/^git add/, "rtk git add")],
+  [/^git\s+commit(\s|$)/, (c) => c.replace(/^git commit/, "rtk git commit")],
+  [/^git\s+push(\s|$)/, (c) => c.replace(/^git push/, "rtk git push")],
+  [/^git\s+pull(\s|$)/, (c) => c.replace(/^git pull/, "rtk git pull")],
+  [/^git\s+branch(\s|$)/, (c) => c.replace(/^git branch/, "rtk git branch")],
+  [/^git\s+fetch(\s|$)/, (c) => c.replace(/^git fetch/, "rtk git fetch")],
+  [/^git\s+stash(\s|$)/, (c) => c.replace(/^git stash/, "rtk git stash")],
+  [/^git\s+show(\s|$)/, (c) => c.replace(/^git show/, "rtk git show")],
+
+  // --- GitHub CLI ---
+  [/^gh\s+(pr|issue|run|api|release)(\s|$)/, (c) => c.replace(/^gh /, "rtk gh ")],
+
+  // --- Cargo (Rust) ---
+  [/^cargo\s+test(\s|$)/, (c) => c.replace(/^cargo test/, "rtk cargo test")],
+  [/^cargo\s+build(\s|$)/, (c) => c.replace(/^cargo build/, "rtk cargo build")],
+  [/^cargo\s+clippy(\s|$)/, (c) => c.replace(/^cargo clippy/, "rtk cargo clippy")],
+  [/^cargo\s+check(\s|$)/, (c) => c.replace(/^cargo check/, "rtk cargo check")],
+  [/^cargo\s+install(\s|$)/, (c) => c.replace(/^cargo install/, "rtk cargo install")],
+  [/^cargo\s+fmt(\s|$)/, (c) => c.replace(/^cargo fmt/, "rtk cargo fmt")],
+
+  // --- File operations ---
+  [/^cat\s+/, (c) => c.replace(/^cat /, "rtk read ")],
+  [/^(rg|grep)\s+/, (c) => c.replace(/^(rg|grep) /, "rtk grep ")],
+  [/^ls(\s|$)/, (c) => c.replace(/^ls/, "rtk ls")],
+  [/^tree(\s|$)/, (c) => c.replace(/^tree/, "rtk tree")],
+  [/^find\s+/, (c) => c.replace(/^find /, "rtk find ")],
+  [/^diff\s+/, (c) => c.replace(/^diff /, "rtk diff ")],
+
+  // --- JS/TS tooling ---
+  [/^(pnpm\s+)?(npx\s+)?vitest(\s|$)/, (c) => c.replace(/^(pnpm )?(npx )?vitest( run)?/, "rtk vitest run")],
+  [/^pnpm\s+test(\s|$)/, (c) => c.replace(/^pnpm test/, "rtk vitest run")],
+  [/^npm\s+test(\s|$)/, (c) => c.replace(/^npm test/, "rtk npm test")],
+  [/^npm\s+run\s+/, (c) => c.replace(/^npm run /, "rtk npm ")],
+  [/^(npx\s+)?vue-tsc(\s|$)/, (c) => c.replace(/^(npx )?vue-tsc/, "rtk tsc")],
+  [/^pnpm\s+tsc(\s|$)/, (c) => c.replace(/^pnpm tsc/, "rtk tsc")],
+  [/^(npx\s+)?tsc(\s|$)/, (c) => c.replace(/^(npx )?tsc/, "rtk tsc")],
+  [/^pnpm\s+lint(\s|$)/, (c) => c.replace(/^pnpm lint/, "rtk lint")],
+  [/^(npx\s+)?eslint(\s|$)/, (c) => c.replace(/^(npx )?eslint/, "rtk lint")],
+  [/^(npx\s+)?prettier(\s|$)/, (c) => c.replace(/^(npx )?prettier/, "rtk prettier")],
+  [/^(npx\s+)?playwright(\s|$)/, (c) => c.replace(/^(npx )?playwright/, "rtk playwright")],
+  [/^pnpm\s+playwright(\s|$)/, (c) => c.replace(/^pnpm playwright/, "rtk playwright")],
+  [/^(npx\s+)?prisma(\s|$)/, (c) => c.replace(/^(npx )?prisma/, "rtk prisma")],
+
+  // --- Next.js ---
+  [/^(npx\s+)?next\s+build(\s|$)/, (c) => c.replace(/^(npx )?next build/, "rtk next build")],
+  [/^pnpm\s+next\s+build(\s|$)/, (c) => c.replace(/^pnpm next build/, "rtk next build")],
+
+  // --- Containers ---
+  [/^docker\s+compose(\s|$)/, (c) => c.replace(/^docker /, "rtk docker ")],
+  [/^docker\s+(ps|images|logs|run|build|exec)(\s|$)/, (c) => c.replace(/^docker /, "rtk docker ")],
+  [/^kubectl\s+(get|logs|describe|apply)(\s|$)/, (c) => c.replace(/^kubectl /, "rtk kubectl ")],
+
+  // --- Network ---
+  [/^curl\s+/, (c) => c.replace(/^curl /, "rtk curl ")],
+  [/^wget\s+/, (c) => c.replace(/^wget /, "rtk wget ")],
+
+  // --- pnpm package management ---
+  [/^pnpm\s+(list|ls|outdated)(\s|$)/, (c) => c.replace(/^pnpm /, "rtk pnpm ")],
+
+  // --- Python ---
+  [/^pytest(\s|$)/, (c) => c.replace(/^pytest/, "rtk pytest")],
+  [/^python\s+-m\s+pytest(\s|$)/, (c) => c.replace(/^python -m pytest/, "rtk pytest")],
+  [/^(python3?\s+-m\s+)?mypy(\s|$)/, (c) => c.replace(/^(python3? -m )?mypy/, "rtk mypy")],
+  [/^ruff\s+(check|format)(\s|$)/, (c) => c.replace(/^ruff /, "rtk ruff ")],
+  [/^pip\s+(list|outdated|install|show)(\s|$)/, (c) => c.replace(/^pip /, "rtk pip ")],
+  [/^pip3\s+(list|outdated|install|show)(\s|$)/, (c) => c.replace(/^pip3 /, "rtk pip ")],
+  [/^uv\s+pip\s+(list|outdated|install|show)(\s|$)/, (c) => c.replace(/^uv pip /, "rtk pip ")],
+
+  // --- Go ---
+  [/^go\s+test(\s|$)/, (c) => c.replace(/^go test/, "rtk go test")],
+  [/^go\s+build(\s|$)/, (c) => c.replace(/^go build/, "rtk go build")],
+  [/^go\s+vet(\s|$)/, (c) => c.replace(/^go vet/, "rtk go vet")],
+  [/^golangci-lint(\s|$)/, (c) => c.replace(/^golangci-lint/, "rtk golangci-lint")],
+
+  // --- Elixir / Phoenix / Ash ---
+  [/^mix\s+phx\.routes(\s|$)/, (c) => c.replace(/^mix phx\.routes/, "rtk --cache mix phx.routes")],
+  [/^mix\s+ash\.info(\s|$)/, (c) => c.replace(/^mix ash\.info/, "rtk --cache mix ash.info")],
+  [/^mix\s+test(\s|$)/, (c) => c.replace(/^mix test/, "rtk test mix test")],
+  [/^mix\s+credo(\s|$)/, (c) => c.replace(/^mix credo/, "rtk lint mix credo")],
+  [/^mix\s+format(\s|$)/, (c) => c.replace(/^mix format/, "rtk format mix format")],
+  [/^mix\s+dialyzer(\s|$)/, (c) => c.replace(/^mix dialyzer/, "rtk err mix dialyzer")],
+  [/^mix\s+compile(\s|$)/, (c) => c.replace(/^mix compile/, "rtk mix compile")],
+  [/^mix\s+ecto\.(migrate|migrations)(\s|$)/, (c) => c.replace(/^mix ecto\.(migrate|migrations)/, "rtk mix ecto.$1")],
+  [/^mix\s+help(\s|$)/, (c) => c.replace(/^mix help/, "rtk --cache mix help")],
+  [/^mix\s+/, (c) => c.replace(/^mix /, "rtk mix ")],
+  [/^iex\s+/, (c) => c.replace(/^iex /, "rtk iex ")],
+
+  // --- Cloud / DB ---
+  [/^aws\s+(s3|ec2|ecs|lambda|cloudformation|iam|logs)(\s|$)/, (c) => c.replace(/^aws /, "rtk aws ")],
+  [/^psql(\s|$)/, (c) => c.replace(/^psql/, "rtk psql")],
 ]
 
-// Commands to ignore (shell builtins, trivial operations)
-const IGNORED_PREFIXES = [
-  "cd ", "echo ", "printf ", "export ", "source ", "mkdir ", "rm ", "mv ", "cp ",
-  "chmod ", "chown ", "touch ", "which ", "type ", "command ", "test ", "sleep ",
-  "wait ", "kill ", "set ", "unset ", "wc ", "sort ", "uniq ", "tr ", "cut ",
-  "awk ", "sed ", "python3 -c", "python -c", "node -e", "ruby -e", "rtk ",
-  "pwd", "bash ", "sh ", "for ", "while ", "if ", "case ",
-]
-
-const IGNORED_EXACT = ["cd", "echo", "true", "false", "wait", "pwd", "bash", "sh", "fi", "done"]
-
-// ============================================
-// REWRITE LOGIC
-// ============================================
-
 /**
- * Check if command should be ignored
+ * Attempt to rewrite a command through RTK. Returns the rewritten command
+ * string, or null if no rule matched.
  */
-function shouldIgnore(cmd: string): boolean {
-  const trimmed = cmd.trim()
-  
-  if (IGNORED_EXACT.includes(trimmed)) {
-    return true
-  }
-  
-  for (const prefix of IGNORED_PREFIXES) {
-    if (trimmed.startsWith(prefix)) {
-      return true
+function rewrite(command: unknown): string | null {
+  if (typeof command !== "string") return null
+
+  // Already using rtk
+  if (/^(.*\/)?rtk\s/.test(command)) return null
+
+  // Skip heredocs
+  if (command.indexOf("<<") !== -1) return null
+
+  // Strip leading env-var assignments for matching, preserve for output
+  const envMatch = command.match(ENV_PREFIX_RE)
+  const envPrefix = envMatch ? envMatch[0] : ""
+  const body = envPrefix ? command.slice(envPrefix.length) : command
+
+  for (const [pattern, rewriter] of RULES) {
+    if (pattern.test(body)) {
+      return envPrefix + rewriter(body)
     }
   }
-  
-  return false
-}
 
-/**
- * Strip word prefix with boundary check
- * Returns remainder after prefix, or null if no match
- */
-function stripWordPrefix(cmd: string, prefix: string): string | null {
-  if (cmd === prefix) {
-    return ""
-  }
-  if (cmd.startsWith(prefix) && cmd.length > prefix.length && cmd[prefix.length] === " ") {
-    return cmd.slice(prefix.length + 1).trimStart()
-  }
   return null
-}
-
-/**
- * Extract environment prefix (sudo, env VAR=val, VAR=val)
- */
-function extractEnvPrefix(cmd: string): [string, string] {
-  const envPrefixRegex = /^(?:sudo\s+|env\s+|[A-Z_][A-Z0-9_]*=[^\s]*\s+)+/
-  const match = cmd.match(envPrefixRegex)
-  if (match) {
-    return [match[0], cmd.slice(match[0].length).trim()]
-  }
-  return ["", cmd]
-}
-
-/**
- * Special case: head -N file → rtk read file --max-lines N
- */
-function rewriteHeadNumeric(cmd: string, envPrefix: string): string | null {
-  const headNRegex = /^head\s+-(\d+)\s+(.+)$/
-  const headLinesRegex = /^head\s+--lines=(\d+)\s+(.+)$/
-  
-  let match = cmd.match(headNRegex)
-  if (match) {
-    return `${envPrefix}rtk read ${match[2]} --max-lines ${match[1]}`
-  }
-  
-  match = cmd.match(headLinesRegex)
-  if (match) {
-    return `${envPrefix}rtk read ${match[2]} --max-lines ${match[1]}`
-  }
-  
-  // head with other flags (e.g., -c): skip rewriting
-  if (cmd.startsWith("head -")) {
-    return null
-  }
-  
-  return null
-}
-
-/**
- * Rewrite a single command segment
- */
-function rewriteSegment(segment: string): string {
-  const trimmed = segment.trim()
-  
-  if (!trimmed || shouldIgnore(trimmed)) {
-    return segment
-  }
-  
-  // Already RTK
-  if (trimmed.startsWith("rtk ") || trimmed === "rtk") {
-    return segment
-  }
-  
-  // Extract env prefix (sudo, env VAR=val, etc.)
-  const [envPrefix, cleanCmd] = extractEnvPrefix(trimmed)
-  
-  // Skip if RTK_DISABLED=1 in env prefix
-  if (envPrefix.includes("RTK_DISABLED=")) {
-    return segment
-  }
-  
-  // Special case: head -N file
-  if (cleanCmd.startsWith("head -")) {
-    const specialRewrite = rewriteHeadNumeric(cleanCmd, envPrefix)
-    if (specialRewrite !== null) {
-      return specialRewrite
-    }
-  }
-  
-  // Skip gh with structured output flags
-  if (cleanCmd.startsWith("gh ")) {
-    const lowerCmd = cleanCmd.toLowerCase()
-    if (lowerCmd.includes("--json") || lowerCmd.includes("--jq") || lowerCmd.includes("--template")) {
-      return segment
-    }
-  }
-  
-  // Try each rewrite rule
-  for (const [rtkCmd, prefixes] of REWRITE_RULES) {
-    for (const prefix of prefixes) {
-      const rest = stripWordPrefix(cleanCmd, prefix)
-      if (rest !== null) {
-        return rest ? `${envPrefix}${rtkCmd} ${rest}` : `${envPrefix}${rtkCmd}`
-      }
-    }
-  }
-  
-  return segment
-}
-
-/**
- * Rewrite compound command (with &&, ||, ;, |)
- */
-function rewriteCompound(cmd: string): string {
-  const bytes = cmd.split("")
-  const len = bytes.length
-  let result = ""
-  let anyChanged = false
-  let segStart = 0
-  let i = 0
-  let inSingle = false
-  let inDouble = false
-  
-  while (i < len) {
-    const char = bytes[i]
-    
-    if (char === "'" && !inDouble) {
-      inSingle = !inSingle
-      i++
-    } else if (char === '"' && !inSingle) {
-      inDouble = !inDouble
-      i++
-    } else if (char === "|" && !inSingle && !inDouble) {
-      if (i + 1 < len && bytes[i + 1] === "|") {
-        // || operator
-        const seg = cmd.slice(segStart, i).trim()
-        const rewritten = rewriteSegment(seg)
-        if (rewritten !== seg) anyChanged = true
-        result += rewritten + " || "
-        i += 2
-        while (i < len && bytes[i] === " ") i++
-        segStart = i
-      } else {
-        // | pipe - rewrite first segment only, pass through rest
-        const seg = cmd.slice(segStart, i).trim()
-        const rewritten = rewriteSegment(seg)
-        if (rewritten !== seg) anyChanged = true
-        result += rewritten + " " + cmd.slice(i).trimStart()
-        return anyChanged ? result : cmd
-      }
-    } else if (char === "&" && !inSingle && !inDouble) {
-      if (i + 1 < len && bytes[i + 1] === "&") {
-        // && operator
-        const seg = cmd.slice(segStart, i).trim()
-        const rewritten = rewriteSegment(seg)
-        if (rewritten !== seg) anyChanged = true
-        result += rewritten + " && "
-        i += 2
-        while (i < len && bytes[i] === " ") i++
-        segStart = i
-      } else if (i + 1 < len && bytes[i + 1] === ">") {
-        // &> redirect
-        i++
-      } else if (i > 0 && bytes[i - 1] === ">") {
-        // >& redirect
-        i++
-      } else {
-        // & background operator
-        const seg = cmd.slice(segStart, i).trim()
-        const rewritten = rewriteSegment(seg)
-        if (rewritten !== seg) anyChanged = true
-        result += rewritten + " & "
-        i++
-        while (i < len && bytes[i] === " ") i++
-        segStart = i
-      }
-    } else if (char === ";" && !inSingle && !inDouble) {
-      const seg = cmd.slice(segStart, i).trim()
-      const rewritten = rewriteSegment(seg)
-      if (rewritten !== seg) anyChanged = true
-      result += rewritten + ";"
-      i++
-      while (i < len && bytes[i] === " ") i++
-      if (i < len) result += " "
-      segStart = i
-    } else {
-      i++
-    }
-  }
-  
-  // Last segment
-  const seg = cmd.slice(segStart).trim()
-  const rewritten = rewriteSegment(seg)
-  if (rewritten !== seg) anyChanged = true
-  result += rewritten
-  
-  return anyChanged ? result : cmd
-}
-
-/**
- * Main rewrite entry point
- */
-function rewriteCommand(cmd: string): string | null {
-  const trimmed = cmd.trim()
-  
-  if (!trimmed) {
-    return null
-  }
-  
-  // Skip heredocs and arithmetic expansion
-  if (trimmed.includes("<<") || trimmed.includes("$((")) {
-    return null
-  }
-  
-  // Simple already-RTK command
-  const hasCompound = trimmed.includes("&&") || trimmed.includes("||") || 
-                      trimmed.includes(";") || trimmed.includes("|") ||
-                      trimmed.includes(" & ")
-  
-  if (!hasCompound && (trimmed.startsWith("rtk ") || trimmed === "rtk")) {
-    return null
-  }
-  
-  const rewritten = rewriteCompound(trimmed)
-  return rewritten !== trimmed ? rewritten : null
 }
 
 // ============================================
@@ -309,13 +151,9 @@ function rewriteCommand(cmd: string): string | null {
 export const RtkRewrite: Plugin = async () => {
   return {
     "tool.execute.before": async (input, output) => {
-      if (input.tool !== "bash") {
-        return
-      }
-      
-      const cmd = output.args.command
-      const rewritten = rewriteCommand(cmd)
-      
+      if (input.tool !== "bash") return
+
+      const rewritten = rewrite(output.args.command)
       if (rewritten) {
         output.args.command = rewritten
       }
