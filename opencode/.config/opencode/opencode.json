@@ -33,6 +33,7 @@
     },
     "figma-mcp": {
       "type": "local",
+      "enabled": false,
       "command": [
         "npx",
         "-y",
