@@ -13,6 +13,15 @@
     }
   },
   "mcp": {
+    "shadcn": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "npx",
+        "shadcn@latest",
+        "mcp"
+      ],
+    },
     "context7": {
       "type": "local",
       "command": [
