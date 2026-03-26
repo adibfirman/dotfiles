@@ -36,6 +36,12 @@ Reference these guidelines when:
 - Profiling React Native performance
 - Reviewing React Native code for performance
 
+## Security Notes
+
+- Treat shell commands in these references as local developer operations. Review them before running, prefer version-pinned tooling, and avoid piping remote scripts directly to a shell.
+- Treat third-party libraries and plugins as dependencies that still require normal supply-chain controls: pin versions, verify provenance, and update through your standard review process.
+- Treat Re.Pack code splitting as first-party artifact delivery only. Remote chunks must come from trusted HTTPS origins you control and be pinned to the current app release.
+
 ## Priority-Ordered Guidelines
 
 | Priority | Category | Impact | Prefix |
@@ -101,7 +107,7 @@ ls -lh output.js  # e.g., After: 1.6 MB  (24% reduction)
 
 **Common fixes:**
 - Avoid barrel imports (import directly from source)
-- Remove unnecessary Intl polyfills (Hermes has native support)
+- Remove unnecessary Intl polyfills only after checking Hermes API and method coverage
 - Enable tree shaking (Expo SDK 52+ or Re.Pack)
 - Enable R8 for Android native code shrinking
 

@@ -6,8 +6,8 @@ theme = catppuccin-frappe
 # font-size = 12
 
 font-family = CaskaydiaCove Nerd Font
-font-size = 14
-font-style = semibold
+font-size = 12
+font-style = bold
 
 font-feature = "ss01"
 font-feature = "ss02"
@@ -16,14 +16,13 @@ font-feature = "ss04"
 font-feature = "liga"
 
 # Window settings
-adjust-cell-height = -1
 gtk-titlebar = false
 mouse-hide-while-typing = true
 shell-integration-features = no-cursor
 window-padding-balance = true
 window-padding-color = background
 window-padding-x = 6
-window-padding-y = 2
+window-padding-y = 8
 
 # Terminal settings
 term = xterm-256color
