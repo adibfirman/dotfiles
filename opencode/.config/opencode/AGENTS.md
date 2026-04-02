@@ -1,3 +1,24 @@
+## Plan mode default
+
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions).
+- If something goes sideways, STOP and re-plan immediately. Don't keep pushing.
+- Use plan mode for verification steps, not just building.
+- Always asking questions to get more clarity
+- Write detailed specs upfront to reduce ambiguity
+- Always breakdown tasks with its dependencies
+
+## General
+
+- If we find the codebase is related with react u can use react-best-practice skills, if can do not use useEffect at all
+- if you changes, review, or anything related with code, u can use deslop-ai to double check it
+- put the screenshot or anything from the playwright-mcp in ~/Downloads/playwright-mcp -- if the folder not yet there, create it
+- after the execution of the plan always check to update or put it as a new (if it's not exists) on root repo with pattern "memory" or "plan" as a reference in the futures of planning
+
+## Git Workflow
+
+- before execution ask the branch branch or new branch format
+- follow the commit format with the existing commit format
+
 # MCP Tool Usage
 
 ## Serena — Semantic Code Toolkit
@@ -66,7 +87,7 @@ Prefer **serena** tools over raw file reads/greps for code operations. They are 
 When generating code that uses third-party libraries, ALWAYS use Context7
 (`resolve-library-id` → `query-docs`) to fetch current documentation BEFORE
 writing the code. Do not rely on training data for API signatures, configuration
-options, or usage patterns.
+options, or usage patterns. Use skills context7
 
 ### When to Use
 

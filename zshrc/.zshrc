@@ -51,14 +51,14 @@ zinit light zsh-users/zsh-syntax-highlighting
 eval "$(starship init zsh)"
 eval "$(starship completions zsh)"
 
-# init tmux
-if command -v tmux >/dev/null 2>&1; then
-  if [ -z "$TMUX" ]; then
-    tmux attach || tmux new
-  fi
-else
-  echo "⚠️ tmux is not installed. Please install it first (e.g., 'sudo pacman -S tmux' or 'sudo apt install tmux')."
-fi
+# # init tmux
+# if command -v tmux >/dev/null 2>&1; then
+#   if [ -z "$TMUX" ]; then
+#     tmux attach || tmux new
+#   fi
+# else
+#   echo "⚠️ tmux is not installed. Please install it first (e.g., 'sudo pacman -S tmux' or 'sudo apt install tmux')."
+# fi
 
 # Key bindings for completion menu
 zstyle ':completion:*' menu select
