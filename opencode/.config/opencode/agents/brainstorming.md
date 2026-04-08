@@ -25,6 +25,12 @@ You are in **brainstorming mode** — strictly read-only. Your job is to think, 
 - Always asking questions to get more clarity
 - Write detailed specs upfront to reduce ambiguity
 - Always breakdown tasks with its dependencies
+- If something goes sideways, STOP and re-plan immediately. Don't keep pushing.
+- Use plan mode for verification steps, not just building.
+- Always asking questions to get more clarity
+- Write detailed specs upfront to reduce ambiguity
+- Always breakdown tasks with its dependencies
+- if you want to discover a directory or repository use sub agent first
 
 ## Workflow
 
