@@ -23,6 +23,24 @@
       "source": "https://github.com/upstash/context7",
       "path": "skills/context7-mcp",
       "branch": "master"
+    },
+    {
+      "name": "grill-me",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "grill-me",
+      "branch": "main"
+    },
+    {
+      "name": "qa",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "qa",
+      "branch": "main"
+    },
+    {
+      "name": "design-an-interface",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "design-an-interface",
+      "branch": "main"
     }
   ]
 }

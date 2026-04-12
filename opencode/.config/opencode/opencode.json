@@ -13,6 +13,12 @@
     }
   },
   "mcp": {
+    "fff": {
+      "type": "local",
+      "command": [
+        "fff-mcp"
+      ],
+    },
     "shadcn": {
       "type": "local",
       "enabled": false,
