@@ -2,8 +2,6 @@
 
 - If we find the codebase is related with react u can use react-best-practice skills, if can do not use useEffect at all
 - if you changes, review, or anything related with code, u can use deslop-ai to double check it
-- put the screenshot or anything from the playwright-mcp in ~/Downloads/playwright-mcp -- if the folder not yet there, create it
-- after the execution of the plan always check to update or put it as a new (if it's not exists) on root repo with pattern "memory" or "plan" as a reference in the futures of planning
 - For any file search or grep in the current git indexed directory use fff tools
 - Never, ever, under any circumstances, ever, not once, no matter what, try to start the fucking dev server, it’s already fucking running.
 
