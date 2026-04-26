@@ -127,9 +127,9 @@
       "branch": "main"
     },
     {
-      "name": "golang-linter",
+      "name": "golang-lint",
       "source": "https://github.com/samber/cc-skills-golang",
-      "path": "skills/golang-linter",
+      "path": "skills/golang-lint",
       "branch": "main"
     },
     {
