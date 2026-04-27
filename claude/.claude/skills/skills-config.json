@@ -31,12 +31,6 @@
       "branch": "main"
     },
     {
-      "name": "qa",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "qa",
-      "branch": "main"
-    },
-    {
       "name": "design-an-interface",
       "source": "https://github.com/mattpocock/skills",
       "path": "design-an-interface",
