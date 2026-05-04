@@ -21,6 +21,7 @@ NC='\033[0m' # No Color
 
 # Track results
 declare -a SUCCESS_SKILLS=()
+declare -a SKIPPED_SKILLS=()
 declare -a FAILED_SKILLS=()
 
 # Cleanup function
@@ -30,14 +31,13 @@ cleanup() {
     fi
 }
 
-# Set trap for cleanup on exit
-trap cleanup EXIT
-
 # Remove lock file on exit
 remove_lock() {
     rm -f "$LOCK_FILE"
 }
-trap remove_lock EXIT
+
+# Set trap for cleanup on exit
+trap 'cleanup; remove_lock' EXIT
 
 # Check if script is already running
 check_lock() {
@@ -123,7 +123,7 @@ sync_skill() {
     if [[ -z "$parsed" ]]; then
         echo -e "${RED}  ✗ Invalid GitHub URL: $source${NC}"
         FAILED_SKILLS+=("$name (invalid URL)")
-        return 1
+        return 0
     fi
     
     local owner repo
@@ -142,32 +142,38 @@ sync_skill() {
         --branch "$branch" \
         "$source" \
         "$TEMP_DIR" 2>&1 | sed 's/^/  /'; then
-        echo -e "${RED}  ✗ Failed to clone repository${NC}"
-        FAILED_SKILLS+=("$name (clone failed)")
-        return 1
+        echo -e "${YELLOW}  → Skipping unavailable repository: $source${NC}"
+        SKIPPED_SKILLS+=("$name (repository unavailable)")
+        rm -rf "$TEMP_DIR"
+        TEMP_DIR=""
+        return 0
     fi
     
     # Configure sparse-checkout
-    (cd "$TEMP_DIR"
-    if ! git sparse-checkout set "$path" 2>&1 | sed 's/^/  /'; then
+    if ! git -C "$TEMP_DIR" sparse-checkout set "$path" 2>&1 | sed 's/^/  /'; then
         echo -e "${RED}  ✗ Failed to configure sparse-checkout${NC}"
         FAILED_SKILLS+=("$name (sparse-checkout failed)")
-        return 1
+        rm -rf "$TEMP_DIR"
+        TEMP_DIR=""
+        return 0
     fi
     
     # Checkout the files
-    if ! git checkout 2>&1 | sed 's/^/  /'; then
+    if ! git -C "$TEMP_DIR" checkout 2>&1 | sed 's/^/  /'; then
         echo -e "${RED}  ✗ Failed to checkout files${NC}"
         FAILED_SKILLS+=("$name (checkout failed)")
-        return 1
+        rm -rf "$TEMP_DIR"
+        TEMP_DIR=""
+        return 0
     fi
-    )
     
     # Check if skill directory exists in temp
     if [[ ! -d "$TEMP_DIR/$path" ]]; then
         echo -e "${RED}  ✗ Skill path not found in repository: $path${NC}"
         FAILED_SKILLS+=("$name (path not found)")
-        return 1
+        rm -rf "$TEMP_DIR"
+        TEMP_DIR=""
+        return 0
     fi
     
     # Remove existing local skill directory (true sync)
@@ -238,11 +244,19 @@ main() {
         echo ""
     fi
     
+    if [[ ${#SKIPPED_SKILLS[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}Skipped (${#SKIPPED_SKILLS[@]}):${NC}"
+        printf '  → %s\n' "${SKIPPED_SKILLS[@]}"
+        echo ""
+    fi
+    
     if [[ ${#FAILED_SKILLS[@]} -gt 0 ]]; then
         echo -e "${RED}Failed to sync (${#FAILED_SKILLS[@]}):${NC}"
         printf '  ✗ %s\n' "${FAILED_SKILLS[@]}"
         echo ""
         exit 1
+    elif [[ ${#SKIPPED_SKILLS[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}Sync completed with skipped skills.${NC}"
     else
         echo -e "${GREEN}All skills synced successfully!${NC}"
     fi
