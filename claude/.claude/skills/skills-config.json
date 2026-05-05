@@ -27,13 +27,7 @@
     {
       "name": "grill-me",
       "source": "https://github.com/mattpocock/skills",
-      "path": "grill-me",
-      "branch": "main"
-    },
-    {
-      "name": "design-an-interface",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "design-an-interface",
+      "path": "skills/productivity/grill-me",
       "branch": "main"
     },
     {

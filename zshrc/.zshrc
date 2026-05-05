@@ -122,3 +122,6 @@ export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+# GIT AI (basically it was used for the work purpose, so let it as is)
+export PATH="$HOME/.git-ai/bin:$PATH"
