@@ -4,19 +4,22 @@
       "name": "react-native-best-practices",
       "source": "https://github.com/callstackincubator/agent-skills",
       "path": "skills/react-native-best-practices",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/react/react-native-best-practices"
     },
     {
       "name": "composition-patterns",
       "source": "https://github.com/vercel-labs/agent-skills",
       "path": "skills/composition-patterns",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/react/composition-patterns"
     },
     {
       "name": "react-best-practices",
       "source": "https://github.com/vercel-labs/agent-skills",
       "path": "skills/react-best-practices",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/react/react-best-practices"
     },
     {
       "name": "context7-mcp",
@@ -28,217 +31,260 @@
       "name": "grill-me",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/grill-me",
-      "branch": "main"
+      "branch": "main",
+      "destination": "productivity/grill-me"
+    },
+    {
+      "name": "to-prd",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/to-prd",
+      "branch": "main",
+      "destination": "productivity/to-prd"
     },
     {
       "name": "golang-benchmark",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-benchmark",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-benchmark"
     },
     {
       "name": "golang-cli",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-cli",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-cli"
     },
     {
       "name": "golang-code-style",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-code-style",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-code-style"
     },
     {
       "name": "golang-concurrency",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-concurrency",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-concurrency"
     },
     {
       "name": "golang-context",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-context",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-context"
     },
     {
       "name": "golang-continuous-integration",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-continuous-integration",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-continuous-integration"
     },
     {
       "name": "golang-data-structures",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-data-structures",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-data-structures"
     },
     {
       "name": "golang-database",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-database",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-database"
     },
     {
       "name": "golang-dependency-injection",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-dependency-injection",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-dependency-injection"
     },
     {
       "name": "golang-dependency-management",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-dependency-management",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-dependency-management"
     },
     {
       "name": "golang-design-patterns",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-design-patterns",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-design-patterns"
     },
     {
       "name": "golang-documentation",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-documentation",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-documentation"
     },
     {
       "name": "golang-error-handling",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-error-handling",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-error-handling"
     },
     {
       "name": "golang-grpc",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-grpc",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-grpc"
     },
     {
       "name": "golang-lint",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-lint",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-lint"
     },
     {
       "name": "golang-modernize",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-modernize",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-modernize"
     },
     {
       "name": "golang-naming",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-naming",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-naming"
     },
     {
       "name": "golang-observability",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-observability",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-observability"
     },
     {
       "name": "golang-performance",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-performance",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-performance"
     },
     {
       "name": "golang-popular-libraries",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-popular-libraries",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-popular-libraries"
     },
     {
       "name": "golang-project-layout",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-project-layout",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-project-layout"
     },
     {
       "name": "golang-safety",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-safety",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-safety"
     },
     {
       "name": "golang-samber-do",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-do",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-do"
     },
     {
       "name": "golang-samber-hot",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-hot",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-hot"
     },
     {
       "name": "golang-samber-lo",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-lo",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-lo"
     },
     {
       "name": "golang-samber-mo",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-mo",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-mo"
     },
     {
       "name": "golang-samber-oops",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-oops",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-oops"
     },
     {
       "name": "golang-samber-ro",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-ro",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-ro"
     },
     {
       "name": "golang-samber-slog",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-samber-slog",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-samber-slog"
     },
     {
       "name": "golang-security",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-security",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-security"
     },
     {
       "name": "golang-stay-updated",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-stay-updated",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-stay-updated"
     },
     {
       "name": "golang-stretchr-testify",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-stretchr-testify",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-stretchr-testify"
     },
     {
       "name": "golang-structs-interfaces",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-structs-interfaces",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-structs-interfaces"
     },
     {
       "name": "golang-testing",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-testing",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-testing"
     },
     {
       "name": "golang-troubleshooting",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-troubleshooting",
-      "branch": "main"
+      "branch": "main",
+      "destination": "technical/golang/golang-troubleshooting"
     }
   ]
 }

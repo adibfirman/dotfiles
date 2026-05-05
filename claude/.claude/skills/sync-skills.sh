@@ -113,9 +113,13 @@ sync_skill() {
     local source="$2"
     local path="$3"
     local branch="$4"
-    local local_path="$SCRIPT_DIR/$name"
+    local destination="$5"
+    local local_path="$SCRIPT_DIR/$destination"
     
     echo -e "${BLUE}Syncing: $name${NC}"
+    if [[ "$destination" != "$name" ]]; then
+        echo -e "${YELLOW}  → Destination: $destination${NC}"
+    fi
     
     # Parse GitHub URL
     local parsed
@@ -222,14 +226,15 @@ main() {
     while IFS= read -r skill; do
         i=$((i + 1))
         
-        local name source path branch
+        local name source path branch destination
         name=$(echo "$skill" | jq -r '.name')
         source=$(echo "$skill" | jq -r '.source')
         path=$(echo "$skill" | jq -r '.path')
         branch=$(echo "$skill" | jq -r '.branch // "main"')
+        destination=$(echo "$skill" | jq -r '.destination // .name')
         
         echo "[$i/$total] Syncing skill: $name"
-        sync_skill "$name" "$source" "$path" "$branch"
+        sync_skill "$name" "$source" "$path" "$branch" "$destination"
         echo ""
         
     done < <(jq -c '.skills[]' "$CONFIG_FILE")
