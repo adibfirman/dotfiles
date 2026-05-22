@@ -35,13 +35,6 @@
       "destination": "productivity/grill-me"
     },
     {
-      "name": "to-prd",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "skills/engineering/to-prd",
-      "branch": "main",
-      "destination": "productivity/to-prd"
-    },
-    {
       "name": "golang-benchmark",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-benchmark",
