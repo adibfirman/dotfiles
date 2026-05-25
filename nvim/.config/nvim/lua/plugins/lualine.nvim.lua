@@ -16,7 +16,7 @@ return {
         component_separators = "",
         section_separators = { left = "", right = "" },
         disabled_filetypes = { "alpha", "Outline" },
-        globalstatus = true,
+        globalstatus = false,
       },
       sections = {
         lualine_a = {
@@ -47,6 +47,14 @@ return {
         lualine_z = {
           { "location", separator = { left = "", right = " " }, icon = "" },
         },
+      },
+      inactive_sections = {
+        lualine_a = {},
+        lualine_b = {},
+        lualine_c = {},
+        lualine_x = {},
+        lualine_y = {},
+        lualine_z = {},
       },
       extensions = { "toggleterm", "trouble" },
     })

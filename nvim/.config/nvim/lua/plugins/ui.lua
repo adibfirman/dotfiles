@@ -60,7 +60,16 @@ return {
           },
         },
         color_overrides = {},
-        custom_highlights = {},
+        custom_highlights = function(colors)
+          return {
+            WinBar = { bg = colors.surface0, fg = colors.text },
+            WinBarNC = { bg = colors.surface0, fg = colors.overlay1 },
+            StatusLineNC = { bg = colors.mantle, fg = colors.surface2 },
+            DropBarCurrentContext = { bg = colors.surface1, fg = colors.text },
+            DropBarHover = { bg = colors.surface1, fg = colors.text },
+            DropBarIconUISeparator = { bg = colors.surface0, fg = colors.overlay1 },
+          }
+        end,
         default_integrations = true,
         auto_integrations = false,
         integrations = {
