@@ -1,0 +1,23 @@
+nvim/.config/nvim/lua/plugins/lualine.nvim.lua
+  s_df3703023f78d5::t_1a8ca95a29780e 19,51-57
+nvim/.config/nvim/lua/plugins/ui.lua
+  s_df3703023f78d5::t_1a8ca95a29780e 63-72
+nvim/.config/nvim/lua/config/options.lua
+  s_df3703023f78d5::t_1a8ca95a29780e 70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1dad22ff36d5b14b818c9f04f1a1f50acd486933",
+  "prompts": {},
+  "sessions": {
+    "s_df3703023f78d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a36112f6ffeU548LgtcPXjPkF",
+        "model": "gpt-5.5"
+      },
+      "human_author": "adibfirman <dib.firman@gmail.com>"
+    }
+  }
+}
