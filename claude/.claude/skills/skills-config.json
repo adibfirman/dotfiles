@@ -35,6 +35,20 @@
       "destination": "productivity/grill-me"
     },
     {
+      "name": "grill-with-docs",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/grill-with-docs",
+      "branch": "main",
+      "destination": "init-features/grill-with-docs"
+    },
+    {
+      "name": "to-prd",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/to-prd",
+      "branch": "main",
+      "destination": "init-features/to-prd"
+    },
+    {
       "name": "golang-benchmark",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-benchmark",
