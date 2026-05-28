@@ -5,5 +5,5 @@ description: Use when improving planning, decision-making, brainstorming, interv
 
 ## Productivity Skills
 
-- [deslop-simply-ai-code](./deslop-simply-ai-code/) –– When a user asking review a code and check the skills "technical" that depends on the code that is going on used.
+- [code-review](../code-review/) -- When reviewing code and routing to the relevant technical skill for the language or framework in use.
 - [grill-me](./grill-me/) -- If the user asking literally "skills grill-me" or get relentlessly interviewed about a plan or design until every branch of the decision tree is resolved.
