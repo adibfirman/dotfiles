@@ -1,0 +1,30 @@
+claude/.claude/skills/init-features/SKILL.md
+  s_578b7373987b6c::t_38b1fe7a9e96fd 1-2,4-7,9,12,14,16,18,20,22
+  s_578b7373987b6c::t_5c55c8f14b29b2 3,8,10-11,13,15,17,19,21,23-26
+claude/.claude/skills/init-features/grill-with-docs/ADR-FORMAT.md
+  s_578b7373987b6c::t_5c55c8f14b29b2 1-47
+claude/.claude/skills/skills-config.json
+  s_578b7373987b6c::t_1d1ed722445843 38-50
+claude/.claude/skills/init-features/grill-with-docs/SKILL.md
+  s_578b7373987b6c::t_5c55c8f14b29b2 1-88
+claude/.claude/skills/init-features/to-prd/SKILL.md
+  s_578b7373987b6c::t_5c55c8f14b29b2 1-76
+claude/.claude/skills/init-features/grill-with-docs/CONTEXT-FORMAT.md
+  s_578b7373987b6c::t_5c55c8f14b29b2 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8d218298dbdbbd96df01b563360f758265e68e77",
+  "prompts": {},
+  "sessions": {
+    "s_578b7373987b6c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_191eaaddfffeuZNgZRL9yk0fGl",
+        "model": "gpt-5.5"
+      },
+      "human_author": "adibfirman <dib.firman@gmail.com>"
+    }
+  }
+}
