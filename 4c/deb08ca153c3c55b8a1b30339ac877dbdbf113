@@ -1,0 +1,21 @@
+claude/.claude/skills/productivity/SKILL.md
+  s_726248af7cd0ce::t_4dc10926edde39 8
+claude/.claude/skills/code-review/SKILL.md
+  s_726248af7cd0ce::t_4dc10926edde39 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4cdeb08ca153c3c55b8a1b30339ac877dbdbf113",
+  "prompts": {},
+  "sessions": {
+    "s_726248af7cd0ce": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_19634f3f5ffeDWb9lah6LHeNxu",
+        "model": "gpt-5.5"
+      },
+      "human_author": "adibfirman <dib.firman@gmail.com>"
+    }
+  }
+}
