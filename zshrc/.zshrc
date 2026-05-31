@@ -123,8 +123,5 @@ export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-# GIT AI (basically it was used for the work purpose, so let it as is)
-export PATH="$HOME/.git-ai/bin:$PATH"
-
 # Added by sonarqube-cli 
 export PATH="$HOME/.local/share/sonarqube-cli/bin:$PATH"
