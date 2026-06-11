@@ -32,21 +32,21 @@
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/grill-me",
       "branch": "main",
-      "destination": "productivity/grill-me"
+      "destination": "grill-me"
     },
     {
       "name": "grill-with-docs",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/engineering/grill-with-docs",
       "branch": "main",
-      "destination": "init-features/grill-with-docs"
+      "destination": "grill-with-docs"
     },
     {
-      "name": "to-prd",
+      "name": "teach",
       "source": "https://github.com/mattpocock/skills",
-      "path": "skills/engineering/to-prd",
+      "path": "skills/productivity/teach",
       "branch": "main",
-      "destination": "init-features/to-prd"
+      "destination": "teach"
     },
     {
       "name": "golang-benchmark",
