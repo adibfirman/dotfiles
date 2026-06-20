@@ -14,6 +14,8 @@ font-feature = "liga"
 
 # Window settings
 gtk-titlebar = false
+macos-titlebar-style = hidden
+macos-titlebar-proxy-icon = hidden
 mouse-hide-while-typing = true
 shell-integration-features = no-cursor
 window-padding-balance = true
