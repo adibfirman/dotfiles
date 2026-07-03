@@ -42,6 +42,28 @@
       "destination": "grill-with-docs"
     },
     {
+      "name": "grilling",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/productivity/grilling",
+      "branch": "main",
+      "destination": "grilling"
+    },
+    {
+      "name": "domain-modeling",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/domain-modeling",
+      "branch": "main",
+      "destination": "domain-modeling"
+    },
+    {
+      "name": "spec-of-code",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/code-review",
+      "branch": "main",
+      "destination": "code-review/spec-of-code",
+      "local_name": "spec-of-code"
+    },
+    {
       "name": "teach",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/teach",

@@ -1,2 +1,5 @@
 # Serena MCP - per-project config/cache/memories
 .serena/
+
+# playwright mcp cause
+.playwright-mcp/

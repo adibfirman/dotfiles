@@ -114,6 +114,7 @@ sync_skill() {
     local path="$3"
     local branch="$4"
     local destination="$5"
+    local local_name="$6"
     local local_path="$SCRIPT_DIR/$destination"
     
     echo -e "${BLUE}Syncing: $name${NC}"
@@ -190,6 +191,22 @@ sync_skill() {
     echo -e "${YELLOW}  → Installing new version${NC}"
     mkdir -p "$(dirname "$local_path")"
     mv "$TEMP_DIR/$path" "$local_path"
+
+    # Optionally override upstream frontmatter name for locally renamed skills.
+    if [[ -n "$local_name" ]]; then
+        local skill_file="$local_path/SKILL.md"
+        if [[ -f "$skill_file" ]]; then
+            awk -v new_name="$local_name" '
+                BEGIN { in_frontmatter = 0; replaced = 0 }
+                NR == 1 && $0 == "---" { in_frontmatter = 1; print; next }
+                in_frontmatter && $0 == "---" { in_frontmatter = 0; print; next }
+                in_frontmatter && replaced == 0 && $0 ~ /^name:[[:space:]]*/ { print "name: " new_name; replaced = 1; next }
+                { print }
+            ' "$skill_file" > "$skill_file.tmp"
+            mv "$skill_file.tmp" "$skill_file"
+            echo -e "${YELLOW}  → Local skill name: $local_name${NC}"
+        fi
+    fi
     
     # Cleanup temp
     rm -rf "$TEMP_DIR"
@@ -226,15 +243,16 @@ main() {
     while IFS= read -r skill; do
         i=$((i + 1))
         
-        local name source path branch destination
+        local name source path branch destination local_name
         name=$(echo "$skill" | jq -r '.name')
         source=$(echo "$skill" | jq -r '.source')
         path=$(echo "$skill" | jq -r '.path')
         branch=$(echo "$skill" | jq -r '.branch // "main"')
         destination=$(echo "$skill" | jq -r '.destination // .name')
+        local_name=$(echo "$skill" | jq -r '.local_name // empty')
         
         echo "[$i/$total] Syncing skill: $name"
-        sync_skill "$name" "$source" "$path" "$branch" "$destination"
+        sync_skill "$name" "$source" "$path" "$branch" "$destination" "$local_name"
         echo ""
         
     done < <(jq -c '.skills[]' "$CONFIG_FILE")
@@ -294,7 +312,9 @@ CONFIG FILE FORMAT:
           "name": "skill-name",
           "source": "https://github.com/owner/repo",
           "path": "path/to/skill/in/repo",
-          "branch": "main"
+          "branch": "main",
+          "destination": "local-folder",
+          "local_name": "local-skill-name"
         }
       ]
     }

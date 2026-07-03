@@ -3,8 +3,8 @@ theme = catppuccin-frappe
 # Font configuration
 font-size = 12
 font-style = Bold
-# font-family = Kode Mono 
-font-family = CaskaydiaCove Nerd Font
+font-family = Kode Mono 
+# font-family = CaskaydiaCove Nerd Font
 
 font-feature = "ss01"
 font-feature = "ss02"
@@ -14,8 +14,8 @@ font-feature = "liga"
 
 # Window settings
 gtk-titlebar = false
-macos-titlebar-style = hidden
-macos-titlebar-proxy-icon = hidden
+# macos-titlebar-style = hidden
+# macos-titlebar-proxy-icon = hidden
 mouse-hide-while-typing = true
 shell-integration-features = no-cursor
 window-padding-balance = true
