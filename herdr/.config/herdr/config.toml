@@ -13,6 +13,27 @@ manage_ssh_config = true
 mouse_capture = false
 agent_panel_sort = "priority"
 
+show_agent_labels_on_pane_borders = true
 [ui.toast]
-delivery = "herdr"
+delivery = "system"
 delay_seconds = 1
+
+[keys]
+open_worktree = "prefix+shift+o"
+remove_worktree = "prefix+alt+d"
+previous_workspace = "prefix+shift+left"
+next_workspace = "prefix+shift+right"
+switch_workspace = "prefix+shift+1..9"
+previous_agent = "prefix+alt+0"
+
+[[keys.command]]
+key = "prefix+shift+p"
+type = "pane"
+command = "printf 'Workspace directory: '; read dir; [ -n \"$dir\" ] && herdr workspace create --cwd \"$dir\" --label \"$(basename \"$dir\")\""
+description = "new workspace from input directory"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "pane"
+command = '''herdr pane list | python3 -c 'import json,sys; panes=[p for p in json.load(sys.stdin)["result"]["panes"] if p.get("agent")]; print("PANE   AGENT      STATUS   CWD"); [print("{:<6} {:<10} {:<8} {}".format(p.get("pane_id", ""), p.get("agent", ""), p.get("agent_status", ""), p.get("cwd", ""))) for p in panes]'; printf 'Target agent pane id: '; read pane; printf 'Message: '; read msg; [ -n "$pane" ] && [ -n "$msg" ] && herdr pane list | PANE="$pane" python3 -c 'import json,os,sys; pane=os.environ["PANE"]; panes=json.load(sys.stdin)["result"]["panes"]; raise SystemExit(0 if any(p.get("pane_id") == pane and p.get("agent") for p in panes) else 1)' && herdr pane run "$pane" "$msg" || printf 'Not a detected agent pane: %s\n' "$pane"'''
+description = "send message to agent pane"
