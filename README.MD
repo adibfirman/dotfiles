@@ -24,6 +24,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | **Shell** | Zsh + Zinit plugin manager |
 | **Prompt** | Starship |
 | **Multiplexer** | Tmux + TPM |
+| **Agent Multiplexer** | Herdr |
 | **AI Assistant** | OpenCode (with RTK integration), Claude skills |
 
 ## Prerequisites
@@ -80,6 +81,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | Tool | Installation | Purpose |
 |------|--------------|---------|
 | [OpenCode](https://opencode.ai/) | See website | AI coding assistant |
+| [Herdr](https://herdr.dev/) | `brew install herdr` / `curl -fsSL https://herdr.dev/install.sh \| sh` | Terminal-native multi-repo/worktree agent workspace manager |
 | [RTK](https://github.com/rtk-ai/rtk) | `brew install rtk` / [install script](https://github.com/rtk-ai/rtk#installation) | CLI proxy for LLM token savings (60-90%) |
 | Tectonic | `yay -S tectonic` | LaTeX engine |
 | Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
@@ -129,6 +131,35 @@ This installs TPM (Tmux Plugin Manager) and all configured plugins.
 
 The Zsh configuration uses [Zinit](https://github.com/zdharma-continuum/zinit) for plugin management. It will auto-install on first shell startup.
 
+### Herdr
+
+After installing Herdr and stowing this package:
+
+```bash
+stow herdr
+```
+
+Install recommended agent integrations:
+
+```bash
+herdr integration install opencode
+herdr integration install claude
+```
+
+Verify:
+
+```bash
+herdr integration status
+```
+
+Herdr-created worktrees are stored under:
+
+```txt
+~/.herdr/worktrees
+```
+
+For mobile/remote usage, attach over SSH using Herdr remote mode.
+
 ### OpenCode + RTK Integration
 
 The OpenCode configuration includes an auto-loaded RTK rewrite plugin (`~/.config/opencode/plugins/rtk-rewrite.ts`) that transparently rewrites shell commands to use `rtk` for token-optimized output. This provides 60-90% token savings on common development commands like `git status`, `cargo test`, `npm run build`, etc.
@@ -149,6 +180,7 @@ No manual configuration needed — the plugin is active once RTK is installed an
 ├── bashrc/         # Bash configuration
 ├── claude/         # Claude skills and configuration
 ├── ghostty/        # Ghostty terminal config
+├── herdr/          # Herdr terminal workspace config
 ├── nvim/           # Neovim Lua configuration
 ├── opencode/       # OpenCode configuration
 ├── starship/       # Starship prompt config

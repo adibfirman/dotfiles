@@ -50,6 +50,7 @@ TOOLS=(
     "Lazydocker|lazydocker|--version"
     "Colima|colima|--version"
     "OpenCode|opencode|--version"
+    "Herdr|herdr|--version"
     "Tectonic|tectonic|--version"
     "Mermaid CLI|mmdc|--version"
     "ImageMagick|convert|--version"
@@ -613,6 +614,12 @@ get_install_command() {
         "OpenCode")
             echo "curl -fsSL https://opencode.ai/install | sh"
             ;;
+        "Herdr")
+            case "$OS" in
+                macos) echo "brew install herdr" ;;
+                arch|debian) echo "curl -fsSL https://herdr.dev/install.sh | sh" ;;
+            esac
+            ;;
         "Tectonic")
             case "$OS" in
                 macos) echo "brew install tectonic" ;;
@@ -740,6 +747,7 @@ step_additional_tools() {
     print_step "Step 6/6: Additional Tools"
     
     run_check "OpenCode"
+    run_check "Herdr"
     run_check "RTK"
     run_check "Tectonic"
     run_check "Mermaid CLI"
@@ -778,6 +786,9 @@ print_summary() {
     print_warning "Manual steps required:"
     echo "  Install Kode Mono Font manually:"
     echo -e "    ${CYAN}https://fonts.google.com/specimen/Kode+Mono${NC}"
+    echo "  Install Herdr agent integrations:"
+    echo -e "    ${CYAN}herdr integration install opencode${NC}"
+    echo -e "    ${CYAN}herdr integration install claude${NC}"
     
     echo ""
     print_info "Next steps:"

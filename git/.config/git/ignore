@@ -3,3 +3,6 @@
 
 # playwright mcp cause
 .playwright-mcp/
+
+
+.superset/
