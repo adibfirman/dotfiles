@@ -1,0 +1,102 @@
+#!/bin/sh
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+SOURCE="user:pr-worktree-label"
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+cwd=${HERDR_ACTIVE_PANE_CWD:-$(pwd)}
+if [ ! -d "$cwd" ]; then
+  notify "PR label sync failed" "active pane cwd is missing"
+  exit 1
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+  notify "PR label sync failed" "gh is not installed"
+  exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  notify "PR label sync failed" "python3 is not installed"
+  exit 1
+fi
+
+pr_json=$(cd "$cwd" && gh pr view --json number,title,state,mergedAt 2>/dev/null || true)
+if [ -z "$pr_json" ]; then
+  notify "No PR found" "No pull request for the active branch"
+  exit 0
+fi
+
+label=$(printf '%s' "$pr_json" | python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
+state = str(data.get("state") or "").upper()
+merged_at = data.get("mergedAt")
+number = data.get("number")
+title = " ".join(str(data.get("title") or "").split())
+display = f"#{number} {title}" if number and title else title or f"#{number}"
+if state == "MERGED" or merged_at:
+    print("".join(ch + "\u0336" for ch in display))
+else:
+    print(display)
+')
+
+workspace_json=$("$HERDR_BIN" workspace list 2>/dev/null || true)
+workspace_id=$(printf '%s' "$workspace_json" | ACTIVE_WORKSPACE_ID="${HERDR_ACTIVE_WORKSPACE_ID:-}" ACTIVE_CWD="$cwd" python3 -c '
+import json, os, sys
+
+raw = sys.stdin.read()
+if not raw:
+    raise SystemExit(0)
+
+data = json.loads(raw)
+workspaces = data.get("result", {}).get("workspaces", [])
+active_id = os.environ.get("ACTIVE_WORKSPACE_ID")
+active_cwd = os.path.realpath(os.environ.get("ACTIVE_CWD") or ".")
+
+def is_inside(path, parent):
+    try:
+        return os.path.commonpath([path, parent]) == parent
+    except ValueError:
+        return False
+
+for workspace in workspaces:
+    if active_id and workspace.get("workspace_id") == active_id:
+        worktree = workspace.get("worktree") or {}
+        if worktree.get("is_linked_worktree"):
+            print(active_id)
+        raise SystemExit(0)
+
+for workspace in workspaces:
+    worktree = workspace.get("worktree") or {}
+    checkout = worktree.get("checkout_path")
+    if checkout and worktree.get("is_linked_worktree") and is_inside(active_cwd, os.path.realpath(checkout)):
+        print(workspace.get("workspace_id", ""))
+        raise SystemExit(0)
+')
+
+if [ -z "$workspace_id" ]; then
+  notify "PR label sync skipped" "active workspace is not a linked worktree"
+  exit 0
+fi
+
+if "$HERDR_BIN" workspace rename "$workspace_id" "$label" >/dev/null 2>&1; then
+  case "$label" in
+  *̶*)
+    if [ -n "${HERDR_ACTIVE_PANE_ID:-}" ]; then
+    "$HERDR_BIN" pane report-metadata "$HERDR_ACTIVE_PANE_ID" \
+      --source "$SOURCE" \
+      --title "$label" \
+      --state-label done="$label" >/dev/null 2>&1 || true
+    fi
+    ;;
+  esac
+  notify "PR worktree label synced" "$label"
+else
+  notify "PR label sync failed" "could not rename Herdr worktree label"
+  exit 1
+fi

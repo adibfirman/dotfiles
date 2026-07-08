@@ -1,0 +1,88 @@
+#!/bin/sh
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+if ! command -v gh >/dev/null 2>&1; then
+  notify "PR label sync failed" "gh is not installed"
+  exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  notify "PR label sync failed" "python3 is not installed"
+  exit 1
+fi
+
+workspace_json=$("$HERDR_BIN" workspace list 2>/dev/null || true)
+if [ -z "$workspace_json" ]; then
+  notify "PR label sync failed" "could not list Herdr workspaces"
+  exit 1
+fi
+
+tmp_file=${TMPDIR:-/tmp}/herdr-pr-worktrees.$$
+trap 'rm -f "$tmp_file"' EXIT HUP INT TERM
+
+notify "Syncing PR labels" "in progress sync your worktree PR labels"
+
+printf '%s' "$workspace_json" | python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
+for workspace in data.get("result", {}).get("workspaces", []):
+    worktree = workspace.get("worktree") or {}
+    workspace_id = workspace.get("workspace_id")
+    checkout = worktree.get("checkout_path")
+    if workspace_id and checkout and worktree.get("is_linked_worktree"):
+        print(f"{workspace_id}\t{checkout}")
+' > "$tmp_file"
+
+total=0
+synced=0
+skipped=0
+failed=0
+
+while IFS="$(printf '\t')" read -r workspace_id checkout_path; do
+  [ -n "$workspace_id" ] || continue
+  total=$((total + 1))
+
+  pr_json=$(cd "$checkout_path" && gh pr view --json number,title,state,mergedAt 2>/dev/null || true)
+  if [ -z "$pr_json" ]; then
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  label=$(printf '%s' "$pr_json" | python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
+state = str(data.get("state") or "").upper()
+merged_at = data.get("mergedAt")
+number = data.get("number")
+title = " ".join(str(data.get("title") or "").split())
+display = f"#{number} {title}" if number and title else title or f"#{number}"
+if state == "MERGED" or merged_at:
+    print("".join(ch + "\u0336" for ch in display))
+else:
+    print(display)
+')
+
+  if "$HERDR_BIN" workspace rename "$workspace_id" "$label" >/dev/null 2>&1; then
+    synced=$((synced + 1))
+  else
+    failed=$((failed + 1))
+  fi
+done < "$tmp_file"
+
+if [ "$total" -eq 0 ]; then
+  notify "No worktrees found" "No linked Herdr worktrees to sync"
+elif [ "$failed" -gt 0 ]; then
+  notify "PR label sync finished" "$synced synced, $skipped without PR, $failed failed"
+else
+  notify "PR labels synced" "$synced synced, $skipped without PR"
+fi
+
+[ "$failed" -eq 0 ]

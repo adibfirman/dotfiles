@@ -18,7 +18,7 @@ agent_panel_sort = "priority"
 show_agent_labels_on_pane_borders = true
 
 [ui.toast]
-delivery = "system"
+delivery = "herdr"
 delay_seconds = 1
 
 [keys]
@@ -33,10 +33,22 @@ previous_agent = "prefix+alt+0"
 key = "prefix+shift+p"
 type = "pane"
 command = "printf 'Workspace directory: '; read dir; [ -n \"$dir\" ] && herdr workspace create --cwd \"$dir\" --label \"$(basename \"$dir\")\""
-description = "new workspace from input directory"
+description = "new workspace from input dir"
 
 [[keys.command]]
 key = "prefix+shift+a"
 type = "pane"
 command = "/Users/cataengineer/.config/herdr/scripts/send-active-buffer-to-agent"
-description = "save active pane buffer as context file for agent pane"
+description = "send context curr pane"
+
+[[keys.command]]
+key = "prefix+shift+u"
+type = "shell"
+command = "/Users/cataengineer/.config/herdr/scripts/open-current-pr"
+description = "open curr PR in browser"
+
+[[keys.command]]
+key = "prefix+shift+y"
+type = "shell"
+command = "/Users/cataengineer/.config/herdr/scripts/sync-all-pr-worktree-labels"
+description = "sync all PR worktree labels"
