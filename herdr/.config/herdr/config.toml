@@ -10,10 +10,13 @@ resume_agents_on_restore = true
 manage_ssh_config = true
 
 [ui]
+sidebar_width = 50
+sidebar_min_width = 50
+sidebar_max_width = 50
 mouse_capture = false
 agent_panel_sort = "priority"
-
 show_agent_labels_on_pane_borders = true
+
 [ui.toast]
 delivery = "system"
 delay_seconds = 1
