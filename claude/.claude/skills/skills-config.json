@@ -64,6 +64,20 @@
       "local_name": "spec-of-code"
     },
     {
+      "name": "codebase-design",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/codebase-design",
+      "branch": "main",
+      "destination": "improve-codebase/codebase-design"
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "source": "https://github.com/mattpocock/skills",
+      "path": "skills/engineering/improve-codebase-architecture",
+      "branch": "main",
+      "destination": "improve-codebase/improve-codebase-architecture"
+    },
+    {
       "name": "teach",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/teach",
