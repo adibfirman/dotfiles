@@ -35,5 +35,5 @@ description = "new workspace from input directory"
 [[keys.command]]
 key = "prefix+shift+a"
 type = "pane"
-command = '''herdr pane list | python3 -c 'import json,sys; panes=[p for p in json.load(sys.stdin)["result"]["panes"] if p.get("agent")]; print("PANE   AGENT      STATUS   CWD"); [print("{:<6} {:<10} {:<8} {}".format(p.get("pane_id", ""), p.get("agent", ""), p.get("agent_status", ""), p.get("cwd", ""))) for p in panes]'; printf 'Target agent pane id: '; read pane; printf 'Message: '; read msg; [ -n "$pane" ] && [ -n "$msg" ] && herdr pane list | PANE="$pane" python3 -c 'import json,os,sys; pane=os.environ["PANE"]; panes=json.load(sys.stdin)["result"]["panes"]; raise SystemExit(0 if any(p.get("pane_id") == pane and p.get("agent") for p in panes) else 1)' && herdr pane run "$pane" "$msg" || printf 'Not a detected agent pane: %s\n' "$pane"'''
-description = "send message to agent pane"
+command = "/Users/cataengineer/.config/herdr/scripts/send-active-buffer-to-agent"
+description = "send active pane buffer to agent pane"

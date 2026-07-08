@@ -1,0 +1,158 @@
+#!/bin/sh
+set -u
+
+lines="1000000"
+debug="${HERDR_FORWARD_DEBUG:-0}"
+log_file="${HERDR_FORWARD_LOG:-$HOME/.config/herdr/send-active-buffer.log}"
+
+log_debug() {
+  [ "$debug" = "1" ] || return 0
+  printf '[send-active-buffer] %s\n' "$1" >&2
+  printf '%s [send-active-buffer] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$1" >>"$log_file"
+}
+
+die() {
+  log_debug "$1"
+  printf '%s\n' "$1" >&2
+  sleep 3
+  exit 1
+}
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    die "Missing required command: $1"
+  fi
+}
+
+require_cmd herdr
+require_cmd python3
+require_cmd fzf
+
+if [ -n "${HERDR_ACTIVE_PANE_ID:-}" ]; then
+  source_pane="$HERDR_ACTIVE_PANE_ID"
+else
+  source_pane=$(
+    herdr pane current | python3 -c '
+import json, sys
+
+try:
+    pane = json.load(sys.stdin)["result"]["pane"]
+    print(pane.get("pane_id", ""))
+except Exception:
+    raise SystemExit(1)
+'
+  )
+fi
+
+if [ -z "$source_pane" ]; then
+  die 'Could not detect the active pane.'
+fi
+
+log_debug "source pane: $source_pane"
+
+buffer=$(herdr pane read "$source_pane" --source recent-unwrapped --lines "$lines" --format text)
+
+if [ -z "$buffer" ]; then
+  die 'Active pane buffer is empty.'
+fi
+
+log_debug "buffer captured"
+
+selection=$(
+  herdr pane list | SOURCE_PANE="$source_pane" python3 -c '
+import json, os, sys
+
+source_pane = os.environ["SOURCE_PANE"]
+
+try:
+    panes = json.load(sys.stdin)["result"]["panes"]
+except Exception:
+    raise SystemExit(1)
+
+for pane in panes:
+    if not pane.get("agent") or pane.get("pane_id") == source_pane:
+        continue
+
+    print("{}\t{}\t{}\t{}".format(
+        pane.get("pane_id", ""),
+        pane.get("agent", ""),
+        pane.get("agent_status", ""),
+        pane.get("cwd", ""),
+    ))
+' | fzf \
+    --prompt='Target agent> ' \
+    --header='PANE    AGENT      STATUS    CWD' \
+    --delimiter='\t' \
+    --with-nth=1,2,3,4
+)
+
+log_debug "target selection completed"
+log_debug "selection: $selection"
+
+if [ -z "$selection" ]; then
+  die 'No target agent selected.'
+fi
+
+target_pane=$(printf '%s\n' "$selection" | python3 -c 'import sys; print(sys.stdin.readline().split("\t", 1)[0])')
+log_debug "target pane: $target_pane"
+
+if [ -z "$target_pane" ]; then
+  die 'Could not parse selected target pane.'
+fi
+
+if ! herdr pane list | TARGET_PANE="$target_pane" python3 -c '
+import json, os, sys
+
+target_pane = os.environ["TARGET_PANE"]
+
+try:
+    panes = json.load(sys.stdin)["result"]["panes"]
+except Exception:
+    raise SystemExit(1)
+
+for pane in panes:
+    if pane.get("pane_id") == target_pane and pane.get("agent"):
+        raise SystemExit(0)
+
+raise SystemExit(1)
+'; then
+  die "Not a detected agent pane: $target_pane"
+fi
+
+extra_message=""
+if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+  printf 'Extra message (optional): ' >/dev/tty
+  IFS= read -r extra_message </dev/tty || extra_message=""
+else
+  printf 'Extra message (optional): '
+  IFS= read -r extra_message || extra_message=""
+fi
+
+if [ -n "$extra_message" ]; then
+  extra_section=$(cat <<EOF
+
+Additional user message:
+$extra_message
+EOF
+)
+else
+  extra_section=""
+fi
+
+payload=$(cat <<EOF
+Use the following plain-text terminal buffer as context from Herdr pane $source_pane.
+
+Do not ask me to resend it. Use this context to answer my next request or continue the task.
+
+--- BEGIN TERMINAL BUFFER ---
+$buffer
+--- END TERMINAL BUFFER ---
+$extra_section
+EOF
+)
+
+if herdr pane run "$target_pane" "$payload"; then
+  log_debug "sent buffer to: $target_pane"
+else
+  die "Failed to send buffer to: $target_pane"
+fi
