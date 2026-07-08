@@ -6,3 +6,6 @@
 
 
 .superset/
+
+# Herdr terminal context files
+.herdr-context/

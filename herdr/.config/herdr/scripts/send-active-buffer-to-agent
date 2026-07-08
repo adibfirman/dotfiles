@@ -18,6 +18,13 @@ die() {
   exit 1
 }
 
+cleanup_terminal() {
+  [ -r /dev/tty ] && [ -w /dev/tty ] || return 0
+  printf '\033[?1049l\033[?1000l\033[?1002l\033[?1003l\033[?1006l' >/dev/tty 2>/dev/null || true
+}
+
+trap cleanup_terminal EXIT INT TERM
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     die "Missing required command: $1"
@@ -80,6 +87,10 @@ for pane in panes:
         pane.get("cwd", ""),
     ))
 ' | fzf \
+    --height=40% \
+    --layout=reverse \
+    --border \
+    --no-mouse \
     --prompt='Target agent> ' \
     --header='PANE    AGENT      STATUS    CWD' \
     --delimiter='\t' \
@@ -100,7 +111,7 @@ if [ -z "$target_pane" ]; then
   die 'Could not parse selected target pane.'
 fi
 
-if ! herdr pane list | TARGET_PANE="$target_pane" python3 -c '
+target_cwd=$(herdr pane list | TARGET_PANE="$target_pane" python3 -c '
 import json, os, sys
 
 target_pane = os.environ["TARGET_PANE"]
@@ -112,12 +123,30 @@ except Exception:
 
 for pane in panes:
     if pane.get("pane_id") == target_pane and pane.get("agent"):
+        print(pane.get("cwd", ""))
         raise SystemExit(0)
 
 raise SystemExit(1)
-'; then
-  die "Not a detected agent pane: $target_pane"
+')
+
+if [ -z "$target_cwd" ]; then
+  die "Could not determine selected target pane cwd: $target_pane"
 fi
+
+context_dir="$target_cwd/.herdr-context"
+timestamp=$(date '+%Y%m%d-%H%M%S')
+context_file="$context_dir/${timestamp}-terminal-paste.txt"
+context_file_relative=".herdr-context/${timestamp}-terminal-paste.txt"
+
+if ! mkdir -p "$context_dir"; then
+  die "Failed to create context directory: $context_dir"
+fi
+
+if ! printf '%s\n' "$buffer" >"$context_file"; then
+  die "Failed to write context file: $context_file"
+fi
+
+log_debug "context file written: $context_file"
 
 extra_message=""
 if [ -r /dev/tty ] && [ -w /dev/tty ]; then
@@ -140,13 +169,11 @@ else
 fi
 
 payload=$(cat <<EOF
-Use the following plain-text terminal buffer as context from Herdr pane $source_pane.
+Terminal buffer from Herdr pane $source_pane was saved to:
 
-Do not ask me to resend it. Use this context to answer my next request or continue the task.
+$context_file_relative
 
---- BEGIN TERMINAL BUFFER ---
-$buffer
---- END TERMINAL BUFFER ---
+Please read that file and use it as context. Do not ask me to resend it.
 $extra_section
 EOF
 )
