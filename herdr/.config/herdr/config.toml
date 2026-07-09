@@ -13,7 +13,7 @@ manage_ssh_config = true
 sidebar_width = 50
 sidebar_min_width = 50
 sidebar_max_width = 50
-mouse_capture = false
+mouse_capture = true
 agent_panel_sort = "priority"
 show_agent_labels_on_pane_borders = true
 
