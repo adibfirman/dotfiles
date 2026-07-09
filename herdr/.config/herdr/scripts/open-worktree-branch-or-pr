@@ -97,7 +97,7 @@ if command -v gh >/dev/null 2>&1; then
   pr_json=$(cd "$repo_root" && gh pr list --state open --limit 100 --json number,title,headRefName 2>/dev/null || true)
   if [ -n "$pr_json" ]; then
     printf '%s' "$pr_json" | python3 -c '
-import json, re, sys
+import json, sys
 
 try:
     prs = json.load(sys.stdin)
@@ -107,21 +107,17 @@ except json.JSONDecodeError:
 def clean(value):
     return " ".join(str(value or "").replace("\t", " ").split())
 
-def slug(value):
-    value = clean(value).lower()
-    value = re.sub(r"[^a-z0-9_.-]+", "-", value).strip("-")
-    return value or "pr"
-
 for pr in prs:
     number = pr.get("number")
     if not number:
         continue
     head = clean(pr.get("headRefName"))
+    if not head:
+        continue
     title = clean(pr.get("title"))
-    branch = f"pr-{number}-{slug(head)}"
-    display = f"#{number} {head}" if head else f"#{number}"
+    display = f"#{number} {head}"
     subtitle = title or "create from pull request"
-    print("\t".join(["PR", display, subtitle, branch, str(number)]))
+    print("\t".join(["BRANCH", display, subtitle, head, f"origin/{head}"]))
 ' >> "$tmp_file"
   fi
 fi
@@ -157,24 +153,15 @@ OPEN)
   fi
   ;;
 BRANCH)
+  if ! git -C "$repo_root" fetch origin "$arg1:refs/remotes/origin/$arg1" >/dev/null 2>&1; then
+    notify "Open worktree failed" "could not fetch origin/$arg1"
+    exit 1
+  fi
+
   if worktree_create "$arg1" "$arg2" >/dev/null 2>&1; then
     notify "Worktree opened" "$title"
   else
     notify "Open worktree failed" "$title"
-    exit 1
-  fi
-  ;;
-PR)
-  pr_ref="origin/pr/$arg2"
-  if ! git -C "$repo_root" fetch origin "pull/$arg2/head:refs/remotes/$pr_ref" >/dev/null 2>&1; then
-    notify "Open PR worktree failed" "could not fetch #$arg2"
-    exit 1
-  fi
-
-  if worktree_create "$arg1" "$pr_ref" >/dev/null 2>&1; then
-    notify "PR worktree opened" "$title"
-  else
-    notify "Open PR worktree failed" "$title"
     exit 1
   fi
   ;;
