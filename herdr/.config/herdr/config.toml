@@ -18,7 +18,7 @@ agent_panel_sort = "priority"
 show_agent_labels_on_pane_borders = true
 
 [ui.toast]
-delivery = "herdr"
+delivery = "system"
 delay_seconds = 1
 
 [keys]
@@ -52,3 +52,7 @@ key = "prefix+shift+y"
 type = "shell"
 command = "/Users/cataengineer/.config/herdr/scripts/sync-all-pr-worktree-labels"
 description = "sync all PR worktree labels"
+
+[theme]
+name = "dracula"
+auto_switch = false
