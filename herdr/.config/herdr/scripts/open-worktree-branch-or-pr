@@ -1,0 +1,185 @@
+#!/bin/sh
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    notify "Open worktree failed" "$1 is not installed"
+    exit 1
+  fi
+}
+
+worktree_open() {
+  if [ -n "${HERDR_ACTIVE_WORKSPACE_ID:-}" ]; then
+    "$HERDR_BIN" worktree open --workspace "$HERDR_ACTIVE_WORKSPACE_ID" --path "$1" --focus
+  else
+    "$HERDR_BIN" worktree open --cwd "$repo_root" --path "$1" --focus
+  fi
+}
+
+worktree_create() {
+  if [ -n "${HERDR_ACTIVE_WORKSPACE_ID:-}" ]; then
+    "$HERDR_BIN" worktree create --workspace "$HERDR_ACTIVE_WORKSPACE_ID" --branch "$1" --base "$2" --focus
+  else
+    "$HERDR_BIN" worktree create --cwd "$repo_root" --branch "$1" --base "$2" --focus
+  fi
+}
+
+require_cmd git
+require_cmd fzf
+require_cmd python3
+
+cwd=${HERDR_ACTIVE_PANE_CWD:-$(pwd)}
+if [ ! -d "$cwd" ]; then
+  notify "Open worktree failed" "active pane cwd is missing"
+  exit 1
+fi
+
+repo_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$repo_root" ]; then
+  notify "Open worktree failed" "active pane is not in a git repo"
+  exit 1
+fi
+
+tmp_file=${TMPDIR:-/tmp}/herdr-open-worktree.$$
+trap 'rm -f "$tmp_file"' EXIT HUP INT TERM
+: > "$tmp_file"
+
+git -C "$repo_root" worktree list --porcelain | python3 -c '
+import sys
+
+record = {}
+
+def emit(rec):
+    path = rec.get("worktree")
+    if not path:
+        return
+    branch = rec.get("branch") or ""
+    if branch.startswith("refs/heads/"):
+        title = branch[len("refs/heads/"):]
+    elif branch:
+        title = branch
+    else:
+        title = rec.get("HEAD", "detached")[:12]
+    print("\t".join(["OPEN", title, path, path, ""]))
+
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        emit(record)
+        record = {}
+        continue
+    key, _, value = line.partition(" ")
+    record[key] = value
+emit(record)
+' >> "$tmp_file"
+
+git -C "$repo_root" for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null | while IFS= read -r remote_ref; do
+  [ -n "$remote_ref" ] || continue
+  case "$remote_ref" in
+  */HEAD) continue ;;
+  esac
+
+  case "$remote_ref" in
+  origin/*) local_branch=${remote_ref#origin/} ;;
+  *) local_branch=$remote_ref ;;
+  esac
+
+  printf 'BRANCH\t%s\tcreate from remote branch\t%s\t%s\n' "$remote_ref" "$local_branch" "$remote_ref" >> "$tmp_file"
+done
+
+if command -v gh >/dev/null 2>&1; then
+  pr_json=$(cd "$repo_root" && gh pr list --state open --limit 100 --json number,title,headRefName 2>/dev/null || true)
+  if [ -n "$pr_json" ]; then
+    printf '%s' "$pr_json" | python3 -c '
+import json, re, sys
+
+try:
+    prs = json.load(sys.stdin)
+except json.JSONDecodeError:
+    prs = []
+
+def clean(value):
+    return " ".join(str(value or "").replace("\t", " ").split())
+
+def slug(value):
+    value = clean(value).lower()
+    value = re.sub(r"[^a-z0-9_.-]+", "-", value).strip("-")
+    return value or "pr"
+
+for pr in prs:
+    number = pr.get("number")
+    if not number:
+        continue
+    head = clean(pr.get("headRefName"))
+    title = clean(pr.get("title"))
+    branch = f"pr-{number}-{slug(head)}"
+    display = f"#{number} {head}" if head else f"#{number}"
+    subtitle = title or "create from pull request"
+    print("\t".join(["PR", display, subtitle, branch, str(number)]))
+' >> "$tmp_file"
+  fi
+fi
+
+if [ ! -s "$tmp_file" ]; then
+  notify "No worktrees found" "No worktrees, remote branches, or PRs found"
+  exit 0
+fi
+
+selection=$(fzf \
+  --prompt='open worktree > ' \
+  --height=90% \
+  --border \
+  --delimiter='\t' \
+  --with-nth=1,2,3 \
+  --preview='printf "%s\n%s\n" {2} {3}' \
+  < "$tmp_file" || true)
+
+[ -n "$selection" ] || exit 0
+
+kind=$(printf '%s' "$selection" | cut -f1)
+title=$(printf '%s' "$selection" | cut -f2)
+arg1=$(printf '%s' "$selection" | cut -f4)
+arg2=$(printf '%s' "$selection" | cut -f5)
+
+case "$kind" in
+OPEN)
+  if worktree_open "$arg1" >/dev/null 2>&1; then
+    notify "Worktree opened" "$title"
+  else
+    notify "Open worktree failed" "$title"
+    exit 1
+  fi
+  ;;
+BRANCH)
+  if worktree_create "$arg1" "$arg2" >/dev/null 2>&1; then
+    notify "Worktree opened" "$title"
+  else
+    notify "Open worktree failed" "$title"
+    exit 1
+  fi
+  ;;
+PR)
+  pr_ref="origin/pr/$arg2"
+  if ! git -C "$repo_root" fetch origin "pull/$arg2/head:refs/remotes/$pr_ref" >/dev/null 2>&1; then
+    notify "Open PR worktree failed" "could not fetch #$arg2"
+    exit 1
+  fi
+
+  if worktree_create "$arg1" "$pr_ref" >/dev/null 2>&1; then
+    notify "PR worktree opened" "$title"
+  else
+    notify "Open PR worktree failed" "$title"
+    exit 1
+  fi
+  ;;
+*)
+  notify "Open worktree failed" "unknown selection"
+  exit 1
+  ;;
+esac

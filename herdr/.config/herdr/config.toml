@@ -22,12 +22,18 @@ delivery = "system"
 delay_seconds = 1
 
 [keys]
-open_worktree = "prefix+shift+o"
+open_worktree = ""
 remove_worktree = "prefix+alt+d"
 previous_workspace = "prefix+shift+left"
 next_workspace = "prefix+shift+right"
 switch_workspace = "prefix+shift+1..9"
 previous_agent = "prefix+alt+0"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "pane"
+command = "/Users/cataengineer/.config/herdr/scripts/open-worktree-branch-or-pr"
+description = "open worktree, remote branch, or PR"
 
 [[keys.command]]
 key = "prefix+shift+p"

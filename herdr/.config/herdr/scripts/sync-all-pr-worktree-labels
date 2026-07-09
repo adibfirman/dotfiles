@@ -44,6 +44,7 @@ total=0
 synced=0
 skipped=0
 failed=0
+deleted=0
 
 while IFS="$(printf '\t')" read -r workspace_id checkout_path; do
   [ -n "$workspace_id" ] || continue
@@ -55,19 +56,46 @@ while IFS="$(printf '\t')" read -r workspace_id checkout_path; do
     continue
   fi
 
-  label=$(printf '%s' "$pr_json" | python3 -c '
+  is_merged=$(printf '%s' "$pr_json" | python3 -c '
 import json, sys
 
 data = json.load(sys.stdin)
 state = str(data.get("state") or "").upper()
 merged_at = data.get("mergedAt")
+print("1" if state == "MERGED" or merged_at else "0")
+')
+
+  if [ "$is_merged" = "1" ]; then
+    if "$HERDR_BIN" worktree remove --workspace "$workspace_id" --force >/dev/null 2>&1; then
+      if [ -e "$checkout_path" ]; then
+        case "$checkout_path" in
+        "" | "/")
+          failed=$((failed + 1))
+          continue
+          ;;
+        *)
+          rm -rf -- "$checkout_path" || {
+            failed=$((failed + 1))
+            continue
+          }
+          ;;
+        esac
+      fi
+      deleted=$((deleted + 1))
+    else
+      failed=$((failed + 1))
+    fi
+    continue
+  fi
+
+  label=$(printf '%s' "$pr_json" | python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
 number = data.get("number")
 title = " ".join(str(data.get("title") or "").split())
 display = f"#{number} {title}" if number and title else title or f"#{number}"
-if state == "MERGED" or merged_at:
-    print("".join(ch + "\u0336" for ch in display))
-else:
-    print(display)
+print(display)
 ')
 
   if "$HERDR_BIN" workspace rename "$workspace_id" "$label" >/dev/null 2>&1; then
@@ -80,9 +108,9 @@ done < "$tmp_file"
 if [ "$total" -eq 0 ]; then
   notify "No worktrees found" "No linked Herdr worktrees to sync"
 elif [ "$failed" -gt 0 ]; then
-  notify "PR label sync finished" "$synced synced, $skipped without PR, $failed failed"
+  notify "PR label sync finished" "$synced synced, $skipped without PR, $deleted deleted merged worktrees, $failed failed"
 else
-  notify "PR labels synced" "$synced synced, $skipped without PR"
+  notify "PR labels synced" "$synced synced, $skipped without PR, $deleted deleted merged worktrees"
 fi
 
 [ "$failed" -eq 0 ]
