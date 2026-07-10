@@ -30,6 +30,35 @@ worktree_create() {
   fi
 }
 
+existing_worktree_path() {
+  git -C "$repo_root" worktree list --porcelain | python3 -c '
+import os
+import sys
+
+target = sys.argv[1]
+record = {}
+
+def emit(rec):
+    path = rec.get("worktree")
+    branch = rec.get("branch") or ""
+    if rec.get("prunable") or not path or not os.path.isdir(path):
+        return
+    if branch == f"refs/heads/{target}":
+        print(path)
+        raise SystemExit(0)
+
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        emit(record)
+        record = {}
+        continue
+    key, _, value = line.partition(" ")
+    record[key] = value
+emit(record)
+' "$1"
+}
+
 require_cmd git
 require_cmd fzf
 require_cmd python3
@@ -46,18 +75,23 @@ if [ -z "$repo_root" ]; then
   exit 1
 fi
 
+git -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+
 tmp_file=${TMPDIR:-/tmp}/herdr-open-worktree.$$
-trap 'rm -f "$tmp_file"' EXIT HUP INT TERM
+err_file=${TMPDIR:-/tmp}/herdr-open-worktree.err.$$
+trap 'rm -f "$tmp_file" "$err_file"' EXIT HUP INT TERM
 : > "$tmp_file"
+: > "$err_file"
 
 git -C "$repo_root" worktree list --porcelain | python3 -c '
+import os
 import sys
 
 record = {}
 
 def emit(rec):
     path = rec.get("worktree")
-    if not path:
+    if rec.get("prunable") or not path or not os.path.isdir(path):
         return
     branch = rec.get("branch") or ""
     if branch.startswith("refs/heads/"):
@@ -145,23 +179,48 @@ arg2=$(printf '%s' "$selection" | cut -f5)
 
 case "$kind" in
 OPEN)
-  if worktree_open "$arg1" >/dev/null 2>&1; then
+  if worktree_open "$arg1" >/dev/null 2>"$err_file"; then
     notify "Worktree opened" "$title"
   else
-    notify "Open worktree failed" "$title"
+    error=
+    IFS= read -r error < "$err_file" || true
+    notify "Open worktree failed" "${error:-$title}"
     exit 1
   fi
   ;;
 BRANCH)
-  if ! git -C "$repo_root" fetch origin "$arg1:refs/remotes/origin/$arg1" >/dev/null 2>&1; then
-    notify "Open worktree failed" "could not fetch origin/$arg1"
+  existing_path=$(existing_worktree_path "$arg1")
+  if [ -n "$existing_path" ]; then
+    if worktree_open "$existing_path" >/dev/null 2>"$err_file"; then
+      notify "Worktree opened" "$title"
+    else
+      error=
+      IFS= read -r error < "$err_file" || true
+      notify "Open worktree failed" "${error:-$title}"
+      exit 1
+    fi
+    exit 0
+  fi
+
+  if ! git -C "$repo_root" fetch origin "$arg1:refs/remotes/origin/$arg1" >/dev/null 2>"$err_file"; then
+    error=
+    IFS= read -r error < "$err_file" || true
+    notify "Open worktree failed" "${error:-could not fetch origin/$arg1}"
     exit 1
   fi
 
-  if worktree_create "$arg1" "$arg2" >/dev/null 2>&1; then
+  if worktree_create "$arg1" "$arg2" >/dev/null 2>"$err_file"; then
     notify "Worktree opened" "$title"
   else
-    notify "Open worktree failed" "$title"
+    existing_path=$(existing_worktree_path "$arg1")
+    if [ -n "$existing_path" ] && worktree_open "$existing_path" >/dev/null 2>"$err_file"; then
+      notify "Worktree opened" "$title"
+      exit 0
+    fi
+
+    error=
+    IFS= read -r error < "$err_file" || true
+    notify "Open worktree failed" "${error:-$title}"
     exit 1
   fi
   ;;
