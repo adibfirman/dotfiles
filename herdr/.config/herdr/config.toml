@@ -59,6 +59,12 @@ type = "shell"
 command = "/Users/cataengineer/.config/herdr/scripts/sync-all-pr-worktree-labels"
 description = "sync all PR worktree labels"
 
+[[keys.command]]
+key = "prefix+shift+s"
+type = "shell"
+command = "/Users/cataengineer/.config/herdr/scripts/sort-workspaces"
+description = "sort workspaces alphabetically"
+
 [theme]
 name = "dracula"
 auto_switch = false
