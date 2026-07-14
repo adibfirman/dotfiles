@@ -28,13 +28,6 @@
       "branch": "master"
     },
     {
-      "name": "grill-me",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "skills/productivity/grill-me",
-      "branch": "main",
-      "destination": "grill-me"
-    },
-    {
       "name": "grill-with-docs",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/engineering/grill-with-docs",
