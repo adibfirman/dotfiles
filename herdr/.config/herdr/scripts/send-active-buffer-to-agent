@@ -87,7 +87,6 @@ for pane in panes:
         pane.get("cwd", ""),
     ))
 ' | fzf \
-    --height=40% \
     --layout=reverse \
     --border \
     --no-mouse \

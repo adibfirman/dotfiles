@@ -17,12 +17,19 @@ mouse_capture = true
 agent_panel_sort = "spaces"
 show_agent_labels_on_pane_borders = true
 
+[ui.sidebar.agents]
+row_gap = 1
+
+[ui.sidebar.spaces]
+row_gap = 1
+
 [ui.toast]
 delivery = "system"
 delay_seconds = 1
 
 [keys]
 open_worktree = ""
+rename_pane = ""
 remove_worktree = "prefix+alt+d"
 previous_workspace = "prefix+shift+left"
 next_workspace = "prefix+shift+right"
@@ -31,21 +38,25 @@ previous_agent = "prefix+alt+0"
 
 [[keys.command]]
 key = "prefix+shift+o"
-type = "pane"
+type = "popup"
 command = "/Users/cataengineer/.config/herdr/scripts/open-worktree-branch-or-pr"
 description = "open worktree, remote branch, or PR"
+width = "90%"
+height = "90%"
 
 [[keys.command]]
 key = "prefix+shift+p"
-type = "pane"
+type = "popup"
 command = "printf 'Workspace directory: '; read dir; [ -n \"$dir\" ] && herdr workspace create --cwd \"$dir\" --label \"$(basename \"$dir\")\""
 description = "new workspace from input dir"
 
 [[keys.command]]
 key = "prefix+shift+a"
-type = "pane"
+type = "popup"
 command = "/Users/cataengineer/.config/herdr/scripts/send-active-buffer-to-agent"
 description = "send context curr pane"
+width = "60%"
+height = "60%"
 
 [[keys.command]]
 key = "prefix+shift+u"
