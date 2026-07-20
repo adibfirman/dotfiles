@@ -1,0 +1,29 @@
+#!/bin/sh
+
+dir=$PWD
+manager=""
+
+while [ "$dir" != "/" ]; do
+  if [ -f "$dir/bun.lockb" ] || [ -f "$dir/bun.lock" ]; then
+    manager="bun"
+    break
+  elif [ -f "$dir/pnpm-lock.yaml" ]; then
+    manager="pnpm"
+    break
+  elif [ -f "$dir/yarn.lock" ]; then
+    manager="yarn"
+    break
+  elif [ -f "$dir/package-lock.json" ]; then
+    manager="npm"
+    break
+  fi
+
+  dir=$(dirname "$dir")
+done
+
+if [ -z "$manager" ]; then
+  manager="pnpm"
+fi
+
+printf 'Using: %s\n' "$manager"
+"$manager" "$@"

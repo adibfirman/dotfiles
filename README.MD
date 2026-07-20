@@ -25,7 +25,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | **Prompt** | Starship |
 | **Multiplexer** | Tmux + TPM |
 | **Agent Multiplexer** | Herdr |
-| **AI Assistant** | OpenCode (with RTK integration), Claude skills |
+| **AI Assistant** | Pi (unified harness migration), OpenCode (with RTK integration), Claude skills |
 
 ## Prerequisites
 
@@ -81,6 +81,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | Tool | Installation | Purpose |
 |------|--------------|---------|
 | [OpenCode](https://opencode.ai/) | See website | AI coding assistant |
+| [Pi](https://pi.dev/) | `curl -fsSL https://pi.dev/install.sh \| sh` | Target unified AI coding harness |
 | [Herdr](https://herdr.dev/) | `brew install herdr` / `curl -fsSL https://herdr.dev/install.sh \| sh` | Terminal-native multi-repo/worktree agent workspace manager |
 | [RTK](https://github.com/rtk-ai/rtk) | `brew install rtk` / [install script](https://github.com/rtk-ai/rtk#installation) | CLI proxy for LLM token savings (60-90%) |
 | Tectonic | `yay -S tectonic` | LaTeX engine |
@@ -101,6 +102,7 @@ stow zshrc
 stow tmux
 stow ghostty
 stow starship
+stow pi
 # etc.
 
 # Or stow all at once
@@ -130,6 +132,21 @@ This installs TPM (Tmux Plugin Manager) and all configured plugins.
 ### Zsh
 
 The Zsh configuration uses [Zinit](https://github.com/zdharma-continuum/zinit) for plugin management. It will auto-install on first shell startup.
+
+The `pm` command selects a package manager from the nearest lockfile, checking Bun, pnpm, Yarn, then npm, and defaults to pnpm. Use it for dependency and lifecycle commands such as `pm install`, `pm add`, and `pm run`.
+
+### Pi
+
+Pi is the target unified harness for work and personal AI workflows. The existing Claude and OpenCode configurations remain available while skills, MCP integrations, and other workflows are migrated incrementally.
+
+After installing Pi, stow its global configuration:
+
+```bash
+stow pi
+pi
+```
+
+Use `/login` during the first interactive session, or provide credentials through your existing secrets workflow. Provider credentials are never stored in this repository.
 
 ### Herdr
 
@@ -183,6 +200,7 @@ No manual configuration needed — the plugin is active once RTK is installed an
 ├── herdr/          # Herdr terminal workspace config
 ├── nvim/           # Neovim Lua configuration
 ├── opencode/       # OpenCode configuration
+├── pi/             # Pi global agent configuration
 ├── starship/       # Starship prompt config
 ├── tmux/           # Tmux configuration + plugin installer
 └── zshrc/          # Zsh configuration + aliases

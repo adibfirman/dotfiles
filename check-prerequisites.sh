@@ -23,6 +23,7 @@ OS=""
 PKG_MGR=""
 AUTO_CONFIRM=false
 SKIP_LIST=()
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 # Tool definitions: "Display Name|command_name|check_version_flag"
 TOOLS=(
@@ -50,6 +51,7 @@ TOOLS=(
     "Lazydocker|lazydocker|--version"
     "Colima|colima|--version"
     "OpenCode|opencode|--version"
+    "Pi|pi|--version"
     "Herdr|herdr|--version"
     "Tectonic|tectonic|--version"
     "Mermaid CLI|mmdc|--version"
@@ -346,6 +348,31 @@ should_skip() {
     return 1
 }
 
+prepare_managed_scripts() {
+    local pm_script="$SCRIPT_DIR/zshrc/.local/bin/pm"
+
+    if [ ! -f "$pm_script" ]; then
+        print_error "Managed pm script not found: $pm_script"
+        exit 1
+    fi
+
+    if [ ! -x "$pm_script" ]; then
+        print_warning "Making managed pm script executable"
+        chmod +x "$pm_script" || {
+            print_error "Could not make pm executable: $pm_script"
+            exit 1
+        }
+    fi
+
+    if ! sh -n "$pm_script"; then
+        print_error "Managed pm script has invalid shell syntax"
+        exit 1
+    fi
+
+    print_success "Managed pm script is ready"
+    echo ""
+}
+
 get_tool_info() {
     local display_name="$1"
     for tool in "${TOOLS[@]}"; do
@@ -614,6 +641,9 @@ get_install_command() {
         "OpenCode")
             echo "curl -fsSL https://opencode.ai/install | sh"
             ;;
+        "Pi")
+            echo "curl -fsSL https://pi.dev/install.sh | sh"
+            ;;
         "Herdr")
             case "$OS" in
                 macos) echo "brew install herdr" ;;
@@ -747,6 +777,7 @@ step_additional_tools() {
     print_step "Step 6/6: Additional Tools"
     
     run_check "OpenCode"
+    run_check "Pi"
     run_check "Herdr"
     run_check "RTK"
     run_check "Tectonic"
@@ -852,6 +883,9 @@ main() {
     
     # Detect OS
     detect_os
+
+    # Validate scripts managed by this repository
+    prepare_managed_scripts
     
     # Validate sudo
     validate_sudo
