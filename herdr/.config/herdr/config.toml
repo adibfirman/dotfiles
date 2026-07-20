@@ -28,6 +28,7 @@ delivery = "system"
 delay_seconds = 1
 
 [keys]
+prefix = "ctrl+s"
 open_worktree = ""
 rename_pane = ""
 remove_worktree = "prefix+alt+d"
@@ -35,6 +36,8 @@ previous_workspace = "prefix+shift+left"
 next_workspace = "prefix+shift+right"
 switch_workspace = "prefix+shift+1..9"
 previous_agent = "prefix+alt+0"
+navigate_workspace_up = "k"
+navigate_workspace_down = "j"
 
 [[keys.command]]
 key = "prefix+shift+o"
