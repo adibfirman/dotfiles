@@ -74,3 +74,67 @@ switch-secrets() {
   echo "Switched to $profile secrets. Starting new shell..."
   exec zsh
 }
+
+hunk-review() {
+  local command_name
+  for command_name in git gh hunk; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+      echo "hunk-review requires $command_name" >&2
+      return 1
+    fi
+  done
+
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+    echo "hunk-review must run inside a Git repository" >&2
+    return 1
+  }
+
+  (
+    cd "$repo_root" || return 1
+
+    git rev-parse --verify 'HEAD^{commit}' >/dev/null 2>&1 || {
+      echo "hunk-review requires a repository with at least one commit" >&2
+      return 1
+    }
+
+    local branch pr_data base_branch repo_url repo_data
+    branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null)
+
+    if [[ -n "$branch" ]]; then
+      pr_data=$(gh pr view --json baseRefName,url \
+        --jq '[.baseRefName, .url] | @tsv' 2>/dev/null)
+    fi
+
+    if [[ -n "$pr_data" ]]; then
+      IFS=$'\t' read -r base_branch repo_url <<< "$pr_data"
+      repo_url="${repo_url%/pull/*}"
+    else
+      repo_data=$(gh repo view --json defaultBranchRef,url \
+        --jq '[.defaultBranchRef.name, .url] | @tsv' 2>/dev/null) || {
+        echo "Could not determine the repository's default branch" >&2
+        return 1
+      }
+      IFS=$'\t' read -r base_branch repo_url <<< "$repo_data"
+    fi
+
+    if [[ -z "$base_branch" || -z "$repo_url" ]]; then
+      echo "Could not determine the target branch" >&2
+      return 1
+    fi
+
+    local base_head comparison_base
+    git fetch --quiet "${repo_url}.git" "refs/heads/$base_branch" || {
+      echo "Could not fetch $base_branch from $repo_url" >&2
+      return 1
+    }
+    base_head=$(git rev-parse --verify 'FETCH_HEAD^{commit}') || return 1
+    comparison_base=$(git merge-base "$base_head" HEAD) || {
+      echo "$base_branch and HEAD do not share a common ancestor" >&2
+      return 1
+    }
+
+    echo "Reviewing changes against $base_branch"
+    hunk diff "$comparison_base" "$@"
+  )
+}

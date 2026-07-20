@@ -48,6 +48,7 @@ TOOLS=(
     "NVM|nvm|--version"
     "GVM|gvm|version"
     "Lazygit|lazygit|--version"
+    "Hunk|hunk|--version"
     "Lazydocker|lazydocker|--version"
     "Colima|colima|--version"
     "OpenCode|opencode|--version"
@@ -624,6 +625,12 @@ get_install_command() {
                 debian) echo "sudo apt install -y lazygit" ;;
             esac
             ;;
+        "Hunk")
+            case "$OS" in
+                macos) echo "brew install hunk" ;;
+                arch|debian) echo "npm install -g hunkdiff" ;;
+            esac
+            ;;
         "Lazydocker")
             case "$OS" in
                 macos) echo "brew install lazydocker" ;;
@@ -767,6 +774,7 @@ step_git_docker_tools() {
     print_step "Step 5/6: Git & Docker Tools"
     
     run_check "Lazygit"
+    run_check "Hunk"
     run_check "Lazydocker"
     run_check "Colima"
     
