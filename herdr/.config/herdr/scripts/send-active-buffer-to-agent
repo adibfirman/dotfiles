@@ -177,7 +177,7 @@ $extra_section
 EOF
 )
 
-if herdr pane run "$target_pane" "$payload"; then
+if herdr agent prompt "$target_pane" "$payload"; then
   log_debug "sent buffer to: $target_pane"
 else
   die "Failed to send buffer to: $target_pane"
