@@ -43,9 +43,9 @@ navigate_workspace_down = "j"
 key = "prefix+shift+o"
 type = "popup"
 command = "/Users/cataengineer/.config/herdr/scripts/open-worktree-branch-or-pr"
-description = "open worktree, remote branch, or PR"
-width = "90%"
-height = "90%"
+description = "open worktree or remote branch"
+width = "35%"
+height = "40%"
 
 [[keys.command]]
 key = "prefix+shift+p"

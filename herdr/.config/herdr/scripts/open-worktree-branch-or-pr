@@ -79,10 +79,13 @@ git -C "$repo_root" worktree prune >/dev/null 2>&1 || true
 
 tmp_file=${TMPDIR:-/tmp}/herdr-open-worktree.$$
 err_file=${TMPDIR:-/tmp}/herdr-open-worktree.err.$$
-trap 'rm -f "$tmp_file" "$err_file"' EXIT HUP INT TERM
+worktree_branches_file=${TMPDIR:-/tmp}/herdr-open-worktree.branches.$$
+trap 'rm -f "$tmp_file" "$err_file" "$worktree_branches_file"' EXIT HUP INT TERM
 : > "$tmp_file"
 : > "$err_file"
+: > "$worktree_branches_file"
 
+# Collect existing worktree branch names
 git -C "$repo_root" worktree list --porcelain | python3 -c '
 import os
 import sys
@@ -95,12 +98,7 @@ def emit(rec):
         return
     branch = rec.get("branch") or ""
     if branch.startswith("refs/heads/"):
-        title = branch[len("refs/heads/"):]
-    elif branch:
-        title = branch
-    else:
-        title = rec.get("HEAD", "detached")[:12]
-    print("\t".join(["OPEN", title, path, path, ""]))
+        print(branch[len("refs/heads/"):])
 
 for line in sys.stdin:
     line = line.rstrip("\n")
@@ -111,8 +109,9 @@ for line in sys.stdin:
     key, _, value = line.partition(" ")
     record[key] = value
 emit(record)
-' >> "$tmp_file"
+' > "$worktree_branches_file"
 
+# Add remote branches that don't have existing worktrees
 git -C "$repo_root" for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null | while IFS= read -r remote_ref; do
   [ -n "$remote_ref" ] || continue
   case "$remote_ref" in
@@ -124,49 +123,25 @@ git -C "$repo_root" for-each-ref --format='%(refname:short)' refs/remotes 2>/dev
   *) local_branch=$remote_ref ;;
   esac
 
-  printf 'BRANCH\t%s\tcreate from remote branch\t%s\t%s\n' "$remote_ref" "$local_branch" "$remote_ref" >> "$tmp_file"
+  # Skip if worktree already exists for this branch
+  grep -qF "$local_branch" "$worktree_branches_file" 2>/dev/null && continue
+
+  # Get author from latest commit
+  author=$(git -C "$repo_root" log -1 --format='%an' "$remote_ref" 2>/dev/null || echo "?")
+
+  printf 'BRANCH\t%s\t%s\t%s\t%s\n' "$remote_ref" "$author" "$local_branch" "$remote_ref" >> "$tmp_file"
 done
 
-if command -v gh >/dev/null 2>&1; then
-  pr_json=$(cd "$repo_root" && gh pr list --state open --limit 100 --json number,title,headRefName 2>/dev/null || true)
-  if [ -n "$pr_json" ]; then
-    printf '%s' "$pr_json" | python3 -c '
-import json, sys
-
-try:
-    prs = json.load(sys.stdin)
-except json.JSONDecodeError:
-    prs = []
-
-def clean(value):
-    return " ".join(str(value or "").replace("\t", " ").split())
-
-for pr in prs:
-    number = pr.get("number")
-    if not number:
-        continue
-    head = clean(pr.get("headRefName"))
-    if not head:
-        continue
-    title = clean(pr.get("title"))
-    display = f"#{number} {head}"
-    subtitle = title or "create from pull request"
-    print("\t".join(["BRANCH", display, subtitle, head, f"origin/{head}"]))
-' >> "$tmp_file"
-  fi
-fi
-
 if [ ! -s "$tmp_file" ]; then
-  notify "No worktrees found" "No worktrees, remote branches, or PRs found"
+  notify "No branches found" "No remote branches without worktrees"
   exit 0
 fi
 
 selection=$(fzf \
-  --prompt='open worktree > ' \
-  --border \
+  --prompt='open branch > ' \
   --delimiter='\t' \
   --with-nth=1,2,3 \
-  --preview='printf "%s\n%s\n" {2} {3}' \
+  --no-preview \
   < "$tmp_file" || true)
 
 [ -n "$selection" ] || exit 0
