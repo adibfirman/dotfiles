@@ -139,6 +139,8 @@ fi
 
 selection=$(fzf \
   --prompt='open branch > ' \
+  --header='BRANCH  REF  AUTHOR' \
+  --layout=reverse \
   --delimiter='\t' \
   --with-nth=1,2,3 \
   --no-preview \
