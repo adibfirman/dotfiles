@@ -2,6 +2,30 @@
 
 All backend handlers implement `slog.Handler` and follow the `Option{}.NewXxxHandler()` constructor pattern.
 
+## Table of Contents
+
+- [Common Option Fields](#common-option-fields)
+- [Cloud Backends](#cloud-backends)
+  - [Datadog — `slog-datadog`](#datadog--slog-datadog)
+  - [Sentry — `slog-sentry`](#sentry--slog-sentry)
+  - [Loki — `slog-loki`](#loki--slog-loki)
+  - [Graylog — `slog-graylog`](#graylog--slog-graylog)
+- [Messaging Backends](#messaging-backends)
+  - [Kafka — `slog-kafka`](#kafka--slog-kafka)
+  - [Fluentd — `slog-fluentd`](#fluentd--slog-fluentd)
+  - [Logstash — `slog-logstash`](#logstash--slog-logstash)
+- [Notification Backends](#notification-backends)
+  - [Slack — `slog-slack`](#slack--slog-slack)
+  - [Telegram — `slog-telegram`](#telegram--slog-telegram)
+  - [Webhook — `slog-webhook`](#webhook--slog-webhook)
+- [Storage Backends](#storage-backends)
+  - [Parquet — `slog-parquet`](#parquet--slog-parquet)
+- [Logging Bridges](#logging-bridges)
+  - [slog-zap](#slog-zap)
+  - [slog-zerolog](#slog-zerolog)
+  - [slog-logrus](#slog-logrus)
+- [Graceful Shutdown Checklist](#graceful-shutdown-checklist)
+
 ## Common Option Fields
 
 Every handler's `Option` struct includes:
@@ -28,7 +52,11 @@ handler := slogdatadog.Option{
 defer handler.(interface{ Stop(context.Context) error }).Stop(context.Background()) // REQUIRED: flush buffered logs
 ```
 
-**Batch mode** is the default — logs are buffered and sent periodically (default 5s). Call `Stop(ctx)` on shutdown or buffered logs are lost. The handler also exposes `Flush(ctx)` for mid-lifecycle flushes. For synchronous delivery, check the Option configuration.
+**Batch mode** is the default — logs are buffered and sent periodically (default 5s):
+
+- Call `Stop(ctx)` on shutdown or buffered logs are lost.
+- `Flush(ctx)` triggers a mid-lifecycle flush.
+- For synchronous delivery, check the Option configuration.
 
 ### Sentry — `slog-sentry`
 

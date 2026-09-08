@@ -2,6 +2,17 @@
 
 samber/lo ships five packages. Each serves a different performance/ergonomics trade-off.
 
+## Table of Contents
+
+- [Import Paths and Aliases](#import-paths-and-aliases)
+- [`lo` — Core (Immutable)](#lo--core-immutable)
+- [`lo/parallel` (lop) — Concurrent Transforms](#loparallel-lop--concurrent-transforms)
+- [`lo/mutable` (lom) — In-Place Mutations](#lomutable-lom--in-place-mutations)
+- [`lo/it` (loi) — Lazy Iterators](#loit-loi--lazy-iterators)
+- [`lo/exp/simd` — Experimental SIMD](#loexpsimd--experimental-simd)
+- [Decision Flowchart](#decision-flowchart)
+- [Comparison Table](#comparison-table)
+
 ## Import Paths and Aliases
 
 ```go
@@ -142,7 +153,7 @@ SIMD (Single Instruction Multiple Data) optimized operations for numeric types o
 
 **Use when:** Bulk numeric operations after benchmarking confirms the bottleneck. Very specialized.
 
-**Warning:** This package is experimental. API may break between minor versions. Not covered by semver stability guarantees. Do not use in production without version pinning.
+**Warning:** This package is experimental and not covered by semver stability guarantees, so its API may break between minor versions. Do not use in production without version pinning.
 
 ## Decision Flowchart
 

@@ -1,12 +1,12 @@
 ---
 name: golang-dependency-management
-description: "Dependency management strategies for Golang projects — go.mod management, installing/upgrading packages, Minimal Version Selection, vulnerability scanning, outdated dependency tracking, binary size analysis, Dependabot/Renovate setup, conflict resolution, and go.work workspaces. Use when adding, removing, or upgrading Go dependencies, auditing vulnerabilities, resolving version conflicts, or setting up automated dependency updates."
+description: "Dependency management for Golang projects — go.mod and go.sum, `go get` install and upgrade flows, Minimal Version Selection, conflict resolution with replace/exclude/retract, `govulncheck` scanning of the module tree, outdated dependency and binary size auditing, vendoring, `tool` directives, and go.work workspaces. Use when adding, removing, or upgrading Go dependencies, deciding whether to take on a package, resolving version conflicts, or auditing what a module pulls in. Covers choosing and upgrading dependency versions, not the surrounding tooling: do NOT use for fixing an exploitable vulnerability in code (→ See `samber/cc-skills-golang@golang-security` skill) or for wiring Dependabot/Renovate update bots into CI workflows (→ See `samber/cc-skills-golang@golang-continuous-integration` skill)."
 user-invocable: true
 license: MIT
 compatibility: Designed for Claude Code, Codex or similar harness, and for projects using Golang.
 metadata:
   author: samber
-  version: "1.3.0"
+  version: "1.3.1"
   openclaw:
     emoji: "📦"
     homepage: https://github.com/samber/cc-skills-golang
@@ -130,12 +130,12 @@ go get -u tool
 go mod tidy
 ```
 
-`go.mod` shape for a module targeting Go 1.26 or newer. This is an example target, not a cap; keep the project's actual `go` directive and do not change it just to add tools.
+`go.mod` shape for a module targeting Go 1.27 or newer. This is an example target, not a cap; keep the project's actual `go` directive and do not change it just to add tools.
 
 ```go.mod
 module example.com/project
 
-go 1.26
+go 1.27
 
 tool (
     github.com/golangci/golangci-lint/v2/cmd/golangci-lint
@@ -143,6 +143,8 @@ tool (
     golang.org/x/perf/cmd/benchstat
 )
 ```
+
+For `go 1.27` or newer, `go mod tidy` auto-merges duplicate `require` blocks and enforces a two-block layout (direct dependencies, then indirect), preserving existing comments — no manual cleanup needed after a merge that introduces a second `require` block.
 
 For Go <1.24 only, use the legacy `tools.go` blank-import workaround:
 
@@ -159,12 +161,12 @@ import (
 
 Rule: Go 1.24+ = `tool` directives. Go <1.24 = `tools.go` fallback.
 
-### Go 1.26+ module target note
+### Module target note
 
-When using a Go 1.26 or newer toolchain, `go mod init` may create a module with an older default `go` directive. If the project intentionally targets Go 1.26+ APIs, update the directive deliberately:
+When using a newer toolchain, `go mod init` may create a module with an older default `go` directive. If the project intentionally targets the newer toolchain's APIs, update the directive deliberately:
 
 ```bash
-go mod edit -go=1.26
+go mod edit -go=1.27
 go mod tidy
 ```
 

@@ -1,5 +1,22 @@
 # Database Performance
 
+## Table of Contents
+
+- [Connection Pool Sizing](#connection-pool-sizing)
+  - [Configuration](#configuration)
+  - [Monitoring](#monitoring)
+  - [Prometheus Metrics](#prometheus-metrics)
+- [Batch Processing](#batch-processing)
+  - [Sweet spot: 100–1,000 rows per batch](#sweet-spot-1001000-rows-per-batch)
+  - [Batch INSERT with sqlx](#batch-insert-with-sqlx)
+  - [Bulk INSERT with pgx (PostgreSQL COPY protocol)](#bulk-insert-with-pgx-postgresql-copy-protocol)
+  - [Cursor-based pagination (avoid OFFSET)](#cursor-based-pagination-avoid-offset)
+- [Indexing Strategy](#indexing-strategy)
+  - [Use SQL MCP to check existing indexes](#use-sql-mcp-to-check-existing-indexes)
+  - [When to suggest adding indexes](#when-to-suggest-adding-indexes)
+  - [When to suggest removing indexes](#when-to-suggest-removing-indexes)
+- [Query Performance Tips](#query-performance-tips)
+
 ## Connection Pool Sizing
 
 ### Configuration
@@ -207,6 +224,11 @@ Always present findings as suggestions with data (scan counts, table size), neve
 - **Avoid N+1 queries** — use `JOIN` or batch `WHERE id IN (...)` instead of querying in a loop
 - **Suggest improvements, never execute them** — performance changes (indexes, query rewrites, configuration) need human review in context of production data and workload patterns
 
-Batch operations SHOULD use 100–1,000 rows per batch — adjust based on row size and database load. Cursor-based pagination MUST replace `OFFSET` for large datasets — the cursor column MUST be chosen based on actual indexes (e.g., `created_at`, `user_id`). NEVER create indexes blindly — check existing indexes, measure with `EXPLAIN ANALYZE`, and present findings as suggestions. N+1 queries MUST be eliminated — use `JOIN` or batch `WHERE id IN (...)`.
+**Rules:**
+
+- Batch operations SHOULD use 100–1,000 rows per batch — adjust based on row size and database load.
+- Cursor-based pagination MUST replace `OFFSET` for large datasets — the cursor column MUST be chosen based on actual indexes (e.g., `created_at`, `user_id`).
+- NEVER create indexes blindly — check existing indexes, measure with `EXPLAIN ANALYZE`, and present findings as suggestions.
+- N+1 queries MUST be eliminated — use `JOIN` or batch `WHERE id IN (...)`.
 
 → See `samber/cc-skills-golang@golang-observability` skill for database metrics and query monitoring. → See `samber/cc-skills@promql-cli` skill for querying pool metrics (`db_open_connections`, `db_in_use_connections`, `db_idle_connections`) via CLI.
