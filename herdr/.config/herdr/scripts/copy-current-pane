@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+pane_json=$(
+  if [ -n "${HERDR_ACTIVE_PANE_ID:-}" ]; then
+    "$HERDR_BIN" pane get "$HERDR_ACTIVE_PANE_ID"
+  else
+    "$HERDR_BIN" pane current
+  fi
+)
+
+workspace_id=$(printf '%s' "$pane_json" | python3 -c '
+import json, sys
+print(json.load(sys.stdin)["result"]["pane"]["workspace_id"])
+')
+pane_id=$(printf '%s' "$pane_json" | python3 -c '
+import json, sys
+print(json.load(sys.stdin)["result"]["pane"]["pane_id"])
+')
+
+label=$("$HERDR_BIN" workspace list | WORKSPACE_ID="$workspace_id" python3 -c '
+import json, os, sys
+
+workspace_id = os.environ["WORKSPACE_ID"]
+workspaces = json.load(sys.stdin)["result"]["workspaces"]
+for workspace in workspaces:
+    if workspace.get("workspace_id") == workspace_id:
+        print(workspace.get("label", ""))
+        break
+')
+
+value="$label:$pane_id"
+printf '%s' "$value" | pbcopy
+notify "Pane copied" "$value"

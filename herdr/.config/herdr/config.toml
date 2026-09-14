@@ -80,6 +80,20 @@ command = "/Users/cataengineer/.config/herdr/scripts/sort-workspaces"
 description = "sort workspaces alphabetically"
 
 [[keys.command]]
+key = "prefix+shift+w"
+type = "popup"
+command = "/Users/cataengineer/.config/herdr/scripts/go-to-pane"
+description = "go to pane"
+width = "60%"
+height = "60%"
+
+[[keys.command]]
+key = "prefix+shift+i"
+type = "shell"
+command = "/Users/cataengineer/.config/herdr/scripts/copy-current-pane"
+description = "copy current pane label and id"
+
+[[keys.command]]
 key = "prefix+shift+c"
 type = "shell"
 command = "path=$(git -C \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\" rev-parse --show-toplevel 2>/dev/null || printf %s \"${HERDR_ACTIVE_PANE_CWD:-$PWD}\"); printf %s \"$path\" | pbcopy && \"${HERDR_BIN_PATH:-herdr}\" notification show \"Path copied\" --body \"$path\""
