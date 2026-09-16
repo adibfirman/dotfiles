@@ -15,26 +15,10 @@ pane_json=$(
   fi
 )
 
-workspace_id=$(printf '%s' "$pane_json" | python3 -c '
-import json, sys
-print(json.load(sys.stdin)["result"]["pane"]["workspace_id"])
-')
 pane_id=$(printf '%s' "$pane_json" | python3 -c '
 import json, sys
 print(json.load(sys.stdin)["result"]["pane"]["pane_id"])
 ')
 
-label=$("$HERDR_BIN" workspace list | WORKSPACE_ID="$workspace_id" python3 -c '
-import json, os, sys
-
-workspace_id = os.environ["WORKSPACE_ID"]
-workspaces = json.load(sys.stdin)["result"]["workspaces"]
-for workspace in workspaces:
-    if workspace.get("workspace_id") == workspace_id:
-        print(workspace.get("label", ""))
-        break
-')
-
-value="$label:$pane_id"
-printf '%s' "$value" | pbcopy
-notify "Pane copied" "$value"
+printf '%s' "$pane_id" | pbcopy
+notify "Pane copied" "$pane_id"

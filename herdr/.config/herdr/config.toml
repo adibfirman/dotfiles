@@ -91,7 +91,7 @@ height = "60%"
 key = "prefix+shift+i"
 type = "shell"
 command = "/Users/cataengineer/.config/herdr/scripts/copy-current-pane"
-description = "copy current pane label and id"
+description = "copy current pane id"
 
 [[keys.command]]
 key = "prefix+shift+c"
