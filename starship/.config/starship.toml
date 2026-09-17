@@ -61,8 +61,9 @@ show_always = true
 format = "[adibfirman](sky)[ at ](text)"
 
 [directory]
-truncation_length = 3
+truncation_length = 2
 truncation_symbol = "…/"
+truncate_to_repo = false
 format = 'at [$path]($style) '
 
 [git_branch]
