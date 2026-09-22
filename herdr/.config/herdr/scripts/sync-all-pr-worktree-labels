@@ -50,7 +50,7 @@ while IFS="$(printf '\t')" read -r workspace_id checkout_path; do
   [ -n "$workspace_id" ] || continue
   total=$((total + 1))
 
-  pr_json=$(cd "$checkout_path" && gh pr view --json number,title,state,mergedAt 2>/dev/null || true)
+  pr_json=$(cd "$checkout_path" && gh pr view --json number,title,state,mergedAt,reviews 2>/dev/null || true)
   if [ -z "$pr_json" ]; then
     skipped=$((skipped + 1))
     continue
@@ -92,9 +92,15 @@ print("1" if state == "MERGED" or merged_at else "0")
 import json, sys
 
 data = json.load(sys.stdin)
+approved = any(
+    str(review.get("state") or "").upper() == "APPROVED"
+    for review in data.get("reviews") or []
+)
 number = data.get("number")
 title = " ".join(str(data.get("title") or "").split())
 display = f"#{number} {title}" if number and title else title or f"#{number}"
+if approved:
+    display = f"✅ {display}"
 print(display)
 ')
 

@@ -24,7 +24,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-pr_json=$(cd "$cwd" && gh pr view --json number,title,state,mergedAt 2>/dev/null || true)
+pr_json=$(cd "$cwd" && gh pr view --json number,title,state,mergedAt,reviews 2>/dev/null || true)
 if [ -z "$pr_json" ]; then
   notify "No PR found" "No pull request for the active branch"
   exit 0
@@ -36,11 +36,20 @@ import json, sys
 data = json.load(sys.stdin)
 state = str(data.get("state") or "").upper()
 merged_at = data.get("mergedAt")
+approved = any(
+    str(review.get("state") or "").upper() == "APPROVED"
+    for review in data.get("reviews") or []
+)
 number = data.get("number")
 title = " ".join(str(data.get("title") or "").split())
 display = f"#{number} {title}" if number and title else title or f"#{number}"
+if approved:
+    display = f"✅ {display}"
 if state == "MERGED" or merged_at:
-    print("".join(ch + "\u0336" for ch in display))
+    if approved:
+        print(f"✅ {''.join(ch + '\u0336' for ch in display[2:])}")
+    else:
+        print("".join(ch + "\u0336" for ch in display))
 else:
     print(display)
 ')
