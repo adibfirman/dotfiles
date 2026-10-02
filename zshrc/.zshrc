@@ -101,6 +101,7 @@ export PATH=$PATH:~/.local/share/bob/nvim-bin
 export GOPATH="$HOME/go"
 export PATH="$PATH:$GOPATH/bin"
 [[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
+unfunction cd 2>/dev/null   # drop GVM's cd wrapper (its _encode/_decode helpers are missing in Claude Code's shell snapshot); gvm use/list and go keep working
 
 # pnpm
 export PNPM_HOME="$HOME/.local/share/pnpm"

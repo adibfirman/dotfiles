@@ -8,6 +8,103 @@ import subprocess
 import sys
 
 
+EMOJI_RANGES = (
+    (0x1F000, 0x1FAFF),
+    (0x2600, 0x26FF),
+    (0x2700, 0x27BF),
+    (0xE0020, 0xE007F),  # emoji tag sequences
+)
+EMOJI_CODEPOINTS = {
+    0x00A9,
+    0x00AE,
+    0x203C,
+    0x2049,
+    0x2122,
+    0x2139,
+    0x2194,
+    0x2195,
+    0x2196,
+    0x2197,
+    0x2198,
+    0x2199,
+    0x21A9,
+    0x21AA,
+    0x231A,
+    0x231B,
+    0x2328,
+    0x23CF,
+    0x23E9,
+    0x23EA,
+    0x23EB,
+    0x23EC,
+    0x23ED,
+    0x23EE,
+    0x23EF,
+    0x23F0,
+    0x23F1,
+    0x23F2,
+    0x23F3,
+    0x23F8,
+    0x23F9,
+    0x23FA,
+    0x24C2,
+    0x25AA,
+    0x25AB,
+    0x25B6,
+    0x25C0,
+    0x25FB,
+    0x25FC,
+    0x25FD,
+    0x25FE,
+    0x2934,
+    0x2935,
+    0x2B05,
+    0x2B06,
+    0x2B07,
+    0x2B1B,
+    0x2B1C,
+    0x2B50,
+    0x2B55,
+    0x3030,
+    0x303D,
+    0x3297,
+    0x3299,
+}
+EMOJI_MARKERS = {
+    0x200D,  # zero-width joiner
+    0x20E3,  # keycap combining mark
+    0xFE0E,  # text presentation selector
+    0xFE0F,  # emoji presentation selector
+}
+
+
+def is_emoji(character):
+    codepoint = ord(character)
+    return (
+        codepoint in EMOJI_CODEPOINTS
+        or codepoint in EMOJI_MARKERS
+        or any(start <= codepoint <= end for start, end in EMOJI_RANGES)
+    )
+
+
+def label_sort_key(label):
+    result = []
+    index = 0
+    while index < len(label):
+        character = label[index]
+        if character in "#*0123456789":
+            marker_index = index + 1
+            if marker_index < len(label) and ord(label[marker_index]) == 0xFE0F:
+                marker_index += 1
+            if marker_index < len(label) and ord(label[marker_index]) == 0x20E3:
+                index = marker_index + 1
+                continue
+        if not is_emoji(character):
+            result.append(character)
+        index += 1
+    return "".join(result).casefold().strip()
+
+
 def request(socket_path, request_id, method, params):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.connect(socket_path)
@@ -57,10 +154,14 @@ def sorted_workspaces(workspaces):
         )
         children = sorted(
             (member for member in members if member is not parent),
-            key=lambda member: (member["label"].casefold(), member["workspace_id"]),
+            key=lambda member: (label_sort_key(member["label"]), member["workspace_id"]),
         )
         ordered_blocks.append(
-            (parent["label"].casefold(), parent["workspace_id"], [parent, *children])
+            (
+                label_sort_key(parent["label"]),
+                parent["workspace_id"],
+                [parent, *children],
+            )
         )
 
     ordered_blocks.sort(key=lambda block: (block[0], block[1]))
