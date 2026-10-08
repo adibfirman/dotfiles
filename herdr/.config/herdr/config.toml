@@ -31,6 +31,7 @@ delay_seconds = 1
 prefix = "ctrl+s"
 open_worktree = ""
 rename_pane = ""
+rename_workspace = ""
 remove_worktree = "prefix+alt+d"
 previous_workspace = "prefix+shift+left"
 next_workspace = "prefix+shift+right"
