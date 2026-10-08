@@ -1,7 +1,7 @@
 theme = catppuccin-frappe
 
 # Font configuration
-font-size = 12
+font-size = 14
 font-style = Bold
 font-family = Kode Mono 
 # font-family = CaskaydiaCove Nerd Font
