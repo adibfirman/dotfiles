@@ -68,6 +68,12 @@ command = "/Users/cataengineer/.config/herdr/scripts/open-current-pr"
 description = "open curr PR in browser"
 
 [[keys.command]]
+key = "prefix+shift+h"
+type = "shell"
+command = "/Users/cataengineer/.config/herdr/scripts/open-pr-review-tab"
+description = "open PR review in hunk"
+
+[[keys.command]]
 key = "prefix+shift+y"
 type = "shell"
 command = "/Users/cataengineer/.config/herdr/scripts/sync-all-pr-worktree-labels"

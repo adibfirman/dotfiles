@@ -1,0 +1,217 @@
+#!/bin/sh
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+fail() {
+  notify "Open PR review failed" "$1"
+  exit 1
+}
+
+cwd=${HERDR_ACTIVE_PANE_CWD:-$(pwd)}
+[ -d "$cwd" ] || fail "active pane cwd is missing"
+
+for tool in gh git hunk python3; do
+  command -v "$tool" >/dev/null 2>&1 || fail "$tool is not installed"
+done
+
+workspace=${HERDR_ACTIVE_WORKSPACE_ID:-}
+[ -n "$workspace" ] || fail "active workspace id is missing"
+
+if ! root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
+  notify "No PR found" "active pane is not in a git repository"
+  exit 0
+fi
+
+errfile=$(mktemp)
+trap 'rm -f "$errfile"' EXIT HUP INT TERM
+
+if ! pr_json=$(cd "$root" && gh pr view --json url 2>"$errfile"); then
+  if grep -qE "no pull requests found|could not determine current branch" "$errfile"; then
+    notify "No PR found" "No pull request for the active branch"
+    exit 0
+  fi
+  fail "$(head -n 1 "$errfile")"
+fi
+
+pr_info=$(printf '%s' "$pr_json" | python3 -c '
+import json, re, sys
+
+data = json.load(sys.stdin)
+match = re.match(r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)", str(data.get("url") or ""))
+print(" ".join(match.groups()))
+') || fail "could not parse PR url"
+IFS=' ' read -r pr_owner pr_repo number <<EOF
+$pr_info
+EOF
+repo=$pr_owner/$pr_repo
+label="hunk #$number"
+
+tabs=$("$HERDR_BIN" tab list --workspace "$workspace") || fail "could not list tabs"
+tab_id=$(printf '%s' "$tabs" | LABEL="$label" python3 -c '
+import json, os, sys
+for t in json.load(sys.stdin)["result"]["tabs"]:
+    if t.get("label") == os.environ["LABEL"]:
+        print(t["tab_id"])
+        break
+') || fail "could not read tab list"
+
+if [ -n "$tab_id" ]; then
+  "$HERDR_BIN" tab focus "$tab_id" >/dev/null || fail "could not focus tab $tab_id"
+  exit 0
+fi
+
+created=$("$HERDR_BIN" tab create --workspace "$workspace" --cwd "$root" --label "$label" --focus) ||
+  fail "could not create tab"
+# Print "<tab id> <pane id>"; the pane id stays empty when it is missing.
+create_info=$(printf '%s' "$created" | python3 -c '
+import json, sys
+
+try:
+    result = json.load(sys.stdin)["result"]
+    tab_id = result["tab"]["tab_id"]
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+pane = result.get("root_pane")
+pane_id = pane.get("pane_id") if isinstance(pane, dict) else None
+print(tab_id, pane_id or "")
+') || fail "could not read tab create result"
+IFS=' ' read -r new_tab pane_id <<EOF
+$create_info
+EOF
+
+# Close the new tab on failure so no empty "hunk #N" tab is left behind.
+fail_and_close_tab() {
+  "$HERDR_BIN" tab close "$new_tab" >/dev/null 2>&1 || true
+  fail "$1"
+}
+
+[ -n "$pane_id" ] || fail_and_close_tab "tab create returned no pane id"
+
+# Inline review threads: open, current threads become hunk agent notes.
+# Failures here never block the review; the tab opens with plain hunk.
+# A private (0700) dir per run keeps the sidecar path unique and unguessable.
+# It stays after the run: hunk re-reads the file on reload.
+threads_dir=$(mktemp -d "${TMPDIR:-/tmp}/hunk-gh-threads.XXXXXX" 2>/dev/null) || threads_dir=
+threads_file=$threads_dir/$pr_owner-$pr_repo-$number.json
+
+# shellcheck disable=SC2016
+threads_query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved isOutdated path line startLine diffSide comments(first:100){nodes{author{login} body}}}}}}}'
+
+# Print the number of notes written to $threads_file.
+load_threads() {
+  if [ -z "$threads_dir" ]; then
+    echo "could not create temp dir" >&2
+    return 1
+  fi
+  case $threads_file in
+  *\'*)
+    echo "temp path contains a quote" >&2
+    return 1
+    ;;
+  esac
+  threads_json=$(gh api graphql -f query="$threads_query" -f owner="$pr_owner" -f name="$pr_repo" -F number="$number") ||
+    return 1
+  printf '%s' "$threads_json" | THREADS_FILE="$threads_file" PR_NUMBER="$number" PR_REPO="$repo" python3 -c '
+import json, os, re, sys
+
+# An unclosed "<!--" runs to the end: no rescan, so no quadratic backtracking.
+HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
+# Innermost first: no nested <details> may start before the first closing tag.
+DETAILS = re.compile(r"<details(?=[\s>])(?:(?!<details[\s>]).)*?</details>", re.S | re.I)
+
+
+def clean(text):
+    text = (text or "").replace("\r\n", "\n")
+    text = HTML_COMMENT.sub("", text)
+    while True:
+        text, count = DETAILS.subn("", text)
+        if not count:
+            break
+    return re.sub(r"\n(?:[ \t]*\n){2,}", "\n\n", text).strip()
+
+
+def login(comment):
+    return "@" + ((comment.get("author") or {}).get("login") or "ghost")
+
+
+class PullRequestNotFound(Exception):
+    pass
+
+
+def convert(data):
+    if data.get("errors"):
+        raise ValueError(data["errors"][0].get("message", "GraphQL error"))
+    repository = (data.get("data") or {}).get("repository") or {}
+    pull = repository.get("pullRequest")
+    if not pull:
+        raise PullRequestNotFound("PR #%s not found in %s" % (os.environ["PR_NUMBER"], os.environ["PR_REPO"]))
+    files = {}
+    total = 0
+    for thread in pull["reviewThreads"]["nodes"]:
+        line = thread.get("line")
+        comments = (thread.get("comments") or {}).get("nodes") or []
+        if thread.get("isResolved") or thread.get("isOutdated") or not comments:
+            continue
+        if not isinstance(line, int) or not thread.get("path"):
+            continue
+        start = thread.get("startLine")
+        if not isinstance(start, int):
+            start = line
+        low, high = sorted((max(1, start), max(1, line)))
+        first = comments[0]
+        note = {
+            "author": login(first),
+            "summary": clean(first.get("body")) or "(empty comment)",
+        }
+        replies = []
+        for reply in comments[1:]:
+            body = clean(reply.get("body"))
+            if body:
+                replies.append("\u21b3 " + login(reply) + ": " + body)
+        if replies:
+            note["rationale"] = "\n\n".join(replies)
+        side = "oldRange" if thread.get("diffSide") == "LEFT" else "newRange"
+        note[side] = [low, high]
+        files.setdefault(thread["path"], []).append(note)
+        total += 1
+    return total, {
+        "version": 1,
+        "files": [{"path": p, "annotations": a} for p, a in files.items()],
+    }
+
+
+try:
+    total, sidecar = convert(json.load(sys.stdin))
+    path = os.environ["THREADS_FILE"]
+    if total:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump(sidecar, out, indent=2)
+            out.write("\n")
+    print(total)
+except PullRequestNotFound as exc:
+    sys.exit(str(exc))
+except Exception as exc:
+    sys.exit("could not convert PR threads: %s" % exc)
+'
+}
+
+if ! open_threads=$(load_threads 2>"$errfile"); then
+  open_threads=0
+  notify "PR threads not loaded" "$(head -n 1 "$errfile")"
+fi
+
+hunk_flags=
+if [ "$open_threads" -gt 0 ]; then
+  hunk_flags=" -- --agent-context '$threads_file' --agent-notes"
+fi
+
+# The pane shell expands $(gh auth token); this script never reads the token.
+# shellcheck disable=SC2016
+cmd='GH_TOKEN="$(gh auth token)" GH_PR_NUMBER='"$number"' GH_PR_REPO='"$repo"' hunk gh pr '"$number"' --repo '"$repo$hunk_flags"' && exit'
+"$HERDR_BIN" pane run "$pane_id" "$cmd" >/dev/null || fail_and_close_tab "could not run hunk in pane $pane_id"
