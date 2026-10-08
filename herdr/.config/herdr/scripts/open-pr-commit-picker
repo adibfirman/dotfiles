@@ -1,0 +1,179 @@
+#!/bin/sh
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+fail() {
+  notify "Open PR commit failed" "$1"
+  exit 1
+}
+
+cwd=${HERDR_ACTIVE_PANE_CWD:-$(pwd)}
+[ -d "$cwd" ] || fail "active pane cwd is missing"
+
+for tool in gh git hunk fzf python3; do
+  command -v "$tool" >/dev/null 2>&1 || fail "$tool is not installed"
+done
+
+workspace=${HERDR_ACTIVE_WORKSPACE_ID:-}
+[ -n "$workspace" ] || fail "active workspace id is missing"
+
+if ! root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
+  notify "No PR found" "active pane is not in a git repository"
+  exit 0
+fi
+
+errfile=$(mktemp)
+rawfile=$(mktemp)
+listfile=$(mktemp)
+trap 'rm -f "$errfile" "$rawfile" "$listfile"' EXIT HUP INT TERM
+
+if ! pr_json=$(cd "$root" && gh pr view --json url,baseRefName 2>"$errfile"); then
+  if grep -qE "no pull requests found|could not determine current branch" "$errfile"; then
+    notify "No PR found" "No pull request for the active branch"
+    exit 0
+  fi
+  fail "$(head -n 1 "$errfile")"
+fi
+
+base=$(printf '%s' "$pr_json" | python3 -c '
+import json, sys
+
+print(json.load(sys.stdin).get("baseRefName") or "")
+') || fail "could not parse PR base branch"
+[ -n "$base" ] || fail "PR has no base branch"
+
+# A failed fetch is not fatal: fall back to the local origin/<base>.
+if ! git -C "$root" fetch --quiet origin "+$base:refs/remotes/origin/$base" >/dev/null 2>"$errfile"; then
+  notify "Could not fetch origin/$base" "$(head -n 1 "$errfile")"
+fi
+git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$base" || fail "origin/$base not found"
+
+# Subject is last so a tab inside a subject cannot shift the other fields.
+git -C "$root" log --format='%H%x09%h%x09%an%x09%ar%x09%s' "origin/$base..HEAD" >"$rawfile" ||
+  fail "could not list commits"
+if [ ! -s "$rawfile" ]; then
+  notify "No commits" "No commits between origin/$base and HEAD"
+  exit 0
+fi
+
+# Width of the terminal fzf will use. Python cannot detect it: its stdout is a file.
+cols=$({ stty size </dev/tty; } 2>/dev/null | cut -d' ' -f2 || true)
+case "$cols" in
+  '' | *[!0-9]*) cols=80 ;;
+esac
+
+# Line 1 is the header. Each line is "<full sha> TAB <aligned table row> TAB <short sha>".
+# fzf shows only field 2, so the header and the rows share one set of column widths.
+COLS=$cols python3 -c '
+import os
+import sys
+import unicodedata
+
+sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+sys.stdout.reconfigure(encoding="utf-8")
+
+
+def width(text):
+    total = 0
+    for ch in text:
+        if unicodedata.combining(ch):
+            continue
+        total += 2 if unicodedata.east_asian_width(ch) in "WF" else 1
+    return total
+
+
+def fit(text, size):
+    text = text.replace("\t", " ")
+    if width(text) > size:
+        out, used = "", 0
+        for ch in text:
+            w = width(ch)
+            if used + w > size - 1:
+                break
+            out += ch
+            used += w
+        text, used = out + "\u2026", used + 1
+    else:
+        used = width(text)
+    return text + " " * (size - used)
+
+
+rows = [line.rstrip("\n").split("\t", 4) for line in sys.stdin if line.strip()]
+cols = int(os.environ["COLS"])
+sha_w = max([3] + [width(r[1]) for r in rows])
+author_w, date_w = 14, 13
+subject_w = max(10, cols - 3 - sha_w - author_w - date_w - 6)
+
+
+def table_row(sha, subject, author, date):
+    return "  ".join([fit(sha, sha_w), fit(subject, subject_w), fit(author, author_w), fit(date, date_w)])
+
+
+print("\t" + table_row("SHA", "SUBJECT", "AUTHOR", "DATE") + "\t")
+for full, short, author, date, subject in rows:
+    print(full + "\t" + table_row(short, subject, author, date) + "\t" + short)
+' <"$rawfile" >"$listfile" || fail "could not format commit list"
+
+selection=$(fzf \
+  --prompt='open commit > ' \
+  --header-lines=1 \
+  --layout=reverse \
+  --delimiter='\t' \
+  --with-nth=2 \
+  --no-preview \
+  <"$listfile" || true)
+
+[ -n "$selection" ] || exit 0
+
+sha=$(printf '%s' "$selection" | cut -f1)
+short=$(printf '%s' "$selection" | cut -f3)
+label="commit $short"
+
+tabs=$("$HERDR_BIN" tab list --workspace "$workspace") || fail "could not list tabs"
+tab_id=$(printf '%s' "$tabs" | LABEL="$label" python3 -c '
+import json, os, sys
+for t in json.load(sys.stdin)["result"]["tabs"]:
+    if t.get("label") == os.environ["LABEL"]:
+        print(t["tab_id"])
+        break
+') || fail "could not read tab list"
+
+if [ -n "$tab_id" ]; then
+  "$HERDR_BIN" tab focus "$tab_id" >/dev/null || fail "could not focus tab $tab_id"
+  exit 0
+fi
+
+created=$("$HERDR_BIN" tab create --workspace "$workspace" --cwd "$root" --label "$label" --focus) ||
+  fail "could not create tab"
+# Print "<tab id> <pane id>"; the pane id stays empty when it is missing.
+create_info=$(printf '%s' "$created" | python3 -c '
+import json, sys
+
+try:
+    result = json.load(sys.stdin)["result"]
+    tab_id = result["tab"]["tab_id"]
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+pane = result.get("root_pane")
+pane_id = pane.get("pane_id") if isinstance(pane, dict) else None
+print(tab_id, pane_id or "")
+') || fail "could not read tab create result"
+IFS=' ' read -r new_tab pane_id <<EOF2
+$create_info
+EOF2
+
+# Close the new tab on failure so no empty "commit <sha>" tab is left behind.
+fail_and_close_tab() {
+  "$HERDR_BIN" tab close "$new_tab" >/dev/null 2>&1 || true
+  fail "$1"
+}
+
+[ -n "$pane_id" ] || fail_and_close_tab "tab create returned no pane id"
+
+"$HERDR_BIN" pane run "$pane_id" "hunk show $sha && exit" >/dev/null ||
+  fail_and_close_tab "could not run hunk in pane $pane_id"

@@ -75,6 +75,14 @@ command = "/Users/cataengineer/.config/herdr/scripts/open-pr-review-tab"
 description = "open PR review in hunk"
 
 [[keys.command]]
+key = "prefix+shift+l"
+type = "popup"
+command = "/Users/cataengineer/.config/herdr/scripts/open-pr-commit-picker"
+description = "open PR commit in hunk"
+width = "35%"
+height = "40%"
+
+[[keys.command]]
 key = "prefix+shift+y"
 type = "shell"
 command = "/Users/cataengineer/.config/herdr/scripts/sync-all-pr-worktree-labels"
