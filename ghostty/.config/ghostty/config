@@ -29,6 +29,9 @@ term = xterm-256color
 # Keybindings
 keybind = f11=toggle_fullscreen
 
+# Left Option acts as Alt (Claude Code word jump: Alt+B / Alt+F)
+macos-option-as-alt = left
+
 # Some shaders can be found in this repo, they're usually uploaded to discord
 # https://github.com/hackrmomo/ghostty-shaders
 custom-shader = shaders/cursor_blaze_no_trail.glsl
