@@ -22,31 +22,18 @@
       "destination": "technical/react/react-best-practices"
     },
     {
-      "name": "context7-mcp",
-      "source": "https://github.com/upstash/context7",
-      "path": "skills/context7-mcp",
-      "branch": "master"
-    },
-    {
-      "name": "grill-with-docs",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "skills/engineering/grill-with-docs",
-      "branch": "main",
-      "destination": "grill-with-docs"
-    },
-    {
       "name": "grilling",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/grilling",
       "branch": "main",
-      "destination": "grilling"
+      "destination": "brainstorming/grilling"
     },
     {
       "name": "domain-modeling",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/engineering/domain-modeling",
       "branch": "main",
-      "destination": "domain-modeling"
+      "destination": "brainstorming/domain-modeling"
     },
     {
       "name": "spec-of-code",
@@ -55,20 +42,6 @@
       "branch": "main",
       "destination": "code-review/spec-of-code",
       "local_name": "spec-of-code"
-    },
-    {
-      "name": "codebase-design",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "skills/engineering/codebase-design",
-      "branch": "main",
-      "destination": "improve-codebase/codebase-design"
-    },
-    {
-      "name": "improve-codebase-architecture",
-      "source": "https://github.com/mattpocock/skills",
-      "path": "skills/engineering/improve-codebase-architecture",
-      "branch": "main",
-      "destination": "improve-codebase/improve-codebase-architecture"
     },
     {
       "name": "teach",
