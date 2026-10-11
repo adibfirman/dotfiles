@@ -16,4 +16,4 @@ disable-model-invocation: true
   - Am I anchoring on the first thing I found, or did I search broadly enough?
   - What did I expect to find but didn't?
   - What related code have I NOT read that could change my understanding? Hint: search with at least 3 different patterns, read callers AND callees, check tests for implicit contracts.
-- At the end of the session, when the user confirms a shared understanding, post a short summary in chat: the decisions made, the open risks, and the next step. Include a recap of the final design in the `call-graph` skill format. Offer to save the summary as a file. Write the file only if the user says yes.
+- At the end of the session, when the user confirms a shared understanding, post a short summary in chat: the decisions made, the open risks, and the next step. Include a recap of the final design in the `call-graph` skill format.
