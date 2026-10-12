@@ -5,10 +5,11 @@ HERDR_BIN=${HERDR_BIN_PATH:-herdr}
 
 # Status icons live here only. The python blocks read them from the environment.
 ICON_WARN="⚠️"
+ICON_CONFLICT="💥"
 ICON_BLOCKED="❌"
 ICON_THREAD="💬"
 ICON_APPROVED="✅"
-export ICON_WARN ICON_BLOCKED ICON_THREAD ICON_APPROVED
+export ICON_WARN ICON_CONFLICT ICON_BLOCKED ICON_THREAD ICON_APPROVED
 
 notify() {
   "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
@@ -50,10 +51,7 @@ for workspace in data.get("result", {}).get("workspaces", []):
 ' > "$tmp_file"
 
 total=0
-synced=0
-skipped=0
 failed=0
-deleted=0
 sync_failed=0
 
 # Label the worktree as "sync failed": warning icon plus the old label.
@@ -66,6 +64,7 @@ warn = os.environ["ICON_WARN"]
 icons = (
     warn,
     warn.replace("\ufe0f", ""),
+    os.environ["ICON_CONFLICT"],
     os.environ["ICON_BLOCKED"],
     os.environ["ICON_THREAD"],
     os.environ["ICON_APPROVED"],
@@ -94,14 +93,12 @@ while IFS="$(printf '\t')" read -r workspace_id checkout_path old_label; do
   total=$((total + 1))
 
   if ! (cd "$checkout_path") 2>/dev/null; then
-    skipped=$((skipped + 1))
     continue
   fi
 
-  if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus 2>"$err_file"); then
+  if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus,mergeable 2>"$err_file"); then
     # Detached HEAD: gh prints "could not determine current branch: not on any branch".
     if grep -q -e 'no pull requests found' -e 'could not determine current branch' "$err_file"; then
-      skipped=$((skipped + 1))
       continue
     fi
 
@@ -137,7 +134,6 @@ print("1" if state == "MERGED" or merged_at else "0")
           ;;
         esac
       fi
-      deleted=$((deleted + 1))
     else
       failed=$((failed + 1))
     fi
@@ -174,31 +170,43 @@ print(sum(1 for node in nodes if node.get("isResolved") is False))
   fi
 
   merge_ok=1
-  merge_state=$(printf '%s' "$pr_json" | python3 -c '
+  merge_values=$(printf '%s' "$pr_json" | python3 -c '
 import json, sys
 
-print(json.load(sys.stdin).get("mergeStateStatus") or "")
+data = json.load(sys.stdin)
+print(data.get("mergeStateStatus") or "UNKNOWN", data.get("mergeable") or "UNKNOWN")
 ') || {
     mark_sync_failed
     continue
   }
-  if [ "$merge_state" = "UNKNOWN" ]; then
+  read -r merge_state mergeable <<EOF
+$merge_values
+EOF
+  if [ "$merge_state" = "UNKNOWN" ] || [ "$mergeable" = "UNKNOWN" ]; then
     # GitHub computes the merge state in the background, so the first read is often UNKNOWN.
     sleep 2
-    if retry_json=$(cd "$checkout_path" && gh pr view --json mergeStateStatus 2>/dev/null); then
-      merge_state=$(printf '%s' "$retry_json" | python3 -c '
+    merge_state=UNKNOWN
+    mergeable=UNKNOWN
+    if retry_json=$(cd "$checkout_path" && gh pr view --json mergeStateStatus,mergeable 2>/dev/null); then
+      retry_values=$(printf '%s' "$retry_json" | python3 -c '
 import json, sys
 
-print(json.load(sys.stdin).get("mergeStateStatus") or "UNKNOWN")
-' 2>/dev/null) || merge_state=UNKNOWN
+data = json.load(sys.stdin)
+print(data.get("mergeStateStatus") or "UNKNOWN", data.get("mergeable") or "UNKNOWN")
+' 2>/dev/null) || retry_values="UNKNOWN UNKNOWN"
+      read -r merge_state mergeable <<EOF
+$retry_values
+EOF
     fi
-    [ "$merge_state" != "UNKNOWN" ] || merge_ok=0
+    if [ "$merge_state" = "UNKNOWN" ] || [ "$mergeable" = "UNKNOWN" ]; then
+      merge_ok=0
+    fi
   fi
 
   label=$(printf '%s' "$pr_json" | python3 -c '
 import json, os, sys
 
-threads_ok, unresolved, merge_ok, merge_state = sys.argv[1:5]
+threads_ok, unresolved, merge_ok, merge_state, mergeable = sys.argv[1:6]
 data = json.load(sys.stdin)
 head_oid = data.get("headRefOid")
 approved = any(
@@ -211,6 +219,8 @@ title = " ".join(str(data.get("title") or "").split())
 display = f"#{number} {title}" if number and title else title or f"#{number}"
 if threads_ok != "1" or merge_ok != "1":
     icon = os.environ["ICON_WARN"]
+elif mergeable == "CONFLICTING":
+    icon = os.environ["ICON_CONFLICT"]
 elif merge_state == "BLOCKED":
     icon = os.environ["ICON_BLOCKED"]
 elif int(unresolved) > 0:
@@ -222,15 +232,13 @@ else:
 if icon:
     display = f"{icon} {display}"
 print(display)
-' "$threads_ok" "$unresolved" "$merge_ok" "$merge_state") || {
+' "$threads_ok" "$unresolved" "$merge_ok" "$merge_state" "$mergeable") || {
     mark_sync_failed
     continue
   }
 
   if "$HERDR_BIN" workspace rename "$workspace_id" "$label" >/dev/null 2>&1; then
-    if [ "$threads_ok" = "1" ] && [ "$merge_ok" = "1" ]; then
-      synced=$((synced + 1))
-    else
+    if [ "$threads_ok" != "1" ] || [ "$merge_ok" != "1" ]; then
       sync_failed=$((sync_failed + 1))
     fi
   else
@@ -240,15 +248,10 @@ done < "$tmp_file"
 
 if [ "$total" -eq 0 ]; then
   notify "No worktrees found" "No linked Herdr worktrees to sync"
+elif [ "$failed" -eq 0 ] && [ "$sync_failed" -eq 0 ]; then
+  notify "PR labels synced ✅"
 else
-  title="PR labels synced"
-  body="$synced synced, $skipped without PR, $deleted deleted merged worktrees"
-  if [ "$failed" -gt 0 ] || [ "$sync_failed" -gt 0 ]; then
-    title="PR label sync finished"
-  fi
-  [ "$failed" -eq 0 ] || body="$body, $failed failed"
-  [ "$sync_failed" -eq 0 ] || body="$body, $sync_failed sync failed"
-  notify "$title" "$body"
+  notify "PR label sync: check ⚠️ labels"
 fi
 
 [ "$failed" -eq 0 ]
