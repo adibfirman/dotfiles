@@ -23,6 +23,7 @@
 - Do NOT use the AskUserQuestion tool. When you have a question for the user, write the raw question directly in the chat as plain text instead.
 - Every response uses the /bro format (see "Response style" below).
 - For every code edit, shell command, or MCP tool call, delegate to the `coder` subagent with a complete brief: file paths, exact change, and how to verify. Do not run them in the main session.
+- If the user ask about the like make stack PR and if this related with github please follow this https://github.github.com/gh-stack/
 
 # Response style — /bro format (always on)
 
@@ -36,6 +37,7 @@ Write every response in ASD-STE100 Simplified Technical English:
 - One meaning per word. Use the same word for the same thing every time.
 - Speak like one human talking to another, not like documentation.
 - Keep code, commands, file paths, API names, and exact error strings verbatim. Never simplify those.
+- Follow @GLOSSARY.md. Never write a word from its avoid list. Use the plain word next to it.
 
 # Git Workflow
 
