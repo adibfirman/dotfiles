@@ -9,7 +9,8 @@ ICON_CONFLICT="💥"
 ICON_BLOCKED="❌"
 ICON_THREAD="💬"
 ICON_APPROVED="✅"
-export ICON_WARN ICON_CONFLICT ICON_BLOCKED ICON_THREAD ICON_APPROVED
+ICON_DRAFT="📝"
+export ICON_WARN ICON_CONFLICT ICON_BLOCKED ICON_THREAD ICON_APPROVED ICON_DRAFT
 
 notify() {
   "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
@@ -68,6 +69,7 @@ icons = (
     os.environ["ICON_BLOCKED"],
     os.environ["ICON_THREAD"],
     os.environ["ICON_APPROVED"],
+    os.environ["ICON_DRAFT"],
 )
 label = old_label
 while True:
@@ -96,7 +98,7 @@ while IFS="$(printf '\t')" read -r workspace_id checkout_path old_label; do
     continue
   fi
 
-  if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus,mergeable 2>"$err_file"); then
+  if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus,mergeable,isDraft 2>"$err_file"); then
     # Detached HEAD: gh prints "could not determine current branch: not on any branch".
     if grep -q -e 'no pull requests found' -e 'could not determine current branch' "$err_file"; then
       continue
@@ -137,6 +139,28 @@ print("1" if state == "MERGED" or merged_at else "0")
     else
       failed=$((failed + 1))
     fi
+    continue
+  fi
+
+  # Draft PR: set the draft icon only. Skip the thread and merge-state checks.
+  if draft_label=$(printf '%s' "$pr_json" | python3 -c '
+import json, os, sys
+
+data = json.load(sys.stdin)
+if not data.get("isDraft"):
+    sys.exit(2)
+number = data.get("number")
+title = " ".join(str(data.get("title") or "").split())
+display = f"#{number} {title}" if number and title else title or f"#{number}"
+icon = os.environ["ICON_DRAFT"]
+print(f"{icon} {display}")
+'); then
+    if ! "$HERDR_BIN" workspace rename "$workspace_id" "$draft_label" >/dev/null 2>&1; then
+      failed=$((failed + 1))
+    fi
+    continue
+  elif [ $? -ne 2 ]; then
+    mark_sync_failed
     continue
   fi
 
