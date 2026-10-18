@@ -17,6 +17,7 @@ mouse_capture = true
 agent_panel_sort = "spaces"
 show_agent_labels_on_pane_borders = true
 
+status_indicators = "dots"
 [ui.sidebar.agents]
 row_gap = 1
 
