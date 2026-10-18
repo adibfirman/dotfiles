@@ -12,6 +12,7 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
+  "model": "fable",
   "hooks": {
     "PreToolUse": [
       {
@@ -73,6 +74,9 @@
     },
     "claude-sonnet-5-5": {
       "effortLevel": "medium"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "xhigh"
     }
   },
   "autoUpdatesChannel": "latest",

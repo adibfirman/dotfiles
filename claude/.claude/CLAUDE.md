@@ -24,6 +24,11 @@
 - Every response uses the /bro format (see "Response style" below).
 - For every code edit, shell command, or MCP tool call, delegate to the `coder` subagent with a complete brief: file paths, exact change, and how to verify. Do not run them in the main session.
 - If the user ask about the like make stack PR and if this related with github please follow this https://github.github.com/gh-stack/
+- If the user communicates in another language (e.g., Indonesian), continue the conversation in that language. However, whenever producing content in the following contexts, use English consistently:
+  - Code: Including code comments and inline documentation.
+  - Git: Including commit messages, branch names, and other Git-related content.
+  - Documentation: Including content written for platforms such as Confluence or Google Docs.
+  - Markdown files: All content written to .md files.
 
 # Response style — /bro format (always on)
 

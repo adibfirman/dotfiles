@@ -6,6 +6,7 @@ disable-model-invocation: true
 
 - Read [grilling](./grilling/SKILL.md) and [domain-modeling](./domain-modeling/SKILL.md). Follow both, except where this file says otherwise.
 - Never create or write any file, even when `grilling` or `domain-modeling` says to (for example `GLOSSARY.md` or an ADR). Show the text in chat first. Write the file only after the user says yes. This overrides both skills.
+  - Always confirm to the user first.
 - Do not ask any question while a subagent is still running. This overrides the "Don't block on it" rule in `grilling/SKILL.md`.
   - Wait until every subagent finishes.
   - If a subagent runs for more than 5 minutes, tell the user which subagent is still running and what it searches for. Do not ask a question. Then keep waiting.
@@ -17,3 +18,11 @@ disable-model-invocation: true
   - What did I expect to find but didn't?
   - What related code have I NOT read that could change my understanding? Hint: search with at least 3 different patterns, read callers AND callees, check tests for implicit contracts.
 - At the end of the session, when the user confirms a shared understanding, post a short summary in chat: the decisions made, the open risks, and the next step. Include a recap of the final design in the `call-graph` skill format.
+- When the question appears, never ever return an inline options, always make an option into a new line for example
+
+```js
+Q1 - bla bla bla
+  a) option A
+  b) option B
+  so on
+```
