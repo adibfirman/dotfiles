@@ -8,7 +8,7 @@ notify() {
 }
 
 fail() {
-  notify "Open PR review failed" "$1"
+  notify "Open review failed" "$1"
   exit 1
 }
 
@@ -23,19 +23,112 @@ workspace=${HERDR_ACTIVE_WORKSPACE_ID:-}
 [ -n "$workspace" ] || fail "active workspace id is missing"
 
 if ! root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
-  notify "No PR found" "active pane is not in a git repository"
+  notify "Not a git repository" "active pane is not in a git repository"
   exit 0
 fi
 
 errfile=$(mktemp)
 trap 'rm -f "$errfile"' EXIT HUP INT TERM
 
-if ! pr_json=$(cd "$root" && gh pr view --json url 2>"$errfile"); then
-  if grep -qE "no pull requests found|could not determine current branch" "$errfile"; then
-    notify "No PR found" "No pull request for the active branch"
+# Review view rule:
+# - PR view wins only when a PR exists AND the branch is clean.
+# - Otherwise open a local diff against the merge base with origin/<base>.
+# Dirty = working tree changes (staged, unstaged, untracked), no upstream,
+# or commits ahead of upstream.
+is_dirty() {
+  [ -n "$(git -C "$root" status --porcelain 2>/dev/null)" ] && return 0
+  upstream=$(git -C "$root" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || return 0
+  [ -n "$(git -C "$root" rev-list "$upstream..HEAD" 2>/dev/null)" ]
+}
+
+if ! pr_json=$(cd "$root" && gh pr view --json url,baseRefName 2>"$errfile"); then
+  pr_json=
+  if ! grep -qE "no pull requests found|could not determine current branch" "$errfile"; then
+    fail "$(head -n 1 "$errfile")"
+  fi
+fi
+
+# Close the new tab on failure so no empty hunk tab is left behind.
+fail_and_close_tab() {
+  "$HERDR_BIN" tab close "$new_tab" >/dev/null 2>&1 || true
+  fail "$1"
+}
+
+# Focus the tab with this label and exit, or create it.
+# Sets: new_tab, pane_id.
+open_or_focus_tab() {
+  tab_label=$1
+  tabs=$("$HERDR_BIN" tab list --workspace "$workspace") || fail "could not list tabs"
+  tab_id=$(printf '%s' "$tabs" | LABEL="$tab_label" python3 -c '
+import json, os, sys
+for t in json.load(sys.stdin)["result"]["tabs"]:
+    if t.get("label") == os.environ["LABEL"]:
+        print(t["tab_id"])
+        break
+') || fail "could not read tab list"
+
+  if [ -n "$tab_id" ]; then
+    "$HERDR_BIN" tab focus "$tab_id" >/dev/null || fail "could not focus tab $tab_id"
     exit 0
   fi
-  fail "$(head -n 1 "$errfile")"
+
+  created=$("$HERDR_BIN" tab create --workspace "$workspace" --cwd "$root" --label "$tab_label" --focus) ||
+    fail "could not create tab"
+  # Print "<tab id> <pane id>"; the pane id stays empty when it is missing.
+  create_info=$(printf '%s' "$created" | python3 -c '
+import json, sys
+
+try:
+    result = json.load(sys.stdin)["result"]
+    tab_id = result["tab"]["tab_id"]
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+pane = result.get("root_pane")
+pane_id = pane.get("pane_id") if isinstance(pane, dict) else None
+print(tab_id, pane_id or "")
+') || fail "could not read tab create result"
+  IFS=' ' read -r new_tab pane_id <<EOF
+$create_info
+EOF
+  [ -n "$pane_id" ] || fail_and_close_tab "tab create returned no pane id"
+}
+
+if [ -z "$pr_json" ] || is_dirty; then
+  # Local view: diff the working tree against the merge base with origin/<base>.
+  base=
+  if [ -n "$pr_json" ]; then
+    base=$(printf '%s' "$pr_json" | python3 -c '
+import json, sys
+print(json.load(sys.stdin).get("baseRefName") or "")
+') || base=
+  fi
+  if [ -z "$base" ]; then
+    base=$(git -C "$root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null) || base=
+    base=${base#origin/}
+  fi
+  if [ -z "$base" ]; then
+    base=$(cd "$root" && gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null) || base=
+  fi
+  [ -n "$base" ] || fail "could not find base branch"
+
+  if ! git -C "$root" fetch --quiet origin "+$base:refs/remotes/origin/$base" 2>"$errfile"; then
+    notify "Could not fetch origin/$base" "$(head -n 1 "$errfile")"
+  fi
+  git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$base" || fail "origin/$base not found"
+
+  merge_base=$(git -C "$root" merge-base "origin/$base" HEAD) ||
+    fail "could not find merge base with origin/$base"
+
+  if git -C "$root" diff --quiet "$merge_base" &&
+    [ -z "$(git -C "$root" ls-files --others --exclude-standard)" ]; then
+    notify "No changes" "No local changes against origin/$base"
+    exit 0
+  fi
+
+  open_or_focus_tab "hunk local"
+  "$HERDR_BIN" pane run "$pane_id" "hunk diff $merge_base --watch && exit" >/dev/null ||
+    fail_and_close_tab "could not run hunk in pane $pane_id"
+  exit 0
 fi
 
 pr_info=$(printf '%s' "$pr_json" | python3 -c '
@@ -49,48 +142,8 @@ IFS=' ' read -r pr_owner pr_repo number <<EOF
 $pr_info
 EOF
 repo=$pr_owner/$pr_repo
-label="hunk #$number"
 
-tabs=$("$HERDR_BIN" tab list --workspace "$workspace") || fail "could not list tabs"
-tab_id=$(printf '%s' "$tabs" | LABEL="$label" python3 -c '
-import json, os, sys
-for t in json.load(sys.stdin)["result"]["tabs"]:
-    if t.get("label") == os.environ["LABEL"]:
-        print(t["tab_id"])
-        break
-') || fail "could not read tab list"
-
-if [ -n "$tab_id" ]; then
-  "$HERDR_BIN" tab focus "$tab_id" >/dev/null || fail "could not focus tab $tab_id"
-  exit 0
-fi
-
-created=$("$HERDR_BIN" tab create --workspace "$workspace" --cwd "$root" --label "$label" --focus) ||
-  fail "could not create tab"
-# Print "<tab id> <pane id>"; the pane id stays empty when it is missing.
-create_info=$(printf '%s' "$created" | python3 -c '
-import json, sys
-
-try:
-    result = json.load(sys.stdin)["result"]
-    tab_id = result["tab"]["tab_id"]
-except (ValueError, KeyError, TypeError):
-    sys.exit(1)
-pane = result.get("root_pane")
-pane_id = pane.get("pane_id") if isinstance(pane, dict) else None
-print(tab_id, pane_id or "")
-') || fail "could not read tab create result"
-IFS=' ' read -r new_tab pane_id <<EOF
-$create_info
-EOF
-
-# Close the new tab on failure so no empty "hunk #N" tab is left behind.
-fail_and_close_tab() {
-  "$HERDR_BIN" tab close "$new_tab" >/dev/null 2>&1 || true
-  fail "$1"
-}
-
-[ -n "$pane_id" ] || fail_and_close_tab "tab create returned no pane id"
+open_or_focus_tab "hunk #$number"
 
 # Inline review threads: open, current threads become hunk agent notes.
 # Failures here never block the review; the tab opens with plain hunk.
