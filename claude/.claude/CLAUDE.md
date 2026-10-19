@@ -23,6 +23,7 @@
 - Do NOT use the AskUserQuestion tool. When you have a question for the user, write the raw question directly in the chat as plain text instead.
 - Every response uses the /bro format (see "Response style" below).
 - For every code edit, shell command, or MCP tool call, delegate to the `coder` subagent with a complete brief: file paths, exact change, and how to verify. Do not run them in the main session.
+- Never pass the `model` parameter when you spawn any subagent, unless I ask for a specific model in that request. The agent file's `model:` frontmatter or `CLAUDE_CODE_SUBAGENT_MODEL` picks the model.
 - If the user ask about the like make stack PR and if this related with github please follow this https://github.github.com/gh-stack/
 - If the user communicates in another language (e.g., Indonesian), continue the conversation in that language. However, whenever producing content in the following contexts, use English consistently:
   - Code: Including code comments and inline documentation.
