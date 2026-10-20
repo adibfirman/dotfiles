@@ -16,6 +16,8 @@ alias gm="git merge"
 alias gf="git fetch"
 alias gw="git worktree"
 alias pnpm-lock-conflict-fix="git checkout origin/master -- pnpm-lock.yaml"
+# Load user settings only. Repo context files come from ~/.claude/hooks/repo-context.sh.
+alias claude="claude --setting-sources user"
 git-count-commit() {
   git rev-list --count HEAD ^$1
 }

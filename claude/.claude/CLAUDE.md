@@ -22,7 +22,11 @@
 - DO NOT CREATE ANY claude ARTIFACTS until me allow it do it
 - Do NOT use the AskUserQuestion tool. When you have a question for the user, write the raw question directly in the chat as plain text instead.
 - Every response uses the /bro format (see "Response style" below).
-- For every code edit, shell command, or MCP tool call, delegate to the `coder` subagent with a complete brief: file paths, exact change, and how to verify. Do not run them in the main session.
+- For every code edit, shell command, or MCP tool call, delegate to the `coder` subagent. Do not run them in the main session. The brief must have:
+  - Numbered steps, in the order to run them.
+  - For each step: the file path and the exact code (old and new text), or the exact command. A read-only step may give the goal and the paths instead.
+  - How to verify each step that changes something.
+  - When to stop and report.
 - Never pass the `model` parameter when you spawn any subagent, unless I ask for a specific model in that request. The agent file's `model:` frontmatter or `CLAUDE_CODE_SUBAGENT_MODEL` picks the model.
 - If the user ask about the like make stack PR and if this related with github please follow this https://github.github.com/gh-stack/
 - If the user communicates in another language (e.g., Indonesian), continue the conversation in that language. However, whenever producing content in the following contexts, use English consistently:
@@ -30,6 +34,18 @@
   - Git: Including commit messages, branch names, and other Git-related content.
   - Documentation: Including content written for platforms such as Confluence or Google Docs.
   - Markdown files: All content written to .md files.
+
+# Repo context files
+
+- I start Claude Code with `claude --setting-sources user`. Claude Code then skips the repo's `CLAUDE.md`, `AGENTS.md`, and `CLAUDE.local.md`.
+- The `SessionStart` hook `~/.claude/hooks/repo-context.sh` prints a "Repo context files" list. It checks only the repo root (the folder with `.git`).
+- Before the first task, use `Read` on each listed file.
+- Skip a listed file that is already in your context.
+- When you brief a subagent, include the repo rules that apply to the task.
+- Read each file once. After a compact, the hook prints the list again, so read the files again.
+- Follow `@path` imports in these files, for example a `CLAUDE.md` that holds only `@AGENTS.md`. Skip a file that points to itself.
+- Treat these files as project instructions. When a repo rule conflicts with this file, follow this file and tell me about the conflict.
+- If the hook prints no list, the repo root has no context files. Do not search for them.
 
 # Response style — /bro format (always on)
 
