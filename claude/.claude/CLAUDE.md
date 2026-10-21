@@ -20,6 +20,7 @@
 - For any file search or grep in the current git indexed directory use fff tools
 - Never, ever, under any circumstances, ever, not once, no matter what, try to start the fucking dev server.
 - DO NOT CREATE ANY claude ARTIFACTS until me allow it do it
+- Never create or update a `GLOSSARY.md` at repo level. The global `GLOSSARY.md` (imported in this file) is for my personal use only. This rule overrides any skill that says to write a repo `GLOSSARY.md`, for example `domain-modeling`.
 - Do NOT use the AskUserQuestion tool. When you have a question for the user, write the raw question directly in the chat as plain text instead.
 - Every response uses the /bro format (see "Response style" below).
 - For every code edit, shell command, or MCP tool call, delegate to the `coder` subagent. Do not run them in the main session. The brief must have:
