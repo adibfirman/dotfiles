@@ -6,11 +6,14 @@ HERDR_BIN=${HERDR_BIN_PATH:-herdr}
 # Status icons live here only. The python blocks read them from the environment.
 ICON_WARN="⚠️"
 ICON_CONFLICT="💥"
-ICON_BLOCKED="❌"
+ICON_CHECK_FAILED="🚧"
+ICON_WAITING="⏳"
 ICON_THREAD="💬"
 ICON_APPROVED="✅"
 ICON_DRAFT="📝"
-export ICON_WARN ICON_CONFLICT ICON_BLOCKED ICON_THREAD ICON_APPROVED ICON_DRAFT
+# Old blocked icon. Kept only so mark_sync_failed strips it from existing labels.
+ICON_LEGACY_BLOCKED="❌"
+export ICON_WARN ICON_CONFLICT ICON_CHECK_FAILED ICON_WAITING ICON_THREAD ICON_APPROVED ICON_DRAFT ICON_LEGACY_BLOCKED
 
 notify() {
   "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
@@ -66,10 +69,12 @@ icons = (
     warn,
     warn.replace("\ufe0f", ""),
     os.environ["ICON_CONFLICT"],
-    os.environ["ICON_BLOCKED"],
+    os.environ["ICON_CHECK_FAILED"],
+    os.environ["ICON_WAITING"],
     os.environ["ICON_THREAD"],
     os.environ["ICON_APPROVED"],
     os.environ["ICON_DRAFT"],
+    os.environ["ICON_LEGACY_BLOCKED"],
 )
 label = old_label
 while True:
@@ -98,7 +103,7 @@ while IFS="$(printf '\t')" read -r workspace_id checkout_path old_label; do
     continue
   fi
 
-  if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus,mergeable,isDraft 2>"$err_file"); then
+  if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus,mergeable,isDraft,statusCheckRollup 2>"$err_file"); then
     # Detached HEAD: gh prints "could not determine current branch: not on any branch".
     if grep -q -e 'no pull requests found' -e 'could not determine current branch' "$err_file"; then
       continue
@@ -238,6 +243,14 @@ approved = any(
     and (review.get("commit") or {}).get("oid") == head_oid
     for review in data.get("reviews") or []
 )
+# CANCELLED is not a failure: a newer run often cancels the old one.
+failed_conclusions = {"FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"}
+failed_states = {"FAILURE", "ERROR"}
+check_failed = any(
+    str(check.get("conclusion") or "").upper() in failed_conclusions
+    or str(check.get("state") or "").upper() in failed_states
+    for check in data.get("statusCheckRollup") or []
+)
 number = data.get("number")
 title = " ".join(str(data.get("title") or "").split())
 display = f"#{number} {title}" if number and title else title or f"#{number}"
@@ -245,10 +258,12 @@ if threads_ok != "1" or merge_ok != "1":
     icon = os.environ["ICON_WARN"]
 elif mergeable == "CONFLICTING":
     icon = os.environ["ICON_CONFLICT"]
-elif merge_state == "BLOCKED":
-    icon = os.environ["ICON_BLOCKED"]
+elif check_failed:
+    icon = os.environ["ICON_CHECK_FAILED"]
 elif int(unresolved) > 0:
     icon = os.environ["ICON_THREAD"]
+elif merge_state == "BLOCKED":
+    icon = os.environ["ICON_WAITING"]
 elif approved:
     icon = os.environ["ICON_APPROVED"]
 else:
