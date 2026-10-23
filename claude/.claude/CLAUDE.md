@@ -74,6 +74,7 @@ Write every response in ASD-STE100 Simplified Technical English:
 - Create: `herdr worktree create --branch <NAME> [--base <REF>] [--path <PATH>] [--label <TEXT>]`
 - Open existing: `herdr worktree open --path <PATH>` / List: `herdr worktree list` / Remove: `herdr worktree remove --workspace <ID>`
 - Note: `herdr --skills` does NOT exist (verified 2026-08-12); worktree ops are under `herdr worktree <subcommand>`.
+- Pass `--cwd <main checkout path>` (or `--workspace <ID>`) to `herdr worktree list/create/open`; without it herdr fails with `not_git_worktree` (verified 2026-10-23).
 
 # MCP Tool Usage
 
