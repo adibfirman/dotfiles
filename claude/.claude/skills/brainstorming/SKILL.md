@@ -17,12 +17,7 @@ disable-model-invocation: true
   - Am I anchoring on the first thing I found, or did I search broadly enough?
   - What did I expect to find but didn't?
   - What related code have I NOT read that could change my understanding? Hint: search with at least 3 different patterns, read callers AND callees, check tests for implicit contracts.
+  - If a function comes from a dependency or a third-party package, check its docs with Context7 first. Use web docs only when Context7 has nothing.
 - At the end of the session, when the user confirms a shared understanding, post a short summary in chat: the decisions made, the open risks, and the next step. Include a recap of the final design in the `call-graph` skill format.
-- When the question appears, never ever return an inline options, always make an option into a new line for example
-
-```js
-Q1 - bla bla bla
-  a) option A
-  b) option B
-  so on
-```
+- Put questions only at the end of the response, never in the middle of a topic or an explanation.
+- When a question has options, put each option on its own line, never in the same paragraph.
