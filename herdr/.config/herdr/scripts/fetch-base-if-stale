@@ -1,0 +1,35 @@
+#!/bin/sh
+# Fetch origin/<base> unless this script tried in the last 10 minutes.
+# Usage: fetch-base-if-stale <repo root> <base>
+# A failed fetch is not fatal: it shows a notification and keeps the local ref.
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+root=$1
+base=$2
+
+notify() {
+  "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
+}
+
+# One stamp per base in the shared git dir, so all worktrees share it.
+# "%" and "/" are encoded, so names like "release" and "release/1.0" never collide.
+stamp_dir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)/herdr-fetch
+stamp=$stamp_dir/$(printf '%s' "$base" | sed 's/%/%25/g; s|/|%2F|g')
+
+if git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$base" &&
+  [ -n "$(find "$stamp" -mmin -10 2>/dev/null)" ]; then
+  exit 0
+fi
+
+echo "Fetching origin/$base..." >&2
+# No temp file and no trap, so Ctrl-C stops this script and its caller.
+if ! err=$(git -C "$root" fetch --quiet origin "+$base:refs/remotes/origin/$base" 2>&1); then
+  notify "Could not fetch origin/$base" "$(printf '%s\n' "$err" | head -n 1)"
+fi
+
+# Stamp every attempt, so a failing fetch is retried at most every 10 minutes.
+if mkdir -p "$stamp_dir"; then
+  touch "$stamp" || true
+fi

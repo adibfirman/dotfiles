@@ -2,6 +2,7 @@
 set -eu
 
 HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+scripts_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 notify() {
   "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
@@ -10,6 +11,11 @@ notify() {
 fail() {
   notify "Open review failed" "$1"
   exit 1
+}
+
+# Print $1 as one single-quoted shell word.
+sh_quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
 cwd=${HERDR_ACTIVE_PANE_CWD:-$(pwd)}
@@ -33,6 +39,7 @@ trap 'rm -f "$errfile"' EXIT HUP INT TERM
 # Review view rule:
 # - PR view wins only when a PR exists AND the branch is clean.
 # - Otherwise open a local diff against the merge base with origin/<base>.
+#   With no PR, <base> is the nearest parent branch, or the trunk.
 # Dirty = working tree changes (staged, unstaged, untracked), no upstream,
 # or commits ahead of upstream.
 is_dirty() {
@@ -54,9 +61,8 @@ fail_and_close_tab() {
   fail "$1"
 }
 
-# Focus the tab with this label and exit, or create it.
-# Sets: new_tab, pane_id.
-open_or_focus_tab() {
+# Focus the tab with this label and exit, when it exists.
+focus_tab_if_open() {
   tab_label=$1
   tabs=$("$HERDR_BIN" tab list --workspace "$workspace") || fail "could not list tabs"
   tab_id=$(printf '%s' "$tabs" | LABEL="$tab_label" python3 -c '
@@ -71,7 +77,12 @@ for t in json.load(sys.stdin)["result"]["tabs"]:
     "$HERDR_BIN" tab focus "$tab_id" >/dev/null || fail "could not focus tab $tab_id"
     exit 0
   fi
+}
 
+# Create and focus a tab with this label.
+# Sets: new_tab, pane_id.
+create_tab() {
+  tab_label=$1
   created=$("$HERDR_BIN" tab create --workspace "$workspace" --cwd "$root" --label "$tab_label" --focus) ||
     fail "could not create tab"
   # Print "<tab id> <pane id>"; the pane id stays empty when it is missing.
@@ -93,8 +104,47 @@ EOF
   [ -n "$pane_id" ] || fail_and_close_tab "tab create returned no pane id"
 }
 
+# Focus the tab with this label and exit, or create it.
+# Sets: new_tab, pane_id.
+open_or_focus_tab() {
+  focus_tab_if_open "$1"
+  create_tab "$1"
+}
+
+# Print the nearest origin branch in HEAD's history that is not in
+# origin/<trunk>, or nothing. This finds the parent of a stacked branch.
+# A parent that got new commits after the branch was made is missed, and a
+# branch pushed under another name can pick its own pushed ref.
+find_parent_branch() {
+  trunk=$1
+  git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$trunk" || return 0
+  current=$(git -C "$root" symbolic-ref --quiet --short HEAD) || current=
+  refs=$(git -C "$root" for-each-ref --merged HEAD --no-merged "refs/remotes/origin/$trunk" \
+    --format='%(refname)' refs/remotes/origin) || return 0
+  best=
+  best_count=
+  while IFS= read -r ref; do
+    name=${ref#refs/remotes/origin/}
+    case $name in
+    '' | HEAD | "$trunk" | "$current") continue ;;
+    esac
+    count=$(git -C "$root" rev-list --count "$ref..HEAD") || continue
+    # Count 0: the ref points at HEAD, so it is not a parent.
+    [ "$count" -gt 0 ] || continue
+    if [ -z "$best_count" ] || [ "$count" -lt "$best_count" ]; then
+      best=$name
+      best_count=$count
+    fi
+  done <<EOF
+$refs
+EOF
+  printf '%s\n' "$best"
+}
+
 if [ -z "$pr_json" ] || is_dirty; then
   # Local view: diff the working tree against the merge base with origin/<base>.
+  # An open "hunk local" tab is focused before any base lookup or fetch.
+  focus_tab_if_open "hunk local"
   base=
   if [ -n "$pr_json" ]; then
     base=$(printf '%s' "$pr_json" | python3 -c '
@@ -111,11 +161,22 @@ print(json.load(sys.stdin).get("baseRefName") or "")
   fi
   [ -n "$base" ] || fail "could not find base branch"
 
-  if ! git -C "$root" fetch --quiet origin "+$base:refs/remotes/origin/$base" 2>"$errfile"; then
-    notify "Could not fetch origin/$base" "$(head -n 1 "$errfile")"
+  # No PR: a hand-made stacked branch has its parent branch in its history.
+  parent=
+  if [ -z "$pr_json" ]; then
+    parent=$(find_parent_branch "$base") || parent=
+  fi
+  [ -z "$parent" ] || base=$parent
+
+  # Fetch here only when origin/<base> is missing. Otherwise the pane
+  # fetches it, so the tab opens without waiting on the network.
+  if ! git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$base"; then
+    "$scripts_dir/fetch-base-if-stale" "$root" "$base" || true
   fi
   git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$base" || fail "origin/$base not found"
 
+  # The local origin/<base> can be old here; hunk-local-diff computes the
+  # merge base again after its fetch.
   merge_base=$(git -C "$root" merge-base "origin/$base" HEAD) ||
     fail "could not find merge base with origin/$base"
 
@@ -125,8 +186,12 @@ print(json.load(sys.stdin).get("baseRefName") or "")
     exit 0
   fi
 
-  open_or_focus_tab "hunk local"
-  "$HERDR_BIN" pane run "$pane_id" "hunk diff $merge_base --watch && exit" >/dev/null ||
+  [ -z "$parent" ] || notify "Base: origin/$base" "No PR yet, so the diff uses the nearest parent branch"
+  create_tab "hunk local"
+  # exec replaces the pane shell, so the tab closes when hunk-local-diff ends,
+  # also after Ctrl-C or an error. No dead "hunk local" tab is left behind.
+  pane_cmd="exec $(sh_quote "$scripts_dir/hunk-local-diff") $(sh_quote "$root") $(sh_quote "$base")"
+  "$HERDR_BIN" pane run "$pane_id" "$pane_cmd" >/dev/null ||
     fail_and_close_tab "could not run hunk in pane $pane_id"
   exit 0
 fi

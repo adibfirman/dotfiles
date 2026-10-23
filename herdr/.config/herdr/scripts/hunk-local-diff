@@ -1,0 +1,21 @@
+#!/bin/sh
+# Runs in the "hunk local" tab: fetch origin/<base> when it is old, then
+# diff the working tree against the merge base with origin/<base>.
+# Usage: hunk-local-diff <repo root> <base>
+# The pane runs it with exec, so the tab closes when it ends.
+set -eu
+
+HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+
+root=$1
+base=$2
+scripts_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+"$scripts_dir/fetch-base-if-stale" "$root" "$base" || true
+if ! merge_base=$(git -C "$root" merge-base "origin/$base" HEAD); then
+  "$HERDR_BIN" notification show "Open review failed" \
+    --body "could not find merge base with origin/$base" >/dev/null 2>&1 || true
+  exit 0
+fi
+cd "$root"
+exec hunk diff "$merge_base" --watch
