@@ -2,10 +2,9 @@ theme = catppuccin-frappe
 
 # Font configuration
 font-size = 12
-# font-family = Kode Mono 
-# font-style = Bold
-font-family = CaskaydiaCove Nerd Font
-font-style = SemiBold
+font-style = Bold
+font-family = Kode Mono 
+# font-family = CaskaydiaCove Nerd Font
 
 font-feature = "ss01"
 font-feature = "ss02"
