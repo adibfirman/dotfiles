@@ -22,6 +22,20 @@
       "destination": "technical/react/react-best-practices"
     },
     {
+      "name": "react-native-skills",
+      "source": "https://github.com/vercel-labs/agent-skills",
+      "path": "skills/react-native-skills",
+      "branch": "main",
+      "destination": "technical/react/react-native-skills"
+    },
+    {
+      "name": "react-view-transitions",
+      "source": "https://github.com/vercel-labs/agent-skills",
+      "path": "skills/react-view-transitions",
+      "branch": "main",
+      "destination": "technical/react/react-view-transitions"
+    },
+    {
       "name": "grilling",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/grilling",
@@ -142,11 +156,39 @@
       "destination": "technical/golang/golang-error-handling"
     },
     {
+      "name": "golang-google-wire",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-google-wire",
+      "branch": "main",
+      "destination": "technical/golang/golang-google-wire"
+    },
+    {
+      "name": "golang-gopls",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-gopls",
+      "branch": "main",
+      "destination": "technical/golang/golang-gopls"
+    },
+    {
+      "name": "golang-graphql",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-graphql",
+      "branch": "main",
+      "destination": "technical/golang/golang-graphql"
+    },
+    {
       "name": "golang-grpc",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-grpc",
       "branch": "main",
       "destination": "technical/golang/golang-grpc"
+    },
+    {
+      "name": "golang-how-to",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-how-to",
+      "branch": "main",
+      "destination": "technical/golang/golang-how-to"
     },
     {
       "name": "golang-lint",
@@ -184,6 +226,13 @@
       "destination": "technical/golang/golang-performance"
     },
     {
+      "name": "golang-pkg-go-dev",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-pkg-go-dev",
+      "branch": "main",
+      "destination": "technical/golang/golang-pkg-go-dev"
+    },
+    {
       "name": "golang-popular-libraries",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-popular-libraries",
@@ -196,6 +245,13 @@
       "path": "skills/golang-project-layout",
       "branch": "main",
       "destination": "technical/golang/golang-project-layout"
+    },
+    {
+      "name": "golang-refactoring",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-refactoring",
+      "branch": "main",
+      "destination": "technical/golang/golang-refactoring"
     },
     {
       "name": "golang-safety",
@@ -261,6 +317,20 @@
       "destination": "technical/golang/golang-security"
     },
     {
+      "name": "golang-spf13-cobra",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-spf13-cobra",
+      "branch": "main",
+      "destination": "technical/golang/golang-spf13-cobra"
+    },
+    {
+      "name": "golang-spf13-viper",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-spf13-viper",
+      "branch": "main",
+      "destination": "technical/golang/golang-spf13-viper"
+    },
+    {
       "name": "golang-stay-updated",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-stay-updated",
@@ -282,6 +352,13 @@
       "destination": "technical/golang/golang-structs-interfaces"
     },
     {
+      "name": "golang-swagger",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-swagger",
+      "branch": "main",
+      "destination": "technical/golang/golang-swagger"
+    },
+    {
       "name": "golang-testing",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-testing",
@@ -294,6 +371,20 @@
       "path": "skills/golang-troubleshooting",
       "branch": "main",
       "destination": "technical/golang/golang-troubleshooting"
+    },
+    {
+      "name": "golang-uber-dig",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-uber-dig",
+      "branch": "main",
+      "destination": "technical/golang/golang-uber-dig"
+    },
+    {
+      "name": "golang-uber-fx",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-uber-fx",
+      "branch": "main",
+      "destination": "technical/golang/golang-uber-fx"
     }
   ]
 }
