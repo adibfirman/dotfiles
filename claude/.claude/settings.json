@@ -2,7 +2,8 @@
   "syncClaudeAiSkills": false,
   "env": {
     "DISABLE_AUTOUPDATER": "1",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "opus"
+    "CLAUDE_CODE_SUBAGENT_MODEL": "opus",
+    "CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS": "200000"
   },
   "attribution": {
     "commit": "",
@@ -12,6 +13,7 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
+  "model": "fable",
   "hooks": {
     "PreToolUse": [
       {
@@ -103,6 +105,7 @@
     }
   },
   "autoUpdatesChannel": "latest",
+  "idleCompaction": true,
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
@@ -110,5 +113,6 @@
   },
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
+  "autoCompactEnabled": true,
   "voiceEnabled": true
 }
