@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: Use when reviewing code, diffs, PRs, branches, or pasted snippets; detects the language or framework and routes to the relevant technical review skills.
-argument-hint: "[security full audit] [path...] [quick|standard|deep]"
+argument-hint: "[security full audit] [submit <PR>] [path...] [quick|standard|deep]"
 ---
 
 # Code Review
@@ -28,7 +28,7 @@ The invocation arguments pick the mode.
 
 ### Default: changed files only
 
-Use this mode when the arguments do not contain the phrase `full audit`.
+Use this mode when the arguments do not contain the phrase `full audit` and the first argument is not `submit`.
 
 - Scope: the changed files of the diff, PR, branch, or pasted code.
 - Load `security-audit` in its guidance mode. Apply its core principles and the matching attack classes to the changed files. Do not run its six phases, do not create an output directory, and do not write audit artifacts.
@@ -43,6 +43,18 @@ Use this mode only when the arguments contain the phrase `full audit`.
 - Run `security-audit` in its full audit mode: all six phases, the coverage ledger, `findings.json`, and the report files. Output goes to its default directory `~/security-audit-skill/<repo-name>/run-<N>`.
 - `security-audit` owns orchestration, verdicts, and severity. For Go targets, give the hunters the `golang-security` checklist as input. Do not run the separate audit mode of `golang-security`.
 
+### Submit: `/code-review submit <PR URL or number>`
+
+Use this mode when the first argument is `submit`, or when the user asks to send a finished review to a pull request.
+
+This mode is not a way to review code. Use it only after a review was done in this session. If no review was done yet, run the default mode first, then ask the user before you submit.
+
+1. Before you submit, check whether the pull request is already merged or closed, for example with `gh pr view <PR> --json state,mergedAt`. If it is merged or closed, do not submit. Tell the user.
+2. Use the verdict from the review already done in this session: approve, request changes, or comment. If the user asks for a different verdict, follow the user.
+3. Do not run the review again before you submit.
+4. Put each finding as an inline comment on its file and line. Put the summary and the verdict in the review body.
+5. After you submit, if the user shared a chat link such as a Slack thread, ask whether they want a recap posted there.
+
 ## Process
 
 1. Determine the review scope: pasted code, selected files, git diff, PR, branch, or repository area.
@@ -54,15 +66,6 @@ Use this mode only when the arguments contain the phrase `full audit`.
 7. Route to every relevant specialized skill when the review spans multiple ecosystems or concerns.
 8. Ask one concise clarification question if the target or intended review focus is ambiguous.
 9. After the review, mention the source skill or skills used for the review, using their skill names or paths.
-
-## Submit Review
-
-When the user ask for submit the result on the the mentioned/linked Pull Request, several things need to consider:
-
-1. Submit Review based on verdict, but if the user explicitly say different from verdict, then we need to follow the instruction from the user
-2. When there's a comment, use inline comment on spesific file or line of code
-3. No need re-review again the pull request.
-4. After submitted, if the user attach some communication link such as (e.g; Slack Link) ask the user if they wanna put a reacap within that conversation
 
 ## Output
 
