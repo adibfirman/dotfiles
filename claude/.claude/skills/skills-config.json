@@ -58,6 +58,13 @@
       "local_name": "spec-of-code"
     },
     {
+      "name": "security-audit",
+      "source": "https://github.com/cloudflare/security-audit-skill",
+      "path": "skills/security-audit",
+      "branch": "main",
+      "destination": "code-review/security-audit"
+    },
+    {
       "name": "teach",
       "source": "https://github.com/mattpocock/skills",
       "path": "skills/productivity/teach",
