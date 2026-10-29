@@ -8,17 +8,14 @@ argument-hint: "[security full audit] [submit <PR>] [path...] [quick|standard|de
 
 General routing skill for code review workflows. Every review must apply both
 sets of guidance: the skills under this `code-review/` directory and the
-matching programming-language or framework-specific skills. Use this skill to
-inspect the review target and route to those sources instead of duplicating
-review guidance here.
+matching programming-language or framework-specific skills. `technical` is the
+only router for language and framework skills. This skill routes only to the
+skills under `code-review/`, and calls `Skill(technical)` for the rest.
 
 ## Routing
 
-- For Go code, use [`golang-how-to`](../technical/golang/golang-how-to/). It is the upstream router and loads the Go skills that match the task.
+- For language and framework skills, call `Skill(technical)`. It picks the matching skills for the files under review. Do not link or load a language or framework skill from this file.
 - For every review, in any language, use [`security-audit`](./security-audit/). The Modes section below picks which of its two modes applies.
-- For React web code, use [`react-best-practices`](../technical/react/react-best-practices/).
-- For React Native code, use [`react-native-best-practices`](../technical/react/react-native-best-practices/).
-- For React or React Native component API and composition concerns, use [`composition-patterns`](../technical/react/composition-patterns/).
 - For simplification, slop removal, verbose code, redundant checks, or over-engineering, use [`deslop-simplify-ai-code`](./deslop-simplify-ai-code/).
 - For branch, PR, or work-in-progress reviews against a fixed point and originating spec, use [`spec-of-code`](./spec-of-code/).
 
@@ -32,7 +29,7 @@ Use this mode when the arguments do not contain the phrase `full audit` and the 
 
 - Scope: the changed files of the diff, PR, branch, or pasted code.
 - Load `security-audit` in its guidance mode. Apply its core principles and the matching attack classes to the changed files. Do not run its six phases, do not create an output directory, and do not write audit artifacts.
-- For Go files, the `golang-how-to` row "Audit security vulnerabilities" supplies the Go checklist (`golang-security`, `golang-safety`, `golang-lint`). `security-audit` owns the verdict and severity rules.
+- Tell `technical` that the review includes a security check. It loads the language security checklist. `security-audit` owns the verdict and severity rules.
 
 ### Full audit: `/code-review security full audit [path...] [quick|standard|deep]`
 
@@ -41,7 +38,7 @@ Use this mode only when the arguments contain the phrase `full audit`.
 - Scope: the whole repository. Each path argument limits the scope to that path. Record everything outside the scope as `out_of_scope`.
 - Profile: `standard`, unless the arguments contain `quick` or `deep`.
 - Run `security-audit` in its full audit mode: all six phases, the coverage ledger, `findings.json`, and the report files. Output goes to its default directory `~/security-audit-skill/<repo-name>/run-<N>`.
-- `security-audit` owns orchestration, verdicts, and severity. For Go targets, give the hunters the `golang-security` checklist as input. Do not run the separate audit mode of `golang-security`.
+- `security-audit` owns orchestration, verdicts, and severity. Call `Skill(technical)` for the target language's security checklist, and give it to the hunters as input. Do not run a separate audit mode from a language skill.
 
 ### Submit: `/code-review submit <PR URL or number>`
 
@@ -62,7 +59,7 @@ This mode is not a way to review code. Use it only after a review was done in th
 3. Infer the primary language, framework, and review concern from filenames, imports, package manifests, and code patterns.
 4. If the review asks for changes since a commit, branch, tag, merge-base, issue, PRD, or spec, route to `spec-of-code` first.
 5. Always load and apply the relevant skills under this `code-review/` directory before writing findings. In full audit mode, that is `security-audit` only.
-6. Always load and apply the matching programming-language or framework-specific skills before writing findings.
+6. Always call `Skill(technical)` and apply the language or framework skills it loads before writing findings.
 7. Route to every relevant specialized skill when the review spans multiple ecosystems or concerns.
 8. Ask one concise clarification question if the target or intended review focus is ambiguous.
 9. After the review, mention the source skill or skills used for the review, using their skill names or paths.

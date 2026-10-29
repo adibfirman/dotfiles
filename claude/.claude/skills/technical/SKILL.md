@@ -5,7 +5,7 @@ description: Use when working on software engineering tasks.
 
 # About
 
-If we read or write any code, we need to check these reference skills below:
+If we read, write, or review any code, we need to check these reference skills below:
 
 - [composition-patterns](./react/composition-patterns/) -- React component composition patterns, use this regardless if the project using ReactJS or React Native.
 - [react-best-practices](./react/react-best-practices/) -- Spesificy for the ReactJS code ecosystem.
