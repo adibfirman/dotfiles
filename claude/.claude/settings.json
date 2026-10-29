@@ -67,17 +67,9 @@
     "type": "command",
     "command": "bash \"$HOME/.claude/subagent-statusline.sh\""
   },
-  "enabledPlugins": {
-    "i-have-adhd@i-have-adhd": true
-  },
-  "extraKnownMarketplaces": {
-    "i-have-adhd": {
-      "source": {
-        "source": "github",
-        "repo": "ayghri/i-have-adhd"
-      }
-    }
-  },
+  "enabledPlugins": {},
+  "extraKnownMarketplaces": {},
+  "feedbackDrafts": "off",
   "effortLevel": "medium",
   "modelSettings": {
     "claude-opus-5-5": {
@@ -100,6 +92,5 @@
   "skipDangerousModePermissionPrompt": true,
   "autoCompactEnabled": true,
   "idleCompaction": true,
-  "voiceEnabled": true,
-  "feedbackDrafts": "off"
+  "voiceEnabled": true
 }

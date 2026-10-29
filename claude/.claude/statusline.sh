@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Custom statusline: i-have-adhd label + context bar + 5h session usage bar.
+# Custom statusline: model + context bar + 5h and weekly usage bars.
 # Fed session JSON on stdin by Claude Code.
 
 INPUT=$(cat)
 RST=$'\033[0m'; DIM=$'\033[38;5;244m'
-
-# --- segment 1: i-have-adhd label (shown while always-on flag exists) ---
-ADHD_FLAG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.i-have-adhd-always"
-[ -f "$ADHD_FLAG" ] && printf '  \033[38;5;213m🧠 ADHD%s' "$RST"
 
 # --- draw a bar for a 0-100 pct: bar <pct> [width] ---
 bar() {
