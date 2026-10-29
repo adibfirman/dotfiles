@@ -13,7 +13,7 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
-  "model": "fable",
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -68,7 +68,6 @@
     "command": "bash \"$HOME/.claude/subagent-statusline.sh\""
   },
   "enabledPlugins": {
-    "sonarqube-agent-plugins@claude-plugins-official": true,
     "i-have-adhd@i-have-adhd": true,
     "caveman@caveman": true
   },
@@ -105,7 +104,6 @@
     }
   },
   "autoUpdatesChannel": "latest",
-  "idleCompaction": true,
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
@@ -114,5 +112,6 @@
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
   "autoCompactEnabled": true,
+  "idleCompaction": true,
   "voiceEnabled": true
 }
