@@ -68,26 +68,13 @@
     "command": "bash \"$HOME/.claude/subagent-statusline.sh\""
   },
   "enabledPlugins": {
-    "i-have-adhd@i-have-adhd": true,
-    "caveman@caveman": true
+    "i-have-adhd@i-have-adhd": true
   },
   "extraKnownMarketplaces": {
-    "plannotator": {
-      "source": {
-        "source": "github",
-        "repo": "backnotprop/plannotator"
-      }
-    },
     "i-have-adhd": {
       "source": {
         "source": "github",
         "repo": "ayghri/i-have-adhd"
-      }
-    },
-    "caveman": {
-      "source": {
-        "source": "github",
-        "repo": "JuliusBrussee/caveman"
       }
     }
   },

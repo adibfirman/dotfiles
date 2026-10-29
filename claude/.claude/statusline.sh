@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# Custom statusline: caveman + i-have-adhd labels + context bar + 5h session usage bar.
+# Custom statusline: i-have-adhd label + context bar + 5h session usage bar.
 # Fed session JSON on stdin by Claude Code.
 
 INPUT=$(cat)
 RST=$'\033[0m'; DIM=$'\033[38;5;244m'
 
-# --- segment 1a: caveman label (newest installed plugin version, survives updates) ---
-CAVEMAN_SCRIPT=$(ls -t "$HOME"/.claude/plugins/cache/caveman/caveman/*/src/hooks/caveman-statusline.sh 2>/dev/null | head -1)
-[ -n "$CAVEMAN_SCRIPT" ] && bash "$CAVEMAN_SCRIPT" </dev/null
-
-# --- segment 1b: i-have-adhd label (shown while always-on flag exists) ---
+# --- segment 1: i-have-adhd label (shown while always-on flag exists) ---
 ADHD_FLAG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.i-have-adhd-always"
 [ -f "$ADHD_FLAG" ] && printf '  \033[38;5;213m🧠 ADHD%s' "$RST"
 
