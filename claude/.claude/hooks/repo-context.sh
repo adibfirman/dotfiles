@@ -15,5 +15,5 @@ for f in CLAUDE.md AGENTS.md CLAUDE.local.md; do
 done
 [ -n "$found" ] || exit 0
 
-echo "Repo context files at the repo root (not auto-loaded, see 'Repo context files' in ~/.claude/CLAUDE.md):"
+echo "Repo context files at the repo root (not auto-loaded, see 'Repo context files' in ~/.claude/instructions/repo-context.md):"
 printf '%s' "$found"
