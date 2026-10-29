@@ -100,5 +100,6 @@
   "skipDangerousModePermissionPrompt": true,
   "autoCompactEnabled": true,
   "idleCompaction": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "feedbackDrafts": "off"
 }
