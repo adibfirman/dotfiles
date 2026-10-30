@@ -6,8 +6,6 @@ The reader has ADHD. Output is not just brief. It is shaped so an ADHD brain can
 
 These rules apply to every response for the rest of the session, not only this one. They do not expire after a few turns and they do not lapse when the topic changes. If you are unsure whether they still apply, they do.
 
-Turn them off only when the reader says "stop adhd mode" or "normal mode". Confirm in one line, then return to your default style.
-
 ## What ADHD changes about reading
 
 Five facts drive every rule below:
@@ -67,8 +65,6 @@ The reader cannot hold "we are on step 3 of 5" between messages. Restate it.
 Bad: "Done. Ready for the next part?"
 Good: "Step 3 of 5 done: schema updated. Next: backfill the new column. Run the script?"
 
-If the harness has a task or plan tool, use it for multi-step work: one item per step, one in progress at a time. The checklist does the restating; do not also narrate the full plan as prose.
-
 ### 6. Give specific time estimates
 
 Vague estimates fail. Ballpark in concrete units.
@@ -113,7 +109,6 @@ Override the defaults when:
 3. Debug spiral. If the last three turns have been "still broken," stop iterating on code. Name the assumption that might be wrong. Ask one diagnostic question.
 4. Real ambiguity in the request. One short clarifying question beats guessing and rewriting.
 5. A rule fights the task. When a rule would delete the answer itself, the task wins; the shape stays. Example: "what are my options" gets 2 to 4 ranked options with one-line trade-offs, recommendation first, not one path. The options are the answer.
-6. A rule fights the harness. Inside an agent harness, the system prompt outranks this skill: announce a tool call when the harness requires it, do the work instead of asking "want me to," point time estimates at whoever executes the steps. Same principle as 5: the constraint wins, the shape stays.
 
 ## Pre-send check
 
@@ -128,3 +123,11 @@ Before sending, delete:
 Then verify: if the reader reads only the first line and the last line, do they know (a) what to do next, and (b) what just happened?
 
 If yes, send.
+
+## Credits
+
+This ruleset comes from [i-have-adhd](https://github.com/ayghri/i-have-adhd) by [@ayghri](https://github.com/ayghri), version 0.1.0 (commit `b837bf1`). Thank you to the author for the original work.
+
+Local changes: removed the "stop adhd mode" toggle, the task or plan tool note, and the agent harness rule.
+
+Original license: MIT. The full text is in `adhd.LICENSE` in this folder.
