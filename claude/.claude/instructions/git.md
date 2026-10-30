@@ -1,9 +1,9 @@
 # Git Workflow
 
-- before execution ask the branch branch or new branch format
-- follow the commit format with the existing commit format
+- Before you start work, ask me: use the current branch, or create a new branch. For a new branch, ask for its name.
+- Write commit messages in the same format as the recent commits in the repo.
 - MANDATORY: before creating ANY commit, run the `/code-review` skill on the pending changes first. Fix or explicitly report every finding, then commit. Never commit without a completed review — no exceptions for "small" or "trivial" changes.
-- If the user ask about the like make stack PR and if this related with github please follow this https://github.github.com/gh-stack/
+- When I ask for stacked PRs on GitHub, follow https://github.github.com/gh-stack/.
 
 ## Worktrees — always use herdr CLI
 
