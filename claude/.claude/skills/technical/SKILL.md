@@ -13,3 +13,4 @@ If we read, write, or review any code, we need to check these reference skills b
 - [react-native-skills](./react/react-native-skills/) -- React Native and Expo performance rules: lists, animations, navigation, native modules.
 - [react-view-transitions](./react/react-view-transitions/) -- React View Transition API: page, route, and shared element animations.
 - [golang-how-to](./golang/golang-how-to/) -- When working in the golang language. It is the upstream router and loads the Go skills that match the task.
+  - `golang-lint` is not installed. Skip it when `golang-how-to` lists it.

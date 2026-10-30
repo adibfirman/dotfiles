@@ -198,13 +198,6 @@
       "destination": "technical/golang/golang-how-to"
     },
     {
-      "name": "golang-lint",
-      "source": "https://github.com/samber/cc-skills-golang",
-      "path": "skills/golang-lint",
-      "branch": "main",
-      "destination": "technical/golang/golang-lint"
-    },
-    {
       "name": "golang-modernize",
       "source": "https://github.com/samber/cc-skills-golang",
       "path": "skills/golang-modernize",
