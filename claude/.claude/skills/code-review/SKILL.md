@@ -29,7 +29,7 @@ Use this mode when the arguments do not contain the phrase `full audit` and the 
 
 - Scope: the changed files of the diff, PR, branch, or pasted code.
 - Load `security-audit` in its guidance mode. Apply its core principles and the matching attack classes to the changed files. Do not run its six phases, do not create an output directory, and do not write audit artifacts.
-- Tell `technical` that the review includes a security check. It loads the language security checklist. `security-audit` owns the verdict and severity rules.
+- Tell `technical` that the review includes a security check. It loads the language security checklist, if one exists. React and React Native have none. For them, use the attack classes in `security-audit` as the checklist. `security-audit` owns the verdict and severity rules.
 
 ### Full audit: `/code-review security full audit [path...] [quick|standard|deep]`
 
@@ -38,7 +38,7 @@ Use this mode only when the arguments contain the phrase `full audit`.
 - Scope: the whole repository. Each path argument limits the scope to that path. Record everything outside the scope as `out_of_scope`.
 - Profile: `standard`, unless the arguments contain `quick` or `deep`.
 - Run `security-audit` in its full audit mode: all six phases, the coverage ledger, `findings.json`, and the report files. Output goes to its default directory `~/security-audit-skill/<repo-name>/run-<N>`.
-- `security-audit` owns orchestration, verdicts, and severity. Call `Skill(technical)` for the target language's security checklist, and give it to the hunters as input. Do not run a separate audit mode from a language skill.
+- `security-audit` owns orchestration, verdicts, and severity. Call `Skill(technical)` for the target language's security checklist, if one exists, and give it to the hunters as input. React and React Native have none, so the hunters use only the attack classes in `security-audit`. Do not run a separate audit mode from a language skill.
 
 ### Submit: `/code-review submit <PR URL or number>`
 
