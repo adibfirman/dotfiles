@@ -56,14 +56,6 @@ command = "printf 'Workspace directory: '; read dir; [ -n \"$dir\" ] && herdr wo
 description = "new workspace from input dir"
 
 [[keys.command]]
-key = "prefix+shift+a"
-type = "popup"
-command = "/Users/cataengineer/.config/herdr/scripts/send-active-buffer-to-agent"
-description = "send context curr pane"
-width = "60%"
-height = "60%"
-
-[[keys.command]]
 key = "prefix+shift+u"
 type = "shell"
 command = "/Users/cataengineer/.config/herdr/scripts/open-current-pr"
