@@ -2,6 +2,8 @@
 set -eu
 
 HERDR_BIN=${HERDR_BIN_PATH:-herdr}
+# Max number of worktrees checked at the same time.
+MAX_JOBS=8
 
 # Status icons live here only. The python blocks read them from the environment.
 ICON_WARN="⚠️"
@@ -11,106 +13,75 @@ ICON_WAITING="⏳"
 ICON_THREAD="💬"
 ICON_APPROVED="✅"
 ICON_DRAFT="📝"
-# Old blocked icon. Kept only so mark_sync_failed strips it from existing labels.
+# Set on every worktree while its check runs.
+ICON_CHECKING="🔄"
+# Old blocked icon. Kept only so strip_icons removes it from existing labels.
 ICON_LEGACY_BLOCKED="❌"
-export ICON_WARN ICON_CONFLICT ICON_CHECK_FAILED ICON_WAITING ICON_THREAD ICON_APPROVED ICON_DRAFT ICON_LEGACY_BLOCKED
+export ICON_WARN ICON_CONFLICT ICON_CHECK_FAILED ICON_WAITING ICON_THREAD ICON_APPROVED ICON_DRAFT ICON_CHECKING ICON_LEGACY_BLOCKED
+
+# Python helper: strip_icons() drops the leading status icons from a label.
+STRIP_ICONS_PY='
+import os
+
+def strip_icons(label):
+    warn = os.environ["ICON_WARN"]
+    icons = (
+        warn,
+        warn.replace("️", ""),
+        os.environ["ICON_CONFLICT"],
+        os.environ["ICON_CHECK_FAILED"],
+        os.environ["ICON_WAITING"],
+        os.environ["ICON_THREAD"],
+        os.environ["ICON_APPROVED"],
+        os.environ["ICON_DRAFT"],
+        os.environ["ICON_CHECKING"],
+        os.environ["ICON_LEGACY_BLOCKED"],
+    )
+    while True:
+        for icon in icons:
+            if label.startswith(icon):
+                label = label[len(icon):].lstrip(" ")
+                break
+        else:
+            return label
+'
 
 notify() {
   "$HERDR_BIN" notification show "$1" --body "${2:-}" >/dev/null 2>&1 || true
 }
 
-if ! command -v gh >/dev/null 2>&1; then
-  notify "PR label sync failed" "gh is not installed"
-  exit 1
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-  notify "PR label sync failed" "python3 is not installed"
-  exit 1
-fi
-
-workspace_json=$("$HERDR_BIN" workspace list 2>/dev/null || true)
-if [ -z "$workspace_json" ]; then
-  notify "PR label sync failed" "could not list Herdr workspaces"
-  exit 1
-fi
-
-tmp_file=${TMPDIR:-/tmp}/herdr-pr-worktrees.$$
-err_file=$tmp_file.err
-trap 'rm -f "$tmp_file" "$err_file"' EXIT HUP INT TERM
-
-notify "Syncing PR labels" "in progress sync your worktree PR labels"
-
-printf '%s' "$workspace_json" | python3 -c '
-import json, sys
-
-data = json.load(sys.stdin)
-for workspace in data.get("result", {}).get("workspaces", []):
-    worktree = workspace.get("worktree") or {}
-    workspace_id = workspace.get("workspace_id")
-    checkout = worktree.get("checkout_path")
-    label = " ".join(str(workspace.get("label") or "").split())
-    if workspace_id and checkout and worktree.get("is_linked_worktree"):
-        print(f"{workspace_id}\t{checkout}\t{label}")
-' > "$tmp_file"
-
-total=0
-failed=0
-sync_failed=0
-
 # Label the worktree as "sync failed": warning icon plus the old label.
 mark_sync_failed() {
-  label=$(python3 -c '
-import os, sys
-
-old_label, checkout = sys.argv[1:3]
-warn = os.environ["ICON_WARN"]
-icons = (
-    warn,
-    warn.replace("\ufe0f", ""),
-    os.environ["ICON_CONFLICT"],
-    os.environ["ICON_CHECK_FAILED"],
-    os.environ["ICON_WAITING"],
-    os.environ["ICON_THREAD"],
-    os.environ["ICON_APPROVED"],
-    os.environ["ICON_DRAFT"],
-    os.environ["ICON_LEGACY_BLOCKED"],
-)
-label = old_label
-while True:
-    for icon in icons:
-        if label.startswith(icon):
-            label = label[len(icon):].lstrip(" ")
-            break
-    else:
-        break
-label = label or os.path.basename(checkout.rstrip("/"))
-print(f"{warn} {label}")
-' "$old_label" "$checkout_path") || label="$ICON_WARN ${old_label:-$checkout_path}"
-
-  if "$HERDR_BIN" workspace rename "$workspace_id" "$label" >/dev/null 2>&1; then
-    sync_failed=$((sync_failed + 1))
+  if "$HERDR_BIN" workspace rename "$workspace_id" "$ICON_WARN $old_label" >/dev/null 2>&1; then
+    result=sync_failed
   else
-    failed=$((failed + 1))
+    result=failed
   fi
 }
 
-while IFS="$(printf '\t')" read -r workspace_id checkout_path old_label; do
-  [ -n "$workspace_id" ] || continue
-  total=$((total + 1))
+# Put back the old label on a worktree that has no PR to show.
+restore_label() {
+  if ! "$HERDR_BIN" workspace rename "$workspace_id" "$old_label" >/dev/null 2>&1; then
+    result=failed
+  fi
+}
 
+# Check one worktree and set its label. Sets result to ok, failed, or sync_failed.
+check_worktree() {
   if ! (cd "$checkout_path") 2>/dev/null; then
-    continue
+    restore_label
+    return 0
   fi
 
   if ! pr_json=$(cd "$checkout_path" && gh pr view --json number,title,url,state,mergedAt,headRefOid,reviews,mergeStateStatus,mergeable,isDraft,statusCheckRollup 2>"$err_file"); then
     # Detached HEAD: gh prints "could not determine current branch: not on any branch".
     if grep -q -e 'no pull requests found' -e 'could not determine current branch' "$err_file"; then
-      continue
+      restore_label
+      return 0
     fi
 
     mark_sync_failed
-    continue
+    return 0
   fi
 
   is_merged=$(printf '%s' "$pr_json" | python3 -c '
@@ -122,7 +93,7 @@ merged_at = data.get("mergedAt")
 print("1" if state == "MERGED" or merged_at else "0")
 ') || {
     mark_sync_failed
-    continue
+    return 0
   }
 
   if [ "$is_merged" = "1" ]; then
@@ -130,21 +101,17 @@ print("1" if state == "MERGED" or merged_at else "0")
       if [ -e "$checkout_path" ]; then
         case "$checkout_path" in
         "" | "/")
-          failed=$((failed + 1))
-          continue
+          result=failed
           ;;
         *)
-          rm -rf -- "$checkout_path" || {
-            failed=$((failed + 1))
-            continue
-          }
+          rm -rf -- "$checkout_path" || result=failed
           ;;
         esac
       fi
     else
-      failed=$((failed + 1))
+      result=failed
     fi
-    continue
+    return 0
   fi
 
   # Draft PR: set the draft icon only. Skip the thread and merge-state checks.
@@ -161,12 +128,12 @@ icon = os.environ["ICON_DRAFT"]
 print(f"{icon} {display}")
 '); then
     if ! "$HERDR_BIN" workspace rename "$workspace_id" "$draft_label" >/dev/null 2>&1; then
-      failed=$((failed + 1))
+      result=failed
     fi
-    continue
+    return 0
   elif [ $? -ne 2 ]; then
     mark_sync_failed
-    continue
+    return 0
   fi
 
   threads_ok=0
@@ -206,7 +173,7 @@ data = json.load(sys.stdin)
 print(data.get("mergeStateStatus") or "UNKNOWN", data.get("mergeable") or "UNKNOWN")
 ') || {
     mark_sync_failed
-    continue
+    return 0
   }
   read -r merge_state mergeable <<EOF
 $merge_values
@@ -273,21 +240,109 @@ if icon:
 print(display)
 ' "$threads_ok" "$unresolved" "$merge_ok" "$merge_state" "$mergeable") || {
     mark_sync_failed
-    continue
+    return 0
   }
 
   if "$HERDR_BIN" workspace rename "$workspace_id" "$label" >/dev/null 2>&1; then
     if [ "$threads_ok" != "1" ] || [ "$merge_ok" != "1" ]; then
-      sync_failed=$((sync_failed + 1))
+      result=sync_failed
     fi
   else
-    failed=$((failed + 1))
+    result=failed
   fi
-done < "$tmp_file"
+}
 
+# Child mode: "$0" --one <workspace id> <checkout path> <old label without icons>.
+# Writes one result line to $SYNC_RESULTS_FILE.
+if [ "${1:-}" = "--one" ]; then
+  [ "$#" -eq 4 ] || exit 1
+  workspace_id=$2
+  checkout_path=$3
+  old_label=$4
+  result=ok
+  err_file=$(mktemp "${TMPDIR:-/tmp}/herdr-pr-sync-err.XXXXXX")
+  trap 'rm -f "$err_file"' EXIT
+  check_worktree
+  printf '%s\n' "$result" >>"$SYNC_RESULTS_FILE"
+  exit 0
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+  notify "PR label sync failed" "gh is not installed"
+  exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  notify "PR label sync failed" "python3 is not installed"
+  exit 1
+fi
+
+# One run at a time. A lock whose PID no longer runs this script comes from a run that did not clean up.
+lock_dir=${TMPDIR:-/tmp}/herdr-pr-sync.lock
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  lock_pid=$(cat "$lock_dir/pid" 2>/dev/null || true)
+  if [ -n "$lock_pid" ] && ps -p "$lock_pid" -o command= 2>/dev/null | grep -q 'sync-all-pr-worktree-labels'; then
+    notify "PR label sync already running" "wait for the current sync to finish"
+    exit 0
+  fi
+  rm -rf -- "$lock_dir"
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    notify "PR label sync failed" "could not create the lock"
+    exit 1
+  fi
+fi
+printf '%s\n' "$$" >"$lock_dir/pid"
+
+tmp_file=${TMPDIR:-/tmp}/herdr-pr-worktrees.$$
+SYNC_RESULTS_FILE=$tmp_file.results
+export SYNC_RESULTS_FILE
+trap 'rm -f "$tmp_file" "$SYNC_RESULTS_FILE"; rm -rf -- "$lock_dir"' EXIT
+trap 'exit 1' HUP INT TERM
+: >"$SYNC_RESULTS_FILE"
+
+workspace_json=$("$HERDR_BIN" workspace list 2>/dev/null || true)
+if [ -z "$workspace_json" ]; then
+  notify "PR label sync failed" "could not list Herdr workspaces"
+  exit 1
+fi
+
+notify "Syncing PR labels" "in progress sync your worktree PR labels"
+
+printf '%s' "$workspace_json" | python3 -c "$STRIP_ICONS_PY"'
+import json, sys
+
+data = json.load(sys.stdin)
+for workspace in data.get("result", {}).get("workspaces", []):
+    worktree = workspace.get("worktree") or {}
+    workspace_id = workspace.get("workspace_id")
+    checkout = worktree.get("checkout_path")
+    if workspace_id and checkout and worktree.get("is_linked_worktree"):
+        label = strip_icons(" ".join(str(workspace.get("label") or "").split()))
+        label = label or os.path.basename(checkout.rstrip("/"))
+        print(f"{workspace_id}\t{checkout}\t{label}")
+' >"$tmp_file"
+
+total=$(wc -l <"$tmp_file" | tr -d ' ')
 if [ "$total" -eq 0 ]; then
   notify "No worktrees found" "No linked Herdr worktrees to sync"
-elif [ "$failed" -eq 0 ] && [ "$sync_failed" -eq 0 ]; then
+  exit 0
+fi
+
+# Show which worktrees are being checked before the jobs start.
+while IFS="$(printf '\t')" read -r workspace_id _ label; do
+  "$HERDR_BIN" workspace rename "$workspace_id" "$ICON_CHECKING $label" >/dev/null 2>&1 || true
+done <"$tmp_file"
+
+# Labels have no tab or newline, so each line gives exactly 3 args.
+tr '\t\n' '\000\000' <"$tmp_file" | xargs -0 -n 3 -P "$MAX_JOBS" "$0" --one || true
+
+done_count=$(wc -l <"$SYNC_RESULTS_FILE" | tr -d ' ')
+failed=$(grep -c '^failed$' "$SYNC_RESULTS_FILE" || true)
+sync_failed=$(grep -c '^sync_failed$' "$SYNC_RESULTS_FILE" || true)
+# A job that died without a result line counts as failed.
+failed=$((failed + total - done_count))
+
+if [ "$failed" -eq 0 ] && [ "$sync_failed" -eq 0 ]; then
   notify "PR labels synced ✅"
 else
   notify "PR label sync: check ⚠️ labels"
