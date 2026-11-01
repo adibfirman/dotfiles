@@ -63,7 +63,7 @@ A question that comes up mid-work is not a tangent: answer it yourself if you ca
 The reader cannot hold "we are on step 3 of 5" between messages. Restate it.
 
 Bad: "Done. Ready for the next part?"
-Good: "Step 3 of 5 done: schema updated. Next: backfill the new column. Run the script?"
+Good: "Step 3 of 5 done: schema updated. Next: backfill the new column. Say yes and I run the script."
 
 ### 6. Give specific time estimates
 
@@ -128,6 +128,6 @@ If yes, send.
 
 This ruleset comes from [i-have-adhd](https://github.com/ayghri/i-have-adhd) by [@ayghri](https://github.com/ayghri), version 0.1.0 (commit `b837bf1`). Thank you to the author for the original work.
 
-Local changes: removed the "stop adhd mode" toggle, the task or plan tool note, and the agent harness rule.
+Local changes: removed the "stop adhd mode" toggle, the task or plan tool note, and the agent harness rule. Changed the Rule 5 example so it ends with a statement, not a question.
 
 Original license: MIT. The full text is in `adhd.LICENSE` in this folder.

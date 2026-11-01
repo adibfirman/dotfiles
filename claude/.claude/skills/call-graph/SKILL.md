@@ -48,6 +48,39 @@ Review.run(request)
   → adjudicateReview()
 ```
 
+## Change Output
+
+Use this form when the graph reports changes, for example after an edit. Do not use it to trace existing code.
+
+- Put one marker before each node that changed:
+  - `[ADD]`: the node is new.
+  - `[EDIT]`: the node exists and its content changed.
+  - `[REMOVE]`: the node is gone.
+  - `[MOVE]`: the node moved.
+- Under each changed node, show a short before and after:
+  - `[EDIT]`: a `before:` line and an `after:` line.
+  - `[ADD]`: an `after:` line only.
+  - `[REMOVE]`: a `before:` line only.
+  - `[MOVE]`: a `from:` line and a `to:` line.
+  - Keep each line at 120 characters or less. Cut longer text with `…`.
+  - When the text is too long to quote, give a count. Example: `before: 2 items`, `after: 3 items`.
+- A node without a marker did not change. Show it only when it gives context to a changed node.
+- A node can be a file, a section, or an outside object such as a PR or a Jira issue.
+- The simplified form removes the before and after lines, the same as other detail lines.
+
+```ts
+workflow.md
+  [EDIT] line 8
+    before: "Always ask questions to get more clarity."
+    after:  "Ask questions when a decision is mine to make. Do not ask…"
+  [ADD] ## Cheap actions
+    after:  "Do not ask "run the recommended action?" for a cheap action…"
+PR #212
+  [EDIT] body › Known gaps
+    before: 2 items
+    after:  3 items
+```
+
 ## Source Anchors
 
 End the response with a **Source Anchors** section containing `path:line` references for the principal symbols that substantiate the graph. Prefer symbol-definition lines and omit generated, vendored, or incidental files. Keep anchors outside the graph so they support it without interrupting the flow.

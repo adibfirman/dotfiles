@@ -18,6 +18,7 @@ Prefer the **serena** tools over raw file reads and greps for code work. They un
 - When you detect a `github.com` URL (issues, PRs, repos, etc.), use the `gh` CLI to fetch information instead of web fetching.
 - By default, use only **read-only** `gh` commands: `gh issue view`, `gh pr view`, `gh pr diff`, `gh pr checks`, `gh api`, `gh repo view`, etc.
 - Before any `gh` command that creates, merges, closes, or changes something, ask me and wait for my yes.
+- Exception: `gh pr edit` for a PR body is a Level 2 cheap action. See "Cheap actions" in `workflow.md`.
 
 ### Context7 — Live Documentation
 
