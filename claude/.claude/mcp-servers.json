@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "context7": { "type": "http", "url": "https://mcp.context7.com/mcp" },
+    "dbhub": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@bytebase/dbhub@0.23.0", "--transport", "stdio", "--dsn", "${DATABASE_URL}"]
+    },
+    "fff": { "type": "stdio", "command": "fff-mcp", "args": [] },
+    "ios-simulator": { "type": "stdio", "command": "npx", "args": ["-y", "ios-simulator-mcp@2.1.0"] },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.83", "--extension"],
+      "env": { "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "${PLAYWRIGHT_MCP_EXTENSION_TOKEN}" }
+    },
+    "serena": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/oraios/serena@v2.1.0", "serena", "start-mcp-server",
+               "--context", "ide-assistant", "--project-from-cwd", "--enable-web-dashboard", "false"]
+    },
+    "shadcn": { "type": "stdio", "command": "npx", "args": ["-y", "shadcn@4.22.1", "mcp"] },
+    "xcode": { "type": "stdio", "command": "npx", "args": ["-y", "xcodebuildmcp@2.7.0", "mcp"] }
+  }
+}

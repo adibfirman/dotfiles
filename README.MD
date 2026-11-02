@@ -148,6 +148,19 @@ pi
 
 Use `/login` during the first interactive session, or provide credentials through your existing secrets workflow. Provider credentials are never stored in this repository.
 
+### Claude
+
+The Claude MCP servers live in `claude/.claude/mcp-servers.json`. The `claude` alias in `zshrc/.zshrc_aliases` loads them with `--mcp-config`.
+
+```bash
+stow claude zshrc
+```
+
+Requirements:
+
+- `fff-mcp` on `PATH`. `check-prerequisites.sh` checks it.
+- `DATABASE_URL` and `PLAYWRIGHT_MCP_EXTENSION_TOKEN` exported from `~/.zshrc_secrets`. See `zshrc/.zshrc_secrets_examples`.
+
 ### Herdr
 
 After installing Herdr and stowing this package:
