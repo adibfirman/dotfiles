@@ -12,10 +12,6 @@
 
 # MCP Tool Usage
 
-## Serena — Semantic Code Toolkit
-
-Prefer **serena** tools over raw file reads/greps for code operations. They are symbol-aware, token-efficient, and exploit relational structure.
-
 ## GitHub
 
 - When you detect a `github.com` URL (issues, PRs, repos, etc.), use the `gh` CLI to fetch information instead of web fetching.

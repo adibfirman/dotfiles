@@ -19,15 +19,6 @@
         "fff-mcp"
       ],
     },
-    "shadcn": {
-      "type": "local",
-      "enabled": false,
-      "command": [
-        "npx",
-        "shadcn@latest",
-        "mcp"
-      ],
-    },
     "context7": {
       "type": "local",
       "command": [
@@ -92,21 +83,6 @@
         "CONFLUENCE_USERNAME": "{env:CONFLUENCE_USERNAME}",
         "CONFLUENCE_API_TOKEN": "{env:CONFLUENCE_API_TOKEN}"
       }
-    },
-    "serena": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide-assistant",
-        "--project-from-cwd",
-        "--enable-web-dashboard",
-        "false"
-      ]
     },
     "dbhub": {
       "type": "local",
