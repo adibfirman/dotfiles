@@ -15,6 +15,7 @@ Rules for every message I post to a chat platform, for example Slack.
 - Follow the `/bro` rules and the glossary.
 - No preamble and no closing pleasantries.
 - Never add an attribution line such as "Sent using Claude".
+- Never quote a secret, a token, or exploit steps in a chat message. Link to the PR comment instead.
 
 ## Send flow
 

@@ -50,7 +50,7 @@ This mode is not a way to review code. Use it only after a review was done in th
 2. Use the verdict from the review already done in this session: approve, request changes, or comment. If the user asks for a different verdict, follow the user.
 3. Do not run the review again before you submit.
 4. Put each finding as an inline comment on its file and line. Put the summary and the verdict in the review body.
-5. After you submit, if the user shared a chat link such as a Slack thread, ask whether they want a recap posted there. Use the format in "Chat recap".
+5. After you submit, if the user shared a chat link such as a Slack thread, show a draft recap in the "Chat recap" format and ask once whether to post it there.
 
 ## Process
 
@@ -88,7 +88,7 @@ Must fix before merge:
 1. <finding in one sentence>
 2. <finding in one sentence>
 
-Nice to have: 3 more comments on the PR.
+Nice to have: 3 comments on the PR.
 Question: <open question>
 ```
 
