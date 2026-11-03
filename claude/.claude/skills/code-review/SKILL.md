@@ -50,7 +50,7 @@ This mode is not a way to review code. Use it only after a review was done in th
 2. Use the verdict from the review already done in this session: approve, request changes, or comment. If the user asks for a different verdict, follow the user.
 3. Do not run the review again before you submit.
 4. Put each finding as an inline comment on its file and line. Put the summary and the verdict in the review body.
-5. After you submit, if the user shared a chat link such as a Slack thread, ask whether they want a recap posted there.
+5. After you submit, if the user shared a chat link such as a Slack thread, ask whether they want a recap posted there. Use the format in "Chat recap".
 
 ## Process
 
@@ -68,6 +68,41 @@ This mode is not a way to review code. Use it only after a review was done in th
 
 - Findings remain the primary focus, ordered by severity with file and line references.
 - Include a concise `Review sources` line naming both the `code-review/` skills and the programming-language or framework-specific skills that informed the review. Always name `code-review/security-audit` in that line, also when the review has no security finding.
+
+## Chat recap
+
+Use this format when you post a review recap to a chat platform, for example a Slack thread. The rules in `~/.claude/instructions/chat-message.md` also apply.
+
+- Verdict words match GitHub, with an emoji: `✅ Approved`, `❌ Changes requested`, `💬 Commented`.
+- Split findings into two groups only: "Must fix before merge" and "Nice to have". Do not use severity labels such as High or NIT. They stay in the inline comments.
+- List at most 5 items. Write the rest as "+N more on the PR".
+- Show the "Nice to have" group as a count only.
+- Leave out a line that has no content.
+
+### One PR
+
+```
+**❌ Changes requested** · [repo#36](pr-url) · [review](review-url)
+
+Must fix before merge:
+1. <finding in one sentence>
+2. <finding in one sentence>
+
+Nice to have: 3 more comments on the PR.
+Question: <open question>
+```
+
+### More than one PR
+
+Start with one bullet per PR:
+
+```
+Reviewed 3 PRs:
+- **✅ Approved** · [repo#135](pr-url): <one-line summary>
+- **💬 Commented** · [repo#136](pr-url): <one-line summary>
+```
+
+When a PR has 2 or more must-fix items, add its one-PR block below the bullets.
 
 ## Attribution
 
