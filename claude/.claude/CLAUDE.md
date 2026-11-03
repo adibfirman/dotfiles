@@ -4,7 +4,7 @@ Each item below loads the rules for one topic.
 
 - **RTK**: token-saving CLI proxy and its meta commands → @RTK.md
 - **Glossary**: words to avoid, and the plain words to use instead → @GLOSSARY.md
-- **Workflow**: no plan mode, questions, specs, `coder` delegation, plans folder, dev server, artifacts, language → @instructions/workflow.md
+- **Workflow**: no plan mode, questions, specs, `coder` and `finding-code` delegation, plans folder, dev server, artifacts, language → @instructions/workflow.md
 - **Response style, plain language**: `/bro` format, ASD-STE100, glossary rules → @instructions/response-style/bro.md
 - **Response style, ADHD**: response shape, tone, pre-send check → @instructions/response-style/adhd.md
 - **Skills and tools**: `technical`, Playwright, fff, GitHub, Context7 → @instructions/tools.md
