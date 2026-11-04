@@ -385,6 +385,13 @@
       "path": "skills/golang-uber-fx",
       "branch": "main",
       "destination": "technical/golang/golang-uber-fx"
+    },
+    {
+      "name": "test-audit",
+      "source": "https://github.com/openclaw/openclaw",
+      "path": ".agents/skills/test-audit",
+      "branch": "main",
+      "destination": "technical/test-audit"
     }
   ]
 }
