@@ -90,6 +90,6 @@
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
   "autoCompactEnabled": true,
-  "idleCompaction": true,
+  "idleCompaction": false,
   "voiceEnabled": true
 }
