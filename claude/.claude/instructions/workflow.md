@@ -5,9 +5,23 @@
 - NEVER enter plan mode. Do not use `EnterPlanMode` or `ExitPlanMode` at any time.
 - Write the plan as plain text in the chat, not in plan mode.
 - If something goes wrong, STOP and tell me. Do not continue.
-- Ask questions when a decision is mine to make. Do not ask before a cheap action. See "Cheap actions".
+- Ask questions only as "Before you ask me" allows. Do not ask before a cheap action. See "Cheap actions".
 - Write detailed specs upfront to reduce ambiguity.
 - Always break down tasks with their dependencies.
+
+## Before you ask me
+
+- Find the answer yourself before you ask me. Check the code, the git history (`git log -S`, `git blame`), code comments, ADRs, PR threads, and `~/.claude/plans/`.
+- A question that a read-only check can answer is not a question. Run the check (Level 1), then report the result.
+- Test each question before you send it: "Can a read-only check answer this in about 2 minutes?" If yes, run the check first.
+- Ask me only in these cases:
+  - The facts do not exist anywhere you can read.
+  - The facts exist, but the choice is still mine: product, scope, priority, or risk.
+- When you ask, show the facts first, then ask:
+  - What you found, with `file:line`, a commit, or a link.
+  - Your recommendation and the reason.
+  - The question, with options on separate lines.
+- Never ask me where something came from, why it exists, or what it does. Find out and tell me.
 
 ## General
 
