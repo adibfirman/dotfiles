@@ -16,6 +16,20 @@
 - Before any `gh` command that creates, merges, closes, or changes something, ask me and wait for my yes.
 - Exception: `gh pr edit` for a PR body is a Level 2 cheap action. See "Cheap actions" in `workflow.md`.
 
+### Grafana
+
+- When I name Grafana or paste a Grafana URL, use the `gcx` CLI. Do not use the browser, Playwright, or WebFetch.
+- `gcx` is read-only for you. A `gcx` read command is a Level 1 cheap action. See "Cheap actions" in `workflow.md`.
+- A read does not change Grafana. Examples: `list`, `get`, `query`, `search`, `status`, `snapshot`, `pull`, `export`, and `gcx api` with GET.
+- A write is every other call. Examples: `create`, `update`, `delete`, `upsert`, `push`, `apply`, `acknowledge`, `silence`, `resolve`, and `gcx api` with `-X` other than GET or with `-d`. These are writes too: `gcx login`, `gcx config set`, `gcx config use-context`, `gcx assistant`, and `gcx agent skills install`.
+- Never run a write, not even after I say yes. When a task needs a write, stop. Show me the exact command and the reason. I run it myself with `! <command>`.
+- Never pass `--insecure-log-http-payload`. It prints tokens into the chat.
+- Save files from `snapshot`, `pull`, and `export` in the scratchpad folder.
+- The hook `~/.claude/hooks/gcx-guard.sh` blocks every write and every unknown command. When it blocks a call, stop and tell me. Do not try another way, for example `curl` to the Grafana API.
+- Do not call `gcx` from a script file or from another program, for example `python3 -c`. Run each `gcx` command directly.
+- When the hook blocks a read command that is not in `gcx-commands.txt`, tell me to run `~/.claude/hooks/gcx-commands-gen.sh`.
+- When `gcx` says it has no context, or returns 401 or 403, stop and ask me to run `! gcx login --token`.
+
 ### Context7 — Live Documentation
 
 - When generating code that uses third-party libraries, ALWAYS use Context7 (`resolve-library-id` → `query-docs`) to fetch current documentation BEFORE writing the code. Do not rely on training data for API signatures, configuration options, or usage patterns.
