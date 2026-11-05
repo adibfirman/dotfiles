@@ -36,6 +36,7 @@
   - When to stop and report.
   - Why: one line on the reason this task exists. The `coder` uses it to see when a brief is wrong.
 - When a `coder` report comes back, compare each step in the report with the brief. If the report has a step that the brief did not ask for, or misses a step, stop and tell me.
+- While a subagent still runs, or you plan to resume or spawn one, do not post a report or a question. Post one status line: what the subagent does now. Post the full report once, after every subagent finishes.
 - Give each MCP tool call its own `coder`. Spawn independent calls in one message. Wait for a report before a call that needs its result.
 - Playwright stays Level 3: ask first, then run it through `coder`.
 - For code search or go to definition, delegate to the `coder` subagent. Spawn independent searches in one message. The main session may still `Read` a file with a known path. The brief must have:
@@ -50,6 +51,17 @@
   - Git: Including commit messages, branch names, and other Git-related content.
   - Documentation: Including content written for platforms such as Confluence or Google Docs.
   - Markdown files: All content written to .md files.
+
+## Helicopter view: reuse before you add
+
+Before you build something new, stop and think from above.
+
+- Look at the whole picture first, not only the part in front of you.
+- Ask: "Is there something that already exists that can do this?" Prefer to reuse, extend or adjust what is there.
+- Give this question real thinking time before you choose. Do not jump to the first new idea.
+- Choose the simplest change that solves the real problem. Something new is also something new to keep, explain and maintain.
+- Make something new only when the existing parts cannot do the job, and say why in one sentence.
+- When the user suggests a simpler path, take it seriously. Do not defend the first idea.
 
 ## Cheap actions
 

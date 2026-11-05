@@ -9,8 +9,7 @@ disable-model-invocation: true
 - Never ask an execution question in a question round. An execution question asks to run an action, for example "apply the drafts?" or "run this query?".
   - A Level 1 cheap action (see "Cheap actions" in `workflow.md`) is fact finding. Run it without a question.
   - Collect every other action for the recap.
-- Do not ask any question while a subagent is still running. This overrides the "Don't block on it" rule in `grilling/SKILL.md`.
-  - Wait until every subagent finishes.
+- Follow the subagent rule in `workflow.md`: no report and no question while a subagent still runs. This overrides the "Don't block on it" rule in `grilling/SKILL.md`.
   - If a subagent runs for more than 5 minutes, tell the user which subagent is still running and what it searches for. Do not ask a question. Then keep waiting.
   - Keep every question, also the ones that an agent result answered. Mark an answered question with ✅, show the finding with a `file:line` link, and use the finding as the recommended answer. The user confirms or corrects it.
   - Ask the questions in one round, in the `grilling` format. Ask at most 5 open questions per round. ✅ questions do not count toward this limit. Ask first the open questions that unblock the most other questions. Keep the rest for the next round.
