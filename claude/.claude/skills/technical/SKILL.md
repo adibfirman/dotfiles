@@ -20,3 +20,4 @@ If we read, write, or review any code, we need to check these reference skills b
   - Read "autoreview" as `/code-review`.
   - Read `CAMPAIGN.md` only when the user asks to prune all tests of one subsystem.
   - When you write a new test or change an existing test case, make one small change to the production code that still builds, for example flip a condition. Confirm the test fails on its assertion, not on a build error. Then restore the code byte for byte and check `git diff`.
+- [design-thinking](./design-thinking/) -- Concept checklist for program flow and UI flow. Use it when you write a spec or a plan before code, and when you review a design.

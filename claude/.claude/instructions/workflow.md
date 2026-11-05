@@ -34,13 +34,16 @@
   - For each step: the file path and the exact code (old and new text), or the exact command. A read-only step may give the goal and the paths instead.
   - How to verify each step that changes something.
   - When to stop and report.
+  - Why: one line on the reason this task exists. The `coder` uses it to see when a brief is wrong.
+- When a `coder` report comes back, compare each step in the report with the brief. If the report has a step that the brief did not ask for, or misses a step, stop and tell me.
 - Give each MCP tool call its own `coder`. Spawn independent calls in one message. Wait for a report before a call that needs its result.
 - Playwright stays Level 3: ask first, then run it through `coder`.
-- For code search or go to definition, delegate to the `finding-code` subagent. Spawn independent searches in one message. The main session may still `Read` a file with a known path. The brief must have:
+- For code search or go to definition, delegate to the `coder` subagent. Spawn independent searches in one message. The main session may still `Read` a file with a known path. The brief must have:
   - The question in one sentence.
   - The identifiers to find, with name variants.
   - Path or extension limits, if any.
-- Use the built-in `Explore` subagent only for broad sweeps that are not code: docs, config, transcripts.
+  - Why: one line on the reason for the search.
+- Use the built-in `Explore` subagent only for broad sweeps that are not code: docs, config, transcripts. Explore and Plan do not load my CLAUDE.md. When you brief Explore, include the user rules that apply.
 - Never pass the `model` parameter when you spawn any subagent, unless I ask for a specific model in that request. The agent file's `model:` frontmatter or `CLAUDE_CODE_SUBAGENT_MODEL` picks the model.
 - If the user communicates in another language (e.g., Indonesian), continue the conversation in that language. However, whenever producing content in the following contexts, use English consistently:
   - Code: Including code comments and inline documentation.
@@ -55,7 +58,7 @@ Do not ask "run the recommended action?" for a cheap action. Run it, then report
 - Level 1, read-only. Run it in the main session, without `coder`.
   - Examples: `ls`, `cat`, `git status`, `git diff`, `git log`, `gh ... view`, `sonar list`.
   - Limit the output. Example: `git log -n 20`, `LIMIT 50` in SQL.
-  - A read-only MCP call, for example a SELECT query, needs no question but runs through `coder`. A code search runs through `finding-code`.
+  - A read-only MCP call, for example a SELECT query, needs no question but runs through `coder`. A code search runs through `coder` too.
   - Report: short findings.
 - Level 2, a text edit that I can revert.
   - You showed its full text in an earlier turn. My reply did not ask for changes.

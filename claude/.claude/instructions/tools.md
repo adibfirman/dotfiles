@@ -5,7 +5,7 @@
 - MANDATORY: when we dig into code (explore, read, trace, debug, review, or change code), call the `/technical` skill (`Skill(technical)`) first, before starting the work.
 - Do not run the Playwright MCP on your own. Ask me first.
 - Save screenshots and other files from the Playwright MCP in `~/Downloads/playwright-mcp`. Create the folder if it does not exist.
-- For code search or go to definition, delegate to the `finding-code` subagent. It uses the fff tools.
+- For code search or go to definition, delegate to the `coder` subagent. It uses the fff tools.
 
 ## MCP Tool Usage
 
