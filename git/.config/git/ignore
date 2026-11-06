@@ -9,3 +9,5 @@
 
 # Herdr terminal context files
 .herdr-context/
+
+.dev-deploy/
