@@ -392,6 +392,13 @@
       "path": ".agents/skills/test-audit",
       "branch": "main",
       "destination": "technical/test-audit"
+    },
+    {
+      "name": "playwright-cli",
+      "source": "https://github.com/microsoft/playwright-cli",
+      "path": "skills/playwright-cli",
+      "branch": "v0.1.23",
+      "destination": "playwright-cli"
     }
   ]
 }

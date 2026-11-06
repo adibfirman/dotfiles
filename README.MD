@@ -159,7 +159,7 @@ stow claude zshrc
 Requirements:
 
 - `fff-mcp` on `PATH`. `check-prerequisites.sh` checks it.
-- `playwright-cli` on `PATH`: `npm i -g @playwright/cli@0.1.23`, then, after `stow claude`, `playwright-cli install --skills --global` to refresh the skill in `claude/.claude/skills/playwright-cli`. `check-prerequisites.sh` checks it.
+- `playwright-cli` on `PATH`: `npm i -g @playwright/cli@0.1.23`. `check-prerequisites.sh` checks it. The matching skill comes from `claude/.claude/skills/sync-skills.sh`, pinned to tag `v0.1.23` in `skills-config.json`. On a CLI upgrade, bump both the npm version and the tag.
 - `DATABASE_URL` (dbhub) and `PLAYWRIGHT_MCP_EXTENSION_TOKEN` (`playwright-cli attach --extension=chrome`) exported from `~/.zshrc_secrets`. See `zshrc/.zshrc_secrets_examples`.
 
 ### Herdr
