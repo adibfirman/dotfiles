@@ -48,17 +48,6 @@
         "--stdio"
       ]
     },
-    "playwright": {
-      "type": "local",
-      "command": [
-        "npx",
-        "@playwright/mcp@latest",
-        "--extension"
-      ],
-      "environment": {
-        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "{env:PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
-      }
-    },
     "ios-simulator": {
       "type": "local",
       "enabled": false,
