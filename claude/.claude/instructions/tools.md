@@ -3,8 +3,10 @@
 ## General
 
 - MANDATORY: when we dig into code (explore, read, trace, debug, review, or change code), call the `/technical` skill (`Skill(technical)`) first, before starting the work.
-- Do not run the Playwright MCP on your own. Ask me first.
-- Save screenshots and other files from the Playwright MCP in `~/Downloads/playwright-mcp`. Create the folder if it does not exist.
+- Browser automation is Level 3. Do not run `playwright-cli` or the Claude in Chrome tools on your own. Ask me first, then run it through `coder`.
+- Save screenshots and videos from `playwright-cli` in `~/Downloads/playwright-cli`. Create the folder if it does not exist. Snapshots stay in `.playwright-cli/` in the project folder.
+- Browser: always `playwright-cli attach --extension=chrome` (my Chrome, through the Playwright MCP Bridge extension) or `playwright-cli open --browser=chrome`. Never run `playwright-cli install-browser`, and never `open` without `--browser`. The bundled Chromium lags behind Chrome stable and runs without a sandbox. The env var `PLAYWRIGHT_MCP_PROFILE_DIR_NAME` picks the Chrome profile. Its value is in `~/.zshrc_secrets`. Until the shell restarts, pass it inline before `attach`. After `attach`, run every command with `-s=chrome`.
+- Claude in Chrome: use its tools only when I started the session with `claude --chrome`. Same Level 3 rule.
 - For code search or go to definition, delegate to the `coder` subagent. It uses the fff tools.
 
 ## MCP Tool Usage
@@ -18,7 +20,7 @@
 
 ### Grafana
 
-- When I name Grafana or paste a Grafana URL, use the `gcx` CLI. Do not use the browser, Playwright, or WebFetch.
+- When I name Grafana or paste a Grafana URL, use the `gcx` CLI. Do not use the browser, `playwright-cli`, or WebFetch.
 - A `gcx` read command is a Level 1 cheap action. See "Cheap actions" in `workflow.md`.
 - Never pass `--insecure-log-http-payload`. It prints tokens into the chat.
 - Save files from `snapshot`, `pull`, and `export` in the scratchpad folder.

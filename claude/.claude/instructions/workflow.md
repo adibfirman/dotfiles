@@ -38,7 +38,7 @@
 - When a `coder` report comes back, compare each step in the report with the brief. If the report has a step that the brief did not ask for, or misses a step, stop and tell me.
 - While a subagent still runs, or you plan to resume or spawn one, do not post a report or a question. Post one status line: what the subagent does now. Post the full report once, after every subagent finishes.
 - Give each MCP tool call its own `coder`. Spawn independent calls in one message. Wait for a report before a call that needs its result.
-- Playwright stays Level 3: ask first, then run it through `coder`.
+- Browser automation (`playwright-cli`, Claude in Chrome) stays Level 3: ask first, then run it through `coder`.
 - For code search or go to definition, delegate to the `coder` subagent. Spawn independent searches in one message. The main session may still `Read` a file with a known path. The brief must have:
   - The question in one sentence.
   - The identifiers to find, with name variants.
@@ -78,7 +78,7 @@ Do not ask "run the recommended action?" for a cheap action. Run it, then report
   - Run it through `coder`. Do not ask "apply?" first.
   - Report: a `call-graph` in the "Change Output" form.
 - Level 3, everything else. Ask first.
-  - Examples: a new branch, a commit, a push, a new Jira issue, a Slack message, any delete, Playwright, Confluence pages, destructive actions.
+  - Examples: a new branch, a commit, a push, a new Jira issue, a Slack message, any delete, browser automation, Confluence pages, destructive actions.
   - Every PR action except a body edit: create, merge, close.
 - Database queries:
   - Run only SELECT queries. `WITH … SELECT` counts as a SELECT query.

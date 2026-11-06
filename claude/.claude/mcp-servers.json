@@ -29,18 +29,6 @@
         "ios-simulator-mcp@2.1.0"
       ]
     },
-    "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@0.0.83",
-        "--extension"
-      ],
-      "env": {
-        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "${PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
-      }
-    },
     "xcode": {
       "type": "stdio",
       "command": "npx",

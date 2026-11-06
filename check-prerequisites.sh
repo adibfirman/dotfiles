@@ -60,6 +60,7 @@ TOOLS=(
     "xclip|xclip|-version"
     "RTK|rtk|--version"
     "FFF MCP|fff-mcp|--version"
+    "Playwright CLI|playwright-cli|--version"
 )
 
 TOTAL_CHECKS=0
@@ -690,6 +691,9 @@ get_install_command() {
         "FFF MCP")
             echo "curl -fsSL https://raw.githubusercontent.com/dmtrKovalenko/fff/e3f694a2e4f82bb755418e8d305dcff779c59c27/install-mcp.sh | bash"
             ;;
+        "Playwright CLI")
+            echo "npm install -g @playwright/cli@0.1.23"
+            ;;
         *)
             echo ""
             ;;
@@ -793,6 +797,7 @@ step_additional_tools() {
     run_check "Herdr"
     run_check "RTK"
     run_check "FFF MCP"
+    run_check "Playwright CLI"
     run_check "Tectonic"
     run_check "Mermaid CLI"
     run_check "ImageMagick"

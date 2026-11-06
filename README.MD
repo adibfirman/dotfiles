@@ -159,7 +159,8 @@ stow claude zshrc
 Requirements:
 
 - `fff-mcp` on `PATH`. `check-prerequisites.sh` checks it.
-- `DATABASE_URL` and `PLAYWRIGHT_MCP_EXTENSION_TOKEN` exported from `~/.zshrc_secrets`. See `zshrc/.zshrc_secrets_examples`.
+- `playwright-cli` on `PATH`: `npm i -g @playwright/cli@0.1.23`, then, after `stow claude`, `playwright-cli install --skills --global` to refresh the skill in `claude/.claude/skills/playwright-cli`. `check-prerequisites.sh` checks it.
+- `DATABASE_URL` (dbhub) and `PLAYWRIGHT_MCP_EXTENSION_TOKEN` (`playwright-cli attach --extension=chrome`) exported from `~/.zshrc_secrets`. See `zshrc/.zshrc_secrets_examples`.
 
 ### Herdr
 
