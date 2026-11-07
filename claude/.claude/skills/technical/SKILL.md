@@ -21,3 +21,8 @@ If we read, write, or review any code, we need to check these reference skills b
   - Read `CAMPAIGN.md` only when the user asks to prune all tests of one subsystem.
   - When you write a new test or change an existing test case, make one small change to the production code that still builds, for example flip a condition. Confirm the test fails on its assertion, not on a build error. Then restore the code byte for byte and check `git diff`.
 - [design-thinking](./design-thinking/) -- Concept checklist for program flow and UI flow. Use it when you write a spec or a plan before code, and when you review a design.
+- [untangle-codebase](./untangle-codebase/) -- Structure check: hidden links, needless links, surplus, special cases.
+  - Full mode, when the user asks to refactor or untangle a module, an area, or a new repo: run step 2 and 3, show the decision log in chat, then ask one question: run these fixes, and also Comments or Tests? After yes, run step 4 and 5 to the end. Stop only when something breaks. Do not save a plan file.
+  - Normal change in existing files: after the change, check only the touched files with the step 2 taxonomy. Report a finding as a suggestion in the final report. Do not fix it on your own. `/code-review` uses the same taxonomy to name structural findings.
+  - Read "have subagents search" as `coder` searches. Put helper scripts (skeleton, import graph) in the scratchpad folder.
+  - When the user picks Tests, apply the `test-audit` rules.

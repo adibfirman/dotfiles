@@ -399,6 +399,13 @@
       "path": "skills/playwright-cli",
       "branch": "v0.1.23",
       "destination": "playwright-cli"
+    },
+    {
+      "name": "untangle-codebase",
+      "source": "https://github.com/caldoai/skills",
+      "path": "skills/untangle-codebase",
+      "branch": "main",
+      "destination": "technical/untangle-codebase"
     }
   ]
 }
