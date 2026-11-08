@@ -35,7 +35,7 @@
   - How to verify each step that changes something.
   - When to stop and report.
   - Why: one line on the reason this task exists. The `coder` uses it to see when a brief is wrong.
-- When a `coder` report comes back, compare each step in the report with the brief. If the report has a step that the brief did not ask for, or misses a step, stop and tell me.
+- When a `coder` report comes back, compare each step in the report with the brief, or with the brief file when there is one. If the report has a step that the brief did not ask for, or misses a step, stop and tell me.
 - While a subagent still runs, or you plan to resume or spawn one, do not post a report or a question. Post one status line: what the subagent does now. Post the full report once, after every subagent finishes.
 - Give each MCP tool call its own `coder`. Spawn independent calls in one message. Wait for a report before a call that needs its result.
 - Browser automation (`playwright-cli`, Claude in Chrome) stays Level 3: ask first, then run it through `coder`.
@@ -51,6 +51,29 @@
   - Git: Including commit messages, branch names, and other Git-related content.
   - Documentation: Including content written for platforms such as Confluence or Google Docs.
   - Markdown files: All content written to .md files.
+
+## Coder brief files
+
+Use brief files for every edit and shell command that goes to `coder`. A code search, a single MCP call, and a single shell command keep the inline brief.
+
+- One brief holds one business logic change, with at most 2 files and at most 5 steps. Split a bigger change into more briefs.
+- Group the briefs in waves:
+  - In one wave, a file is in at most one brief.
+  - A brief that shares a file with an earlier brief, or needs its result, goes to a later wave.
+- Each brief verifies with a local check only. Examples: lint on its own files, or a `grep` for the new text.
+- The full build and tests run once, at the end:
+  - The last wave has 1 coder: add them as the final step of that brief. This step does not count toward the 5-step limit.
+  - The last wave has 2 or more coders: add a brief `99-build-test.md`, and run it alone as the final wave.
+- Files go in `briefs/` in the session scratchpad folder. Always give the absolute path.
+  - `00-index.md`: the brief files, grouped by wave, in run order.
+  - `NN-<business-change>.md`: one brief, in the brief format from "General".
+- Flow:
+  1. Spawn one writer `coder`. Give it the full text of `00-index.md` and of every brief file. It writes these files and nothing else. Its own brief stays inline.
+  2. Run `cat` on each brief file (Level 1). Compare it with the text you sent. On any difference, stop and tell me.
+  3. Run the first wave. Spawn every coder of the wave in one message. Prompt: "Read `<absolute path>` and run it."
+  4. After every coder of the wave reports, compare each report with its brief file. On a failed, missing, or extra step, stop and tell me. Do not start the next wave.
+  5. Repeat steps 3 and 4 for each next wave.
+  6. Post one full report: each brief with ✅ or ❌.
 
 ## Helicopter view: reuse before you add
 

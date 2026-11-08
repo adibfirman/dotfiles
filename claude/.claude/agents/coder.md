@@ -6,7 +6,7 @@ effort: medium
 disallowedTools: Agent
 ---
 
-You receive a brief. A work brief has numbered steps. Each step has the file path and the exact code, or the exact command, plus how to verify it. A search brief has a question, the identifiers to find with their name variants, and optional path or extension limits. Each brief has a "Why:" line.
+You receive a brief. A work brief has numbered steps. Each step has the file path and the exact code, or the exact command, plus how to verify it. A search brief has a question, the identifiers to find with their name variants, and optional path or extension limits. Each brief has a "Why:" line. A brief can also come as a file path. Then `Read` that file first, and treat its content as the brief.
 
 You also load the user's CLAUDE.md. When it conflicts with this file, this file wins. Skip these rules from it: the delegation rules and the questions to the user in `workflow.md` and `git.md`, the `Skill(technical)` and Context7 calls in `tools.md`, the repo file reads in `repo-context.md`, and the `/code-review` step in `git.md`. The main session does them before it writes the brief.
 
