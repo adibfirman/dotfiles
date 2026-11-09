@@ -29,7 +29,7 @@ Use this mode when the arguments do not contain the phrase `full audit` and the 
 
 - Scope: the changed files of the diff, PR, branch, or pasted code.
 - Load `security-audit` in its guidance mode. Apply its core principles and the matching attack classes to the changed files. Do not run its six phases, do not create an output directory, and do not write audit artifacts.
-- Tell `technical` that the review includes a security check. It loads the language security checklist, if one exists. React and React Native have none. For them, use the attack classes in `security-audit` as the checklist. `security-audit` owns the verdict and severity rules.
+- Tell `technical` that the review includes a security check. It loads the language security checklist, if one exists. React and React Native have none. For them, use the attack classes in `security-audit` as the checklist. `security-audit` owns the severity rules. The verdict follows "Verdict".
 - When the target is a pull request, also check the previous threads. See "Previous threads".
 - When the target is a pull request, run the repo checks before you write findings. See "Repo checks".
 
@@ -49,11 +49,28 @@ Use this mode when the first argument is `submit`, or when the user asks to send
 This mode is not a way to review code. Use it only after a review was done in this session. If no review was done yet, run the default mode first, then ask the user before you submit.
 
 1. Before you submit, check whether the pull request is already merged or closed, for example with `gh pr view <PR> --json state,mergedAt`. If it is merged or closed, do not submit. Tell the user.
-2. Use the verdict from the review already done in this session: approve, request changes, or comment. If the user asks for a different verdict, follow the user.
+2. Use the verdict from the review already done in this session. See "Verdict". If the user asks for a different verdict, follow the user.
 3. Do not run the review again before you submit.
 4. Put each finding as an inline comment on its file and line. Put the summary and the verdict in the review body. Do not post a finding again when a previous thread already covers it. Leave out the `Review sources` line.
 5. After the review is posted, reply to the previous threads and resolve them. See "Previous threads". If the review post failed, do not touch the threads.
 6. After you submit, if the user shared a chat link such as a Slack thread, show a draft recap in the "Chat recap" format and ask once whether to post it there.
+
+## Verdict
+
+Every review ends with one verdict. Pick it from the findings and from the `not fixed` previous threads:
+
+- ❌ Request changes: at least one must-fix finding.
+- 💬 Comment: no must-fix finding, and at least one comment.
+- ✅ Approve: no finding.
+
+A finding is must-fix only when it is one of these:
+
+- A bug that gives a wrong result or a crash in a real flow.
+- A confirmed security finding.
+- A new type error or build error. See "Repo checks".
+- A missing spec requirement.
+
+Every other finding is a comment, for example style, naming, a small refactor, or a test gap. Post each finding as an inline comment. In the review body, group the findings under "Must fix" and "Comments". Never use the words "Nice to have". Only this section sets the verdict. Labels from other skills, for example the deslop checklist tiers, do not.
 
 ## Repo checks
 
@@ -71,7 +88,7 @@ Run the repo's own static checks on a pull request in default mode. Do not trust
 4. JS or TS: link `node_modules` from the main checkout into each worktree. Never run `npm install`, `pnpm install`, or `yarn` on PR code.
 5. Run each command in both worktrees. Save the output in the scratchpad directory.
 6. A new error is an error at the PR head that is not at the merge-base. Count each file and message pair on both sides. When the PR head has more copies of a pair than the merge-base, the extra copies are new. Do not compare line numbers.
-7. A new type error or build error is a must-fix finding, and the verdict is "Request changes". A new lint error keeps the severity of its rule.
+7. A new type error or build error is a must-fix finding. A new lint error is a comment. See "Verdict".
 8. Remove both worktrees with `herdr worktree remove --workspace <ID>`, using the workspace ID from each create output. Then delete the branches `review/pr-<n>-head` and `review/pr-<n>-base`.
 9. In the output, add a "Repo checks" line: each command with its count of new errors, or "skipped" with the reason.
 
@@ -111,7 +128,7 @@ A previous thread is a review thread on the pull request that is not resolved an
    - `not fixed`: the issue is still in the code, or you do not agree with the reply.
    - `unclear`: you cannot tell. Example: the fix is outside the diff, or the thread is a design question.
 4. `isOutdated` means only that the line changed. It does not prove a fix. Check an outdated thread like any other thread.
-5. A `not fixed` thread counts as a finding with its first severity. It changes the verdict the same way as a new finding.
+5. A `not fixed` thread counts as a finding of its first kind, must-fix or comment. It changes the verdict the same way as a new finding. See "Verdict".
 6. In the output, add a "Previous threads" list. For each thread, give the comment link, `path:line`, the status, and a one-line reason.
 
 ### Reply and resolve (submit mode)
@@ -142,9 +159,9 @@ If a call fails, continue with the other threads. At the end, list each failed t
 Use this format when you post a review recap to a chat platform, for example a Slack thread. The rules in `~/.claude/instructions/chat-message.md` also apply.
 
 - Verdict words match GitHub, with an emoji: `✅ Approved`, `❌ Changes requested`, `💬 Commented`.
-- Split findings into two groups only: "Must fix before merge" and "Nice to have". Do not use severity labels such as High or NIT. They stay in the inline comments.
+- Split findings into two groups only: "Must fix before merge" and "Comments". Do not use severity labels such as High or NIT. They stay in the inline comments.
 - List at most 5 items. Write the rest as "+N more on the PR".
-- Show the "Nice to have" group as a count only.
+- ❌ Changes requested: list the must-fix items, and show the comments as a count only. 💬 Commented: list the comments. ✅ Approved: no list.
 - On a re-review, add `Previous threads: <N> resolved, <M> still open.` Put a still-open Must-fix thread in the "Must fix before merge" list.
 - Leave out a line that has no content.
 
@@ -157,7 +174,7 @@ Must fix before merge:
 1. <finding in one sentence>
 2. <finding in one sentence>
 
-Nice to have: 3 comments on the PR.
+Comments: 3 on the PR.
 Previous threads: 4 resolved, 1 still open.
 Question: <open question>
 ```
