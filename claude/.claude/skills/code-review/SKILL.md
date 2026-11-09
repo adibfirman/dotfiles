@@ -31,6 +31,7 @@ Use this mode when the arguments do not contain the phrase `full audit` and the 
 - Load `security-audit` in its guidance mode. Apply its core principles and the matching attack classes to the changed files. Do not run its six phases, do not create an output directory, and do not write audit artifacts.
 - Tell `technical` that the review includes a security check. It loads the language security checklist, if one exists. React and React Native have none. For them, use the attack classes in `security-audit` as the checklist. `security-audit` owns the verdict and severity rules.
 - When the target is a pull request, also check the previous threads. See "Previous threads".
+- When the target is a pull request, run the repo checks before you write findings. See "Repo checks".
 
 ### Full audit: `/code-review security full audit [path...] [quick|standard|deep]`
 
@@ -50,9 +51,29 @@ This mode is not a way to review code. Use it only after a review was done in th
 1. Before you submit, check whether the pull request is already merged or closed, for example with `gh pr view <PR> --json state,mergedAt`. If it is merged or closed, do not submit. Tell the user.
 2. Use the verdict from the review already done in this session: approve, request changes, or comment. If the user asks for a different verdict, follow the user.
 3. Do not run the review again before you submit.
-4. Put each finding as an inline comment on its file and line. Put the summary and the verdict in the review body. Do not post a finding again when a previous thread already covers it.
+4. Put each finding as an inline comment on its file and line. Put the summary and the verdict in the review body. Do not post a finding again when a previous thread already covers it. Leave out the `Review sources` line.
 5. After the review is posted, reply to the previous threads and resolve them. See "Previous threads". If the review post failed, do not touch the threads.
 6. After you submit, if the user shared a chat link such as a Slack thread, show a draft recap in the "Chat recap" format and ask once whether to post it there.
+
+## Repo checks
+
+Run the repo's own static checks on a pull request in default mode. Do not trust a claim in the PR text that the checks pass.
+
+1. Pick the commands from the merge-base, not from the PR:
+   - JS or TS: the `typecheck` and `lint` scripts in the merge-base `package.json`. With no `typecheck` script, use `npx tsc --noEmit`.
+   - Go: `go build ./...` and `go vet ./...`.
+   - Skip a command the repo does not have.
+   - Skip all checks when the PR changes `package.json`, a lockfile, or a config file the commands load, for example `next.config.*`, `eslint.config.*`, or `.eslintrc*`. Write "Repo checks skipped: <file> changed".
+2. Fetch the PR head with `git fetch origin pull/<n>/head`. Then find the merge-base: `git merge-base origin/<base branch> <PR head sha>`.
+3. Create two worktrees with herdr, from the main checkout:
+   `herdr worktree create --cwd <main checkout> --branch review/pr-<n>-head --base <PR head sha> --no-focus`
+   `herdr worktree create --cwd <main checkout> --branch review/pr-<n>-base --base <merge-base sha> --no-focus`
+4. JS or TS: link `node_modules` from the main checkout into each worktree. Never run `npm install`, `pnpm install`, or `yarn` on PR code.
+5. Run each command in both worktrees. Save the output in the scratchpad directory.
+6. A new error is an error at the PR head that is not at the merge-base. Count each file and message pair on both sides. When the PR head has more copies of a pair than the merge-base, the extra copies are new. Do not compare line numbers.
+7. A new type error or build error is a must-fix finding, and the verdict is "Request changes". A new lint error keeps the severity of its rule.
+8. Remove both worktrees with `herdr worktree remove --workspace <ID>`, using the workspace ID from each create output. Then delete the branches `review/pr-<n>-head` and `review/pr-<n>-base`.
+9. In the output, add a "Repo checks" line: each command with its count of new errors, or "skipped" with the reason.
 
 ## Process
 
@@ -64,12 +85,12 @@ This mode is not a way to review code. Use it only after a review was done in th
 6. Always call `Skill(technical)` and apply the language or framework skills it loads before writing findings.
 7. Route to every relevant specialized skill when the review spans multiple ecosystems or concerns.
 8. Ask one concise clarification question if the target or intended review focus is ambiguous.
-9. After the review, mention the source skill or skills used for the review, using their skill names or paths.
+9. After the review, mention the source skill or skills used for the review, in the terminal output only, using their skill names or paths.
 
 ## Output
 
 - Findings remain the primary focus, ordered by severity with file and line references.
-- Include a concise `Review sources` line naming both the `code-review/` skills and the programming-language or framework-specific skills that informed the review. Always name `code-review/security-audit` in that line, also when the review has no security finding.
+- Include a concise `Review sources` line naming both the `code-review/` skills and the programming-language or framework-specific skills that informed the review. Always name `code-review/security-audit` in that line, also when the review has no security finding. Show it in the terminal output only. Never put it in a review body, an inline comment, or a chat recap.
 
 ## Previous threads
 
