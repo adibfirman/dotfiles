@@ -106,7 +106,7 @@ Run the repo's own static checks on a pull request in default mode. Do not trust
 
 ## Output
 
-- Findings remain the primary focus, ordered by severity with file and line references.
+- Findings remain the primary focus, must-fix first, then comments, with file and line references.
 - Include a concise `Review sources` line naming both the `code-review/` skills and the programming-language or framework-specific skills that informed the review. Always name `code-review/security-audit` in that line, also when the review has no security finding. Show it in the terminal output only. Never put it in a review body, an inline comment, or a chat recap.
 
 ## Previous threads
@@ -189,7 +189,7 @@ Reviewed 3 PRs:
 - **💬 Commented** · [repo#136](pr-url): <one-line summary>
 ```
 
-When a PR has 2 or more must-fix items, add its one-PR block below the bullets.
+When a PR has 2 or more must-fix items, or is 💬 Commented with 2 or more comments, add its one-PR block below the bullets.
 
 ## Attribution
 
