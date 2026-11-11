@@ -55,7 +55,7 @@ TOOLS=(
     "Pi|pi|--version"
     "Herdr|herdr|--version"
     "Herdr App|herdr-app|--version"
-    "terminal-notifier|terminal-notifier|-version"
+    "Herdr Notify|notify-send|--version"
     "Tectonic|tectonic|--version"
     "Mermaid CLI|mmdc|--version"
     "ImageMagick|convert|--version"
@@ -448,6 +448,19 @@ check_tool() {
         fi
     fi
 
+    # Special handling for Herdr Notify on macOS: build the notifier app.
+    # notifier/build.sh does nothing when the app is current.
+    if [ "$display_name" = "Herdr Notify" ] && [ "$OS" = "macos" ]; then
+        if sh "$SCRIPT_DIR/herdr-app/.config/herdr-app/notifier/build.sh"; then
+            print_success "Built (~/.local/share/herdr-notify)"
+            ((PASSED++))
+            return 0
+        else
+            print_error "Build failed"
+            return 1
+        fi
+    fi
+
     # Check if command exists
     if ! command -v "$command_name" >/dev/null 2>&1; then
         print_error "Missing"
@@ -677,9 +690,11 @@ get_install_command() {
                 arch|debian) echo "curl -fsSL https://releases.herdr.dev/app/install.sh | sh" ;;
             esac
             ;;
-        "terminal-notifier")
+        "Herdr Notify")
             case "$OS" in
-                macos) echo "brew install terminal-notifier" ;;
+                macos) echo "xcode-select --install" ;;
+                arch) echo "yay -S --noconfirm libnotify" ;;
+                debian) echo "sudo apt install -y libnotify-bin" ;;
             esac
             ;;
         "Tectonic")
@@ -819,9 +834,7 @@ step_additional_tools() {
     run_check "Pi"
     run_check "Herdr"
     run_check "Herdr App"
-    if [ "$OS" = "macos" ]; then
-        run_check "terminal-notifier"
-    fi
+    run_check "Herdr Notify"
     run_check "RTK"
     run_check "FFF MCP"
     run_check "Playwright CLI"

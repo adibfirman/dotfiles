@@ -1,47 +1,59 @@
-// agent-notify: Herdr's toast, plus the same alert in macOS Notification Center.
+// agent-notify: Herdr's toast, plus the same alert as a system notification.
 //
 // Based on the `toast` mod shipped with Herdr (herdr-app, Apache License 2.0).
 // Changed in this dotfiles repo: init() also sends a toast that has a click
-// action (Herdr's own agent alerts: "needs you", "finished") to macOS through
-// terminal-notifier, only while the Herdr window is not active. A click on the
-// macOS notification brings Herdr to the front and runs the same action with
-// `herdr-app do`. Toasts without an action (for example "Copied") stay in the
-// app. The in-app toast is unchanged.
+// action (Herdr's own agent alerts: "needs you", "finished") to the system,
+// only while Herdr is not in front. Toasts without an action (for example
+// "Copied") stay in the app. The in-app toast is unchanged.
+// - macOS: Herdr Notify.app, built by `notifier/build.sh` in the app home. It
+//   skips the banner while Herdr is the front app, because `window().active`
+//   may read false in this toast overlay. A click brings Herdr to the front and
+//   runs the same action with `herdr-app do`.
+// - Linux: notify-send, behind the `window().active` check only (not tested).
+//   A click runs the same action from this mod.
 //
-// Runs programs: which, terminal-notifier.
+// Runs programs: which, herdr-notify (macOS), notify-send (Linux).
 
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, run, theme, exec, window as appWindow } from "herdr";
+import { props, closeOverlay, run, theme, exec, home, window as appWindow } from "herdr";
 
 const DOT = { error: "blocked", warning: "working", success: "done", info: "accent" };
-const APP_ID = "dev.herdr.app";
+const NOTIFIER = "/.local/share/herdr-notify/Herdr Notify.app/Contents/MacOS/herdr-notify";
 
-// Quotes one word for /bin/sh.
-const sh = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-// terminal-notifier needs a leading "-" or "[" escaped.
-const plain = (s) => (/^[-[]/.test(s) ? `\\${s}` : s);
-
-// A click on the macOS notification runs in a new process with a short PATH,
-// so the command needs the full path to herdr-app.
+// Herdr Notify runs herdr-app in a new process with a short PATH, so it needs
+// the full path to herdr-app.
 async function herdrApp() {
   const r = await exec("/usr/bin/which", ["herdr-app"]);
-  return r.code === 0 ? r.stdout.trim() : "herdr-app";
+  return r.code === 0 ? r.stdout.trim() : null;
+}
+
+async function toMac(title, body, a) {
+  const cli = await herdrApp();
+  if (!cli) return;
+  await exec(home() + NOTIFIER, [
+    "post", `herdr:${a.args?.terminal ?? title}`, title, body, cli, a.name, JSON.stringify(a.args ?? {}),
+  ], { timeout: 10000 });
+}
+
+// notify-send --wait returns when the notification closes, and prints
+// "default" when it was clicked. exec waits at most 10 minutes.
+async function toLinux(title, body, a) {
+  const r = await exec("notify-send", [
+    "--app-name=Herdr", "--action=default=Open", "--wait", "--", title, body,
+  ], { timeout: 600000 });
+  if (r.stdout.trim() === "default") run(a.name, a.args ?? {});
 }
 
 async function toSystem(p) {
   const a = p.action;
   if (!a?.name) return;
-  if (appWindow().active) return; // Herdr is in front: the in-app toast is enough
+  const w = appWindow();
+  if (w.active) return; // Herdr is in front: the in-app toast is enough
   const title = p.title || "Herdr";
-  const cli = await herdrApp();
-  await exec("terminal-notifier", [
-    "-title", plain(title),
-    "-message", plain(p.body || title),
-    "-group", `herdr:${a.args?.terminal ?? title}`,
-    "-activate", APP_ID,
-    "-execute", `${sh(cli)} do ${sh(a.name)} ${sh(JSON.stringify(a.args ?? {}))}`,
-  ], { timeout: 10000 });
+  const body = p.body || title;
+  if (w.platform === "macos") await toMac(title, body, a);
+  else if (w.platform === "linux") await toLinux(title, body, a);
 }
 
 export default class AgentNotify extends View {
@@ -51,7 +63,7 @@ export default class AgentNotify extends View {
       try {
         await toSystem(p);
       } catch (_) {
-        // terminal-notifier is missing or failed: the in-app toast still shows.
+        // The notifier is missing or failed: the in-app toast still shows.
       }
     });
   }
