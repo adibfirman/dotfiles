@@ -84,6 +84,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | [Pi](https://pi.dev/) | `curl -fsSL https://pi.dev/install.sh \| sh` | Target unified AI coding harness |
 | [Herdr](https://herdr.dev/) | `brew install herdr` / `curl -fsSL https://herdr.dev/install.sh \| sh` | Terminal-native multi-repo/worktree agent workspace manager |
 | [Herdr App](https://herdr.dev/) | `brew install --cask herdr-app` / `curl -fsSL https://releases.herdr.dev/app/install.sh \| sh` | Herdr desktop app, keyboard-driven with a `ctrl-s` which-key popup |
+| [terminal-notifier](https://github.com/julienXX/terminal-notifier) | `brew install terminal-notifier` | macOS notifications for Herdr App agent alerts (macOS only) |
 | [RTK](https://github.com/rtk-ai/rtk) | `brew install rtk` / [install script](https://github.com/rtk-ai/rtk#installation) | CLI proxy for LLM token savings (60-90%) |
 | Tectonic | `yay -S tectonic` | LaTeX engine |
 | Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
@@ -201,6 +202,11 @@ stow herdr-app
 ```
 
 `ctrl-s` opens the which-key popup (`mods/which-key/`). Its keys are in `mods/which-key/map.json`. `ctrl-s w` starts repeat mode, and `ctrl-s ctrl-s` sends `ctrl-s` to the terminal.
+
+The `my-main` layout (`layouts/my-main.json`, a clone of the shipped `main` layout) adds two mods:
+
+- `mods/agent-notify/` replaces the shipped toast. Agent alerts also go to macOS Notification Center through `terminal-notifier`. A click brings Herdr to the front and opens the agent.
+- `mods/copy-on-select/` copies a terminal selection when you release the mouse, and after a double-click or triple-click.
 
 ### OpenCode + RTK Integration
 

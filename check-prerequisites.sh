@@ -55,6 +55,7 @@ TOOLS=(
     "Pi|pi|--version"
     "Herdr|herdr|--version"
     "Herdr App|herdr-app|--version"
+    "terminal-notifier|terminal-notifier|-version"
     "Tectonic|tectonic|--version"
     "Mermaid CLI|mmdc|--version"
     "ImageMagick|convert|--version"
@@ -676,6 +677,11 @@ get_install_command() {
                 arch|debian) echo "curl -fsSL https://releases.herdr.dev/app/install.sh | sh" ;;
             esac
             ;;
+        "terminal-notifier")
+            case "$OS" in
+                macos) echo "brew install terminal-notifier" ;;
+            esac
+            ;;
         "Tectonic")
             case "$OS" in
                 macos) echo "brew install tectonic" ;;
@@ -813,6 +819,9 @@ step_additional_tools() {
     run_check "Pi"
     run_check "Herdr"
     run_check "Herdr App"
+    if [ "$OS" = "macos" ]; then
+        run_check "terminal-notifier"
+    fi
     run_check "RTK"
     run_check "FFF MCP"
     run_check "Playwright CLI"
