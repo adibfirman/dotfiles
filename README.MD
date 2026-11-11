@@ -207,7 +207,7 @@ stow herdr-app
 The `my-main` layout (`layouts/my-main.json`, a clone of the shipped `main` layout) adds two mods:
 
 - `mods/agent-notify/` replaces the shipped toast. When the Herdr window is not active, agent alerts also go to the system. On macOS they go through Herdr Notify, a small app that `notifier/build.sh` builds in `~/.local/share/herdr-notify/` (based on [cockpit](https://github.com/quaresc/cockpit)'s notifier, MIT). Allow "Herdr Notify" once in System Settings → Notifications. On Linux they go through `notify-send`. A click opens the agent.
-- `mods/copy-on-select/` copies a terminal selection when you release the mouse, and after a double-click or triple-click.
+- `mods/copy-toast/` shows a "Copied" toast after a copy. Herdr itself copies a terminal selection when you release the mouse, on macOS and Linux (hold Shift when the program in the pane takes the mouse). The mod only watches the clipboard for up to 30 s after a left press.
 
 ### OpenCode + RTK Integration
 

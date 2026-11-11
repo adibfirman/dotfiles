@@ -190,10 +190,10 @@
       ]
     },
     {
-      "id": "b77eea80fe90666cea47d123b7712893f",
+      "id": "b886076310258f481edd7c2b303be1f71",
       "type": "block",
       "content": {
-        "mod": "copy-on-select"
+        "mod": "copy-toast"
       },
       "size": {
         "px": 0

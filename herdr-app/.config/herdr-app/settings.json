@@ -1,8 +1,11 @@
 {
-  "zoom": 1.0,
+  "zoom": 1,
   "sounds": {
-    "enabled": true
+    "enabled": false
   },
   "font_ligatures": false,
-  "minimum_contrast": 1.0
+  "minimum_contrast": 1,
+  "font_size": 12,
+  "font": "Kode Mono",
+  "ui_font": "Kode Mono"
 }
