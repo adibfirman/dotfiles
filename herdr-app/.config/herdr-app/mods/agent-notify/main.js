@@ -3,15 +3,16 @@
 // Based on the `toast` mod shipped with Herdr (herdr-app, Apache License 2.0).
 // Changed in this dotfiles repo: init() also sends a toast that has a click
 // action (Herdr's own agent alerts: "needs you", "finished") to macOS through
-// terminal-notifier. A click on the macOS notification brings Herdr to the
-// front and runs the same action with `herdr-app do`. Toasts without an action
-// (for example "Copied") stay in the app. The in-app toast is unchanged.
+// terminal-notifier, only while the Herdr window is not active. A click on the
+// macOS notification brings Herdr to the front and runs the same action with
+// `herdr-app do`. Toasts without an action (for example "Copied") stay in the
+// app. The in-app toast is unchanged.
 //
 // Runs programs: which, terminal-notifier.
 
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, run, theme, exec } from "herdr";
+import { props, closeOverlay, run, theme, exec, window as appWindow } from "herdr";
 
 const DOT = { error: "blocked", warning: "working", success: "done", info: "accent" };
 const APP_ID = "dev.herdr.app";
@@ -31,6 +32,7 @@ async function herdrApp() {
 async function toSystem(p) {
   const a = p.action;
   if (!a?.name) return;
+  if (appWindow().active) return; // Herdr is in front: the in-app toast is enough
   const title = p.title || "Herdr";
   const cli = await herdrApp();
   await exec("terminal-notifier", [

@@ -205,7 +205,7 @@ stow herdr-app
 
 The `my-main` layout (`layouts/my-main.json`, a clone of the shipped `main` layout) adds two mods:
 
-- `mods/agent-notify/` replaces the shipped toast. Agent alerts also go to macOS Notification Center through `terminal-notifier`. A click brings Herdr to the front and opens the agent.
+- `mods/agent-notify/` replaces the shipped toast. When the Herdr window is not active, agent alerts also go to macOS Notification Center through `terminal-notifier`. A click brings Herdr to the front and opens the agent.
 - `mods/copy-on-select/` copies a terminal selection when you release the mouse, and after a double-click or triple-click.
 
 ### OpenCode + RTK Integration
