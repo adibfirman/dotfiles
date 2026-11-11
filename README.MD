@@ -83,6 +83,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | [OpenCode](https://opencode.ai/) | See website | AI coding assistant |
 | [Pi](https://pi.dev/) | `curl -fsSL https://pi.dev/install.sh \| sh` | Target unified AI coding harness |
 | [Herdr](https://herdr.dev/) | `brew install herdr` / `curl -fsSL https://herdr.dev/install.sh \| sh` | Terminal-native multi-repo/worktree agent workspace manager |
+| [Herdr App](https://herdr.dev/) | `brew install --cask herdr-app` / `curl -fsSL https://releases.herdr.dev/app/install.sh \| sh` | Herdr desktop app, keyboard-driven with a `ctrl-s` which-key popup |
 | [RTK](https://github.com/rtk-ai/rtk) | `brew install rtk` / [install script](https://github.com/rtk-ai/rtk#installation) | CLI proxy for LLM token savings (60-90%) |
 | Tectonic | `yay -S tectonic` | LaTeX engine |
 | Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
@@ -190,6 +191,16 @@ Herdr-created worktrees are stored under:
 ```
 
 For mobile/remote usage, attach over SSH using Herdr remote mode.
+
+### Herdr App
+
+The desktop app reads `~/.config/herdr-app/`, not the Herdr `config.toml`. Stow the package:
+
+```bash
+stow herdr-app
+```
+
+`ctrl-s` opens the which-key popup (`mods/which-key/`). Its keys are in `mods/which-key/map.json`. `ctrl-s w` starts repeat mode, and `ctrl-s ctrl-s` sends `ctrl-s` to the terminal.
 
 ### OpenCode + RTK Integration
 

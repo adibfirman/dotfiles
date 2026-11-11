@@ -18,3 +18,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Herdr app: files the app writes into each mod folder
+herdr-app/.config/herdr-app/mods/*/jsconfig.json
+herdr-app/.config/herdr-app/mods/*/gpui-kit.d.ts

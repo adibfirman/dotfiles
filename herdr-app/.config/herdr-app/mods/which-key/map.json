@@ -1,0 +1,73 @@
+{
+  "groups": [
+    {
+      "name": "Spaces",
+      "column": 1,
+      "keys": [
+        { "keys": ["shift-n"], "label": "new space", "command": "space.new" },
+        { "keys": ["shift-d"], "label": "close space", "command": "space.close" },
+        { "keys": ["shift-left"], "label": "previous space", "command": "space.prev" },
+        { "keys": ["shift-right"], "label": "next space", "command": "space.next" },
+        { "digits": "shift-", "label": "go to space N", "command": "space.select" },
+        { "keys": ["shift-g"], "label": "new worktree", "worktree": "new" },
+        { "keys": ["alt-d"], "label": "remove worktree", "worktree": "remove" }
+      ]
+    },
+    {
+      "name": "Tabs",
+      "column": 1,
+      "keys": [
+        { "keys": ["c"], "label": "new tab", "command": "tab.new" },
+        { "keys": ["shift-t"], "label": "rename tab", "command": "tab.rename" },
+        { "keys": ["p"], "label": "previous tab", "command": "tab.prev" },
+        { "keys": ["n"], "label": "next tab", "command": "tab.next" },
+        { "digits": "", "label": "go to tab N", "command": "tab.select" },
+        { "keys": ["shift-x"], "label": "close tab", "command": "tab.close" }
+      ]
+    },
+    {
+      "name": "Agents",
+      "column": 1,
+      "keys": [
+        { "keys": ["alt-0"], "label": "previous agent", "command": "agent.prev" }
+      ]
+    },
+    {
+      "name": "Panes",
+      "column": 2,
+      "keys": [
+        { "keys": ["v"], "label": "split right", "command": "pane.split", "args": { "direction": "right" } },
+        { "keys": ["-"], "display": "minus", "label": "split down", "command": "pane.split", "args": { "direction": "down" } },
+        { "keys": ["x"], "label": "close pane", "command": "pane.close" },
+        { "keys": ["z"], "label": "zoom pane", "command": "pane.zoom" },
+        { "keys": ["h"], "label": "focus left", "command": "pane.go", "args": { "direction": "left" } },
+        { "keys": ["j"], "label": "focus down", "command": "pane.go", "args": { "direction": "down" } },
+        { "keys": ["k"], "label": "focus up", "command": "pane.go", "args": { "direction": "up" } },
+        { "keys": ["l"], "label": "focus right", "command": "pane.go", "args": { "direction": "right" } }
+      ]
+    },
+    {
+      "name": "App",
+      "column": 2,
+      "keys": [
+        { "keys": ["?", "shift-/"], "display": "?", "label": "help", "command": "app.help" },
+        { "keys": ["s"], "label": "settings", "command": "app.settings" },
+        { "keys": ["b"], "label": "toggle sidebar", "command": "layout.toggle", "args": { "id": "sidebar" } },
+        { "keys": ["g"], "label": "go to (picker)", "command": "mod.open", "args": { "name": "picker" } },
+        { "keys": ["w"], "label": "repeat mode", "mode": "nav" },
+        { "keys": [], "display": "ctrl-s", "label": "send ctrl-s" }
+      ]
+    }
+  ],
+  "modes": {
+    "nav": {
+      "name": "Repeat mode",
+      "keys": [
+        { "keys": ["h", "left"], "label": "focus left pane", "command": "pane.go", "args": { "direction": "left" } },
+        { "keys": ["l", "right"], "label": "focus right pane", "command": "pane.go", "args": { "direction": "right" } },
+        { "keys": ["j", "down"], "label": "next space", "command": "space.next" },
+        { "keys": ["k", "up"], "label": "previous space", "command": "space.prev" }
+      ]
+    }
+  }
+}

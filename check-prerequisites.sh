@@ -54,6 +54,7 @@ TOOLS=(
     "OpenCode|opencode|--version"
     "Pi|pi|--version"
     "Herdr|herdr|--version"
+    "Herdr App|herdr-app|--version"
     "Tectonic|tectonic|--version"
     "Mermaid CLI|mmdc|--version"
     "ImageMagick|convert|--version"
@@ -379,7 +380,7 @@ prepare_managed_scripts() {
 get_tool_info() {
     local display_name="$1"
     for tool in "${TOOLS[@]}"; do
-        if [[ "$tool" == "$display_name"* ]]; then
+        if [[ "$tool" == "$display_name|"* ]]; then
             echo "$tool"
             return 0
         fi
@@ -436,6 +437,16 @@ check_tool() {
         fi
     fi
     
+    # Special handling for Herdr App: a DMG install has no herdr-app on PATH
+    # until the first launch, and brew --cask would fail on the existing app.
+    if [ "$display_name" = "Herdr App" ] && [ "$OS" = "macos" ] && ! command -v herdr-app >/dev/null 2>&1; then
+        if [ -d "/Applications/Herdr.app" ] || [ -d "$HOME/Applications/Herdr.app" ]; then
+            print_warning "App found, open it once to add herdr-app to PATH"
+            ((PASSED++))
+            return 0
+        fi
+    fi
+
     # Check if command exists
     if ! command -v "$command_name" >/dev/null 2>&1; then
         print_error "Missing"
@@ -659,6 +670,12 @@ get_install_command() {
                 arch|debian) echo "curl -fsSL https://herdr.dev/install.sh | sh" ;;
             esac
             ;;
+        "Herdr App")
+            case "$OS" in
+                macos) echo "brew install --cask herdr-app" ;;
+                arch|debian) echo "curl -fsSL https://releases.herdr.dev/app/install.sh | sh" ;;
+            esac
+            ;;
         "Tectonic")
             case "$OS" in
                 macos) echo "brew install tectonic" ;;
@@ -795,6 +812,7 @@ step_additional_tools() {
     run_check "OpenCode"
     run_check "Pi"
     run_check "Herdr"
+    run_check "Herdr App"
     run_check "RTK"
     run_check "FFF MCP"
     run_check "Playwright CLI"
