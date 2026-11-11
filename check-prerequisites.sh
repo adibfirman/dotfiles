@@ -56,6 +56,7 @@ TOOLS=(
     "Herdr|herdr|--version"
     "Herdr App|herdr-app|--version"
     "Herdr Notify|notify-send|--version"
+    "terminal-notifier|terminal-notifier|-version"
     "Tectonic|tectonic|--version"
     "Mermaid CLI|mmdc|--version"
     "ImageMagick|convert|--version"
@@ -697,6 +698,11 @@ get_install_command() {
                 debian) echo "sudo apt install -y libnotify-bin" ;;
             esac
             ;;
+        "terminal-notifier")
+            case "$OS" in
+                macos) echo "brew install terminal-notifier" ;;
+            esac
+            ;;
         "Tectonic")
             case "$OS" in
                 macos) echo "brew install tectonic" ;;
@@ -835,6 +841,9 @@ step_additional_tools() {
     run_check "Herdr"
     run_check "Herdr App"
     run_check "Herdr Notify"
+    if [ "$OS" = "macos" ]; then
+        run_check "terminal-notifier"
+    fi
     run_check "RTK"
     run_check "FFF MCP"
     run_check "Playwright CLI"

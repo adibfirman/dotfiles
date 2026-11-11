@@ -85,6 +85,7 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | [Herdr](https://herdr.dev/) | `brew install herdr` / `curl -fsSL https://herdr.dev/install.sh \| sh` | Terminal-native multi-repo/worktree agent workspace manager |
 | [Herdr App](https://herdr.dev/) | `brew install --cask herdr-app` / `curl -fsSL https://releases.herdr.dev/app/install.sh \| sh` | Herdr desktop app, keyboard-driven with a `ctrl-s` which-key popup |
 | Herdr Notify | built by `check-prerequisites.sh` (macOS, needs `xcode-select --install`) / `yay -S libnotify` (Linux) | System notifications for Herdr App agent alerts |
+| [terminal-notifier](https://github.com/julienXX/terminal-notifier) | `brew install terminal-notifier` | Terminal Herdr system notifications (`[ui.toast] delivery = "system"`): a click brings the terminal to the front (macOS only) |
 | [RTK](https://github.com/rtk-ai/rtk) | `brew install rtk` / [install script](https://github.com/rtk-ai/rtk#installation) | CLI proxy for LLM token savings (60-90%) |
 | Tectonic | `yay -S tectonic` | LaTeX engine |
 | Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
