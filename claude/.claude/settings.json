@@ -60,7 +60,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash \"$HOME/.claude/statusline.sh\""
+    "command": "bash \"$HOME/.claude/statusline.sh\"",
+    "refreshInterval": 60
   },
   "subagentStatusLine": {
     "type": "command",
@@ -90,6 +91,6 @@
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
   "autoCompactEnabled": true,
-  "idleCompaction": false,
+  "idleCompaction": true,
   "voiceEnabled": true
 }

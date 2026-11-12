@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Custom statusline: model, context bar, idle compaction bar, folder and git branch.
+# Custom statusline: model, idle compaction bar, countdown to idle compaction, folder.
 # Fed session JSON on stdin by Claude Code.
 
 INPUT=$(cat)
@@ -21,10 +21,9 @@ sep() { printf ' %s|%s ' "$DIM" "$RST"; }
 MODEL_NAME=$(printf '%s' "$INPUT" | jq -r '.model.display_name // empty')
 EFFORT=$(printf '%s' "$INPUT" | jq -r '.effort.level // empty')
 [ -n "$MODEL_NAME" ] && printf '  \033[38;5;141m%s%s' "$MODEL_NAME" "$RST"
-[ -n "$EFFORT" ] && printf ' %s· %s%s' "$DIM" "$EFFORT" "$RST"
+[ -n "$EFFORT" ] && printf ' %s[%s]%s' "$DIM" "$EFFORT" "$RST"
 
-# ===== CONTEXT (native context_window fields, Claude Code >= 2.1.132) =====
-# --- Context window: tokens used / window size + percent ---
+# ===== TOKENS USED (native context_window fields, Claude Code >= 2.1.132) =====
 # Prefer Claude Code's own numbers (context_window.*). Fall back to the transcript
 # if current_usage is missing (e.g. no assistant turn yet).
 hk() {
@@ -34,8 +33,6 @@ hk() {
   else printf '%d' "$n"; fi
 }
 CW=$(printf '%s' "$INPUT" | jq -c '.context_window // {}')
-WINDOW=$(printf '%s' "$CW" | jq -r '.context_window_size // empty')
-[ -z "$WINDOW" ] && WINDOW=1000000
 USED=$(printf '%s' "$CW" | jq -r '.current_usage // empty | ((.input_tokens//0)+(.cache_creation_input_tokens//0)+(.cache_read_input_tokens//0))')
 if [ -z "$USED" ]; then
   TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
@@ -49,16 +46,11 @@ if [ -z "$USED" ]; then
     [ -z "$USED" ] && USED=0
   fi
 fi
-CPCT=$(printf '%s' "$CW" | jq -r '.used_percentage // empty')
-CPCT=${CPCT%.*}
-[ -z "$CPCT" ] && CPCT=$(( USED * 100 / WINDOW ))
-CCOL=$(ucol "$CPCT")
-sep
-printf '%sctx[%s%%] %s%s %s%s/%s%s' "$CCOL" "$CPCT" "$(bar "$CPCT" 10)" "$RST" "$DIM" "$(hk "$USED")" "$(hk "$WINDOW")" "$RST"
 
 # ===== IDLE COMPACTION (threshold from CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS) =====
 SETTINGS="$HOME/.claude/settings.json"
 IDLE_OFF=0
+IDLE_MET=0
 case "${DISABLE_AUTO_COMPACT:-}" in ''|0|false) ;; *) IDLE_OFF=1 ;; esac
 if [ -f "$SETTINGS" ] && jq -e '(.idleCompaction == false) or (.autoCompactEnabled == false)' "$SETTINGS" >/dev/null 2>&1; then IDLE_OFF=1; fi
 TTL=$(printf '%s' "$INPUT" | jq -r '.prompt_cache.ttl // empty')
@@ -75,19 +67,21 @@ elif [ -n "$TTL" ] && [ "$TTL" != "1h" ]; then
 else
   IPCT=$(( USED * 100 / TH ))
   printf '%sidle[%s%%] %s%s %s%s/%s%s' "$(ucol "$IPCT")" "$IPCT" "$(bar "$IPCT" 10)" "$RST" "$DIM" "$(hk "$USED")" "$(hk "$TH")" "$RST"
+  [ "$TTL" = "1h" ] && [ "$USED" -ge "$TH" ] && IDLE_MET=1
 fi
 
-# ===== FOLDER + GIT BRANCH =====
-DIR=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
-if [ -n "$DIR" ]; then
-  sep; printf '%s' "${DIR##*/}"
-  BR=$(git -C "$DIR" --no-optional-locks symbolic-ref --short -q HEAD 2>/dev/null || git -C "$DIR" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
-  if [ -n "$BR" ]; then
-    DIRTY=""
-    [ -n "$(git -C "$DIR" --no-optional-locks status --porcelain 2>/dev/null | head -n 1)" ] && DIRTY="*"
-    sep; printf '\033[38;5;75m%s\033[38;5;220m%s%s' "$BR" "$DIRTY" "$RST"
-  fi
+# ===== COUNTDOWN (estimate: idle compaction runs just before the prompt cache expires) =====
+EXP=$(printf '%s' "$INPUT" | jq -r '.prompt_cache.expires_at // empty | floor')
+case "$EXP" in ''|*[!0-9]*) EXP=0 ;; esac
+LEFT=$(( EXP - $(date +%s) ))
+if [ "$IDLE_MET" -eq 1 ] && [ "$LEFT" -gt 0 ]; then
+  sep
+  if [ "$LEFT" -lt 60 ]; then printf '%sT-<1m%s' "$DIM" "$RST"; else printf '%sT-%sm%s' "$DIM" "$(( LEFT / 60 ))" "$RST"; fi
 fi
+
+# ===== FOLDER =====
+DIR=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
+[ -n "$DIR" ] && { sep; printf '%s' "${DIR##*/}"; }
 
 # ===== USAGE CACHE (OAuth usage API, cached 60s, read by the herdr claude-usage mod) =====
 CACHE="$HOME/.claude/.usage-cache.json"
