@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Custom statusline: model, idle compaction bar, countdown to idle compaction, folder.
+# Custom statusline: model, context bar, idle compaction bar, countdown to cache expiry, folder.
 # Fed session JSON on stdin by Claude Code.
 
 INPUT=$(cat)
@@ -23,7 +23,7 @@ EFFORT=$(printf '%s' "$INPUT" | jq -r '.effort.level // empty')
 [ -n "$MODEL_NAME" ] && printf '  \033[38;5;141m%s%s' "$MODEL_NAME" "$RST"
 [ -n "$EFFORT" ] && printf ' %s[%s]%s' "$DIM" "$EFFORT" "$RST"
 
-# ===== TOKENS USED (native context_window fields, Claude Code >= 2.1.132) =====
+# ===== CONTEXT (native context_window fields, Claude Code >= 2.1.132) =====
 # Prefer Claude Code's own numbers (context_window.*). Fall back to the transcript
 # if current_usage is missing (e.g. no assistant turn yet).
 hk() {
@@ -33,6 +33,8 @@ hk() {
   else printf '%d' "$n"; fi
 }
 CW=$(printf '%s' "$INPUT" | jq -c '.context_window // {}')
+WINDOW=$(printf '%s' "$CW" | jq -r '.context_window_size // empty')
+[ -z "$WINDOW" ] && WINDOW=1000000
 USED=$(printf '%s' "$CW" | jq -r '.current_usage // empty | ((.input_tokens//0)+(.cache_creation_input_tokens//0)+(.cache_read_input_tokens//0))')
 if [ -z "$USED" ]; then
   TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
@@ -46,6 +48,11 @@ if [ -z "$USED" ]; then
     [ -z "$USED" ] && USED=0
   fi
 fi
+CPCT=$(printf '%s' "$CW" | jq -r '.used_percentage // empty')
+CPCT=${CPCT%.*}
+[ -z "$CPCT" ] && CPCT=$(( USED * 100 / WINDOW ))
+sep
+printf '%sctx[%s%%] %s%s %s%s/%s%s' "$(ucol "$CPCT")" "$CPCT" "$(bar "$CPCT" 10)" "$RST" "$DIM" "$(hk "$USED")" "$(hk "$WINDOW")" "$RST"
 
 # ===== IDLE COMPACTION (threshold from CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS) =====
 SETTINGS="$HOME/.claude/settings.json"
@@ -70,13 +77,14 @@ else
   [ "$TTL" = "1h" ] && [ "$USED" -ge "$TH" ] && IDLE_MET=1
 fi
 
-# ===== COUNTDOWN (estimate: idle compaction runs just before the prompt cache expires) =====
+# ===== COUNTDOWN (to prompt cache expiry; when met, idle compaction runs just before it) =====
 EXP=$(printf '%s' "$INPUT" | jq -r '.prompt_cache.expires_at // empty | floor')
 case "$EXP" in ''|*[!0-9]*) EXP=0 ;; esac
 LEFT=$(( EXP - $(date +%s) ))
-if [ "$IDLE_MET" -eq 1 ] && [ "$LEFT" -gt 0 ]; then
+if [ "$TTL" = "1h" ] && [ "$LEFT" -gt 0 ]; then
+  if [ "$IDLE_MET" -eq 1 ]; then TCOL=$'\033[38;5;220m'; else TCOL=$DIM; fi
   sep
-  if [ "$LEFT" -lt 60 ]; then printf '%sT-<1m%s' "$DIM" "$RST"; else printf '%sT-%sm%s' "$DIM" "$(( LEFT / 60 ))" "$RST"; fi
+  if [ "$LEFT" -lt 60 ]; then printf '%sT-<1m%s' "$TCOL" "$RST"; else printf '%sT-%sm%s' "$TCOL" "$(( LEFT / 60 ))" "$RST"; fi
 fi
 
 # ===== FOLDER =====
