@@ -110,7 +110,7 @@
             }
           ],
           "size": {
-            "px": 252
+            "px": 237
           },
           "min": 44,
           "max": 480,
@@ -228,6 +228,7 @@
                   },
                   "min": 280,
                   "max": 900,
+                  "hidden": true,
                   "background": "chrome",
                   "border": {
                     "width": 2,
@@ -258,12 +259,12 @@
     }
   ],
   "background": {
-    "image": "backgrounds/omarchy/tokyo-night/0-liftoff.webp",
+    "image": "backgrounds/omarchy/starship/1-starbase.webp",
     "fit": "cover"
   },
   "theme": {
-    "light": "tokyo-night",
-    "dark": "tokyo-night"
+    "light": "flexoki-light",
+    "dark": "starship"
   },
   "font": "Kode Mono",
   "ui_font": "Kode Mono",
