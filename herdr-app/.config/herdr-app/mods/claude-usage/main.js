@@ -2,9 +2,9 @@
 // the 5-hour window, the weekly limit of one model (for example Fable) and the weekly limit of
 // all models ("Others"). It reads the cache that ~/.claude/statusline.sh writes once a minute
 // while a Claude Code session runs, so Herdr never reads the login token or calls the network.
-import { View, div } from "gpui-kit";
+import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { exec, home, openOverlay, props, readTextFile, settings, theme } from "herdr";
+import { exec, home, knownAgents, openOverlay, props, readTextFile, settings, theme } from "herdr";
 
 const MOD = "claude-usage";
 const OLD = 5 * 60e3;
@@ -14,6 +14,8 @@ const GAP = 6;
 const GREEN = "#00d787";
 const YELLOW = "#ffd700";
 const RED = "#ff0000";
+// Claude's brand orange, for the icon when the program table marks it as a one-color glyph.
+const CLAUDE = "#D97757";
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const cachePath = () => `${home()}/.claude/.usage-cache.json`;
@@ -62,12 +64,22 @@ const clockAt = (iso) => {
   return Number.isNaN(d.getTime()) ? "" : `${DAYS[d.getDay()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const ago = (ms) => (ms < 60e3 ? "just now" : ms < 3600e3 ? `${Math.floor(ms / 60e3)} min ago` : `${Math.floor(ms / 3600e3)} h ago`);
+// The Claude Code icon from the app's program table, drawn the way the omarchy-agents mod draws it.
+const glyph = (p, size) => (p.tint ? svg(p.icon).size(size).flex_none().text_color(CLAUDE) : image(p.icon).w(size).h(size).flex_none());
 
 export default class ClaudeUsage extends View {
   init(_props, cx) {
     this.list = [];
     this.updated = null;
+    this.program = null;
     this.load(cx);
+    // No icon when the program table has no "claude" entry or the check fails.
+    cx.spawn(async (cx) => {
+      const list = await knownAgents().catch(() => []);
+      const p = list.find((a) => a?.key === "claude");
+      this.program = p?.icon ? p : null;
+      cx.notify();
+    });
     cx.timer.every(30e3, (cx) => this.load(cx));
   }
 
@@ -95,30 +107,20 @@ export default class ClaudeUsage extends View {
     const t = theme();
     const now = Date.now();
     const old = !this.updated || now - this.updated > OLD;
-    const narrow = this.narrow ?? globalThis.window.viewport_size().width < 1024;
     const color = (w) => (old ? t.dim : tone(w.used));
-    const seg = (w) => h_flex().gap(5).items_center().flex_none()
-      .child(div().whitespace_nowrap().text_color(color(w)).child(`${w.label}[${w.used}%]`))
-      .when(!narrow, (el) => el.child(div().relative().w(48).h(6).bg(t.border)
-        .child(div().absolute().left(0).top(0).h_full().w(`${w.used}%`).bg(color(w)))))
-      .child(div().whitespace_nowrap().text_color(t.dim).child(left(w.resets, now)));
+    // Only the label and percent; the popup shows the bars and reset times.
+    const seg = (w) => div().flex_none().whitespace_nowrap().text_color(color(w)).child(`${w.label}[${w.used}%]`);
     const sep = (i) => div().id(`usage-sep-${i}`).flex_none().text_color(t.border).child("│");
     const segs = this.list.map(seg);
     return h_flex().id("root").size_full().items_center().justify_end().bg(t.chrome).overflow_hidden()
-      .px(10).gap(narrow ? 10 : 14).text_size(11)
-      .on_size_change((_size, cx) => {
-        const n = globalThis.window.viewport_size().width < 1024;
-        if (n !== this.narrow) {
-          this.narrow = n;
-          cx.notify();
-        }
-      })
+      .px(10).gap(10).text_size(11)
       .on_mouse_down("left", (e, cx) => {
         this.anchor = e.bounds;
         cx.stop_propagation();
       })
       .on_click(() => this.open())
       .when(old && Boolean(this.updated), (el) => el.child(div().whitespace_nowrap().text_color(t.dim).child(ago(now - this.updated))))
+      .when(Boolean(this.program), (el) => el.child(div().flex_none().opacity(old ? 0.4 : 1).child(glyph(this.program, 16))))
       .when(!segs.length, (el) => el.child(div().whitespace_nowrap().text_color(t.dim).child("Claude usage: no data")))
       .children(segs.flatMap((s, i) => (i ? [sep(i), s] : [s])));
   }
@@ -144,11 +146,12 @@ export default class ClaudeUsage extends View {
           .child(div().absolute().left(0).top(0).h_full().w(`${w.used}%`).bg(tone(w.used))))
         .child(div().text_size(11.5).text_color(t.dim).child(reset || "no reset time"));
     };
-    const status = this.updated ? `Updated ${ago(now - this.updated)} by the Claude Code statusline` : "No data yet: start a Claude Code session";
     return v_flex().w_full().p(14).gap(14).text_size(12).text_color(t.muted)
       .bg(t.popover).border(1).border_color(t.border).rounded(0)
-      .child(div().text_size(13).font_semibold().text_color(t.foreground).child("Claude usage"))
+      .child(h_flex().gap(6).items_center()
+        .when(Boolean(this.program), (el) => el.child(glyph(this.program, 18)))
+        .child(div().text_size(13).font_semibold().text_color(t.foreground).child("Claude usage")))
       .children(this.list.map(row))
-      .child(div().text_size(11.5).text_color(t.dim).child(status));
+      .when(!this.updated, (el) => el.child(div().text_size(11.5).text_color(t.dim).child("No data yet: start a Claude Code session")));
   }
 }
