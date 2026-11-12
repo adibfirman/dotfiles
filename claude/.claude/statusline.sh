@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Custom statusline: model + context bar + 5h and weekly usage bars.
+# Custom statusline: model, context bar, idle compaction bar, folder and git branch.
 # Fed session JSON on stdin by Claude Code.
 
 INPUT=$(cat)
@@ -15,6 +15,7 @@ bar() {
 }
 # color by usage pct: low=green, mid=yellow, high=red
 ucol() { if [ "$1" -lt 60 ]; then printf '\033[38;5;42m'; elif [ "$1" -lt 85 ]; then printf '\033[38;5;220m'; else printf '\033[38;5;196m'; fi; }
+sep() { printf ' %s|%s ' "$DIM" "$RST"; }
 
 # ===== MODEL NAME + EFFORT =====
 MODEL_NAME=$(printf '%s' "$INPUT" | jq -r '.model.display_name // empty')
@@ -52,14 +53,48 @@ CPCT=$(printf '%s' "$CW" | jq -r '.used_percentage // empty')
 CPCT=${CPCT%.*}
 [ -z "$CPCT" ] && CPCT=$(( USED * 100 / WINDOW ))
 CCOL=$(ucol "$CPCT")
-printf '  %sctx[%s%%] %s%s %s%s/%s%s' "$CCOL" "$CPCT" "$(bar "$CPCT" 10)" "$RST" "$DIM" "$(hk "$USED")" "$(hk "$WINDOW")" "$RST"
+sep
+printf '%sctx[%s%%] %s%s %s%s/%s%s' "$CCOL" "$CPCT" "$(bar "$CPCT" 10)" "$RST" "$DIM" "$(hk "$USED")" "$(hk "$WINDOW")" "$RST"
 
-# ===== 5-HOUR SESSION USAGE (from OAuth usage API, cached 30s) =====
+# ===== IDLE COMPACTION (threshold from CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS) =====
+SETTINGS="$HOME/.claude/settings.json"
+IDLE_OFF=0
+case "${DISABLE_AUTO_COMPACT:-}" in ''|0|false) ;; *) IDLE_OFF=1 ;; esac
+if [ -f "$SETTINGS" ] && jq -e '(.idleCompaction == false) or (.autoCompactEnabled == false)' "$SETTINGS" >/dev/null 2>&1; then IDLE_OFF=1; fi
+TTL=$(printf '%s' "$INPUT" | jq -r '.prompt_cache.ttl // empty')
+TH=${CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS:-}
+case "$TH" in ''|*[!0-9]*) TH=200000 ;; esac
+TH=$((10#$TH))
+[ "$TH" -le 0 ] && TH=200000
+[ "$TH" -lt 100000 ] && TH=100000
+sep
+if [ "$IDLE_OFF" -eq 1 ]; then
+  printf '%sidle off%s' "$DIM" "$RST"
+elif [ -n "$TTL" ] && [ "$TTL" != "1h" ]; then
+  printf '%sidle ttl %s%s' "$DIM" "$TTL" "$RST"
+else
+  IPCT=$(( USED * 100 / TH ))
+  printf '%sidle[%s%%] %s%s %s%s/%s%s' "$(ucol "$IPCT")" "$IPCT" "$(bar "$IPCT" 10)" "$RST" "$DIM" "$(hk "$USED")" "$(hk "$TH")" "$RST"
+fi
+
+# ===== FOLDER + GIT BRANCH =====
+DIR=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
+if [ -n "$DIR" ]; then
+  sep; printf '%s' "${DIR##*/}"
+  BR=$(git -C "$DIR" --no-optional-locks symbolic-ref --short -q HEAD 2>/dev/null || git -C "$DIR" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
+  if [ -n "$BR" ]; then
+    DIRTY=""
+    [ -n "$(git -C "$DIR" --no-optional-locks status --porcelain 2>/dev/null | head -n 1)" ] && DIRTY="*"
+    sep; printf '\033[38;5;75m%s\033[38;5;220m%s%s' "$BR" "$DIRTY" "$RST"
+  fi
+fi
+
+# ===== USAGE CACHE (OAuth usage API, cached 60s, read by the herdr claude-usage mod) =====
 CACHE="$HOME/.claude/.usage-cache.json"
-TTL=60
+CACHE_TTL=60
 now=$(date +%s)
 mtime=0; [ -f "$CACHE" ] && mtime=$(stat -f %m "$CACHE" 2>/dev/null || echo 0)
-if [ $(( now - mtime )) -ge $TTL ]; then
+if [ $(( now - mtime )) -ge $CACHE_TTL ]; then
   # refresh in background so statusline never blocks; only replace cache when
   # the response actually contains usage data (errors would clobber good data)
   (
