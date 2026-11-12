@@ -40,7 +40,7 @@ Use this mode only when the arguments contain the phrase `full audit`.
 - Scope: the whole repository. Each path argument limits the scope to that path. Record everything outside the scope as `out_of_scope`.
 - Profile: `standard`, unless the arguments contain `quick` or `deep`.
 - Run `security-audit` in its full audit mode: all six phases, the coverage ledger, `findings.json`, and the report files. Output goes to its default directory `~/security-audit-skill/<repo-name>/run-<N>`.
-- `security-audit` owns orchestration, verdicts, and severity. Call `Skill(technical)` for the target language's security checklist, if one exists, and give it to the hunters as input. React and React Native have none, so the hunters use only the attack classes in `security-audit`. Do not run a separate audit mode from a language skill.
+- `security-audit` owns orchestration and severity. Call `Skill(technical)` for the target language's security checklist, if one exists, and give it to the hunters as input. React and React Native have none, so the hunters use only the attack classes in `security-audit`. Do not run a separate audit mode from a language skill.
 
 ### Submit: `/code-review submit <PR URL or number>`
 
@@ -60,8 +60,9 @@ This mode is not a way to review code. Use it only after a review was done in th
 Every review ends with one verdict. Pick it from the findings and from the `not fixed` previous threads:
 
 - ❌ Request changes: at least one must-fix finding.
-- 💬 Comment: no must-fix finding, and at least one comment.
-- ✅ Approve: no finding.
+- ✅ Approve: no must-fix finding. Post each comment as an inline comment.
+
+Use 💬 Comment only when the user asks for it.
 
 A finding is must-fix only when it is one of these:
 
@@ -161,7 +162,7 @@ Use this format when you post a review recap to a chat platform, for example a S
 - Verdict words match GitHub, with an emoji: `✅ Approved`, `❌ Changes requested`, `💬 Commented`.
 - Split findings into two groups only: "Must fix before merge" and "Comments". Do not use severity labels such as High or NIT. They stay in the inline comments.
 - List at most 5 items. Write the rest as "+N more on the PR".
-- ❌ Changes requested: list the must-fix items, and show the comments as a count only. 💬 Commented: list the comments. ✅ Approved: no list.
+- ❌ Changes requested: list the must-fix items, and show the comments as a count only. ✅ Approved: show the comments as a count only. 💬 Commented: list the comments.
 - On a re-review, add `Previous threads: <N> resolved, <M> still open.` Put a still-open Must-fix thread in the "Must fix before merge" list.
 - Leave out a line that has no content.
 
@@ -186,10 +187,10 @@ Start with one bullet per PR:
 ```
 Reviewed 3 PRs:
 - **✅ Approved** · [repo#135](pr-url): <one-line summary>
-- **💬 Commented** · [repo#136](pr-url): <one-line summary>
+- **❌ Changes requested** · [repo#136](pr-url): <one-line summary>
 ```
 
-When a PR has 2 or more must-fix items, or is 💬 Commented with 2 or more comments, add its one-PR block below the bullets.
+When a PR has 2 or more must-fix items, add its one-PR block below the bullets.
 
 ## Attribution
 
