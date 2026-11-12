@@ -20,5 +20,7 @@ Thumbs.db
 .env.*.local
 
 # Herdr app: files the app writes into each mod folder
-herdr-app/.config/herdr-app/mods/*/jsconfig.json
-herdr-app/.config/herdr-app/mods/*/gpui-kit.d.ts
+herdr-app/.config/herdr-app/mods/**/jsconfig.json
+herdr-app/.config/herdr-app/mods/**/gpui-kit.d.ts
+# Herdr app: the omarchy-bar desktop wallpaper cache
+herdr-app/.config/herdr-app/backgrounds/desktop/

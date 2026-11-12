@@ -209,6 +209,10 @@ The `my-main` layout (`layouts/my-main.json`, a clone of the shipped `main` layo
 - `mods/agent-notify/` replaces the shipped toast. When the Herdr window is not active, agent alerts also go to the system. On macOS they go through Herdr Notify, a small app that `notifier/build.sh` builds in `~/.local/share/herdr-notify/` (based on [cockpit](https://github.com/quaresc/cockpit)'s notifier, MIT). Allow "Herdr Notify" once in System Settings → Notifications. On Linux they go through `notify-send`. A click opens the agent.
 - `mods/copy-toast/` shows a "Copied" toast after a copy. Herdr itself copies a terminal selection when you release the mouse, on macOS and Linux (hold Shift when the program in the pane takes the mouse). The mod only watches the clipboard for up to 30 s after a left press.
 
+The `omarchy` layout (`layouts/omarchy.json`) is the daily layout. It comes from [herdr-omarchy](https://github.com/shafiqimtiaz/herdr-omarchy) (commit `168840b`, the Omarchy desktop look, MIT). `omarchy/SOURCE.md` lists what changed. `cmd-shift-l` cycles through the layouts, `my-main` included. It uses the same `agent-notify` and `copy-toast` mods, and one more of our own:
+
+- `mods/claude-usage/` shows the Claude Code limits in the top bar: 5 hours, the weekly limit of one model, and the weekly limit of all models. It reads `~/.claude/.usage-cache.json`, which `claude/.claude/statusline.sh` writes once a minute while a Claude Code session runs, so the mod never reads a login token.
+
 ### OpenCode + RTK Integration
 
 The OpenCode configuration includes an auto-loaded RTK rewrite plugin (`~/.config/opencode/plugins/rtk-rewrite.ts`) that transparently rewrites shell commands to use `rtk` for token-optimized output. This provides 60-90% token savings on common development commands like `git status`, `cargo test`, `npm run build`, etc.

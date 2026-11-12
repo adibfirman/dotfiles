@@ -1,0 +1,12 @@
+mods/omarchy-tabs/main.js is adapted from Herdr's tabs mod, and
+mods/omarchy-tabs/pane.js is adapted from Herdr's pane mod, shipped by
+https://github.com/herdrdev/herdr-app under the Apache License, Version 2.0.
+See LICENSE-APACHE.
+
+Changes include automatic OMP/Claude tab names, manual tab-name opt-out,
+wider tab labels, optional workspace panel controls, and per-pane live
+session titles with full-title tooltips. Herdr's built-in mods are unchanged.
+
+The icons in mods/omarchy-tabs/icons/ (spinner, close, files, changes,
+split-right, split-down, zoom, unzoom) are copied from Herdr's shipped
+mods, under the same license.

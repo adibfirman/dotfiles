@@ -1,0 +1,283 @@
+{
+  "id": "root",
+  "type": "column",
+  "children": [
+    {
+      "id": "topbar",
+      "type": "row",
+      "children": [
+        {
+          "id": "bar-left",
+          "type": "block",
+          "content": {
+            "mod": "omarchy-bar",
+            "props": {
+              "part": "left"
+            }
+          },
+          "size": {
+            "weight": 3
+          }
+        },
+        {
+          "id": "ai-usage",
+          "type": "block",
+          "content": {
+            "mod": "claude-usage"
+          },
+          "size": {
+            "weight": 2.5
+          }
+        },
+        {
+          "id": "bar-right",
+          "type": "block",
+          "content": {
+            "mod": "omarchy-bar",
+            "props": {
+              "part": "right"
+            }
+          },
+          "size": {
+            "px": 0
+          }
+        }
+      ],
+      "size": {
+        "px": 30
+      },
+      "background": "chrome",
+      "resizable": false,
+      "window_drag": true
+    },
+    {
+      "id": "desk",
+      "type": "row",
+      "children": [
+        {
+          "id": "sidebar",
+          "type": "column",
+          "children": [
+            {
+              "id": "spaces",
+              "type": "block",
+              "content": {
+                "mod": "omarchy-spaces"
+              },
+              "size": {
+                "weight": 1
+              },
+              "min": 90,
+              "background": "chrome",
+              "border": {
+                "width": 2,
+                "color": "border"
+              }
+            },
+            {
+              "id": "agents",
+              "type": "block",
+              "content": {
+                "mod": "omarchy-agents"
+              },
+              "size": {
+                "weight": 1
+              },
+              "min": 90,
+              "background": "chrome",
+              "border": {
+                "width": 2,
+                "color": "border"
+              }
+            },
+            {
+              "id": "sidebar-footer",
+              "type": "block",
+              "content": {
+                "mod": "omarchy-chrome",
+                "props": {
+                  "footer": true
+                }
+              },
+              "size": {
+                "px": 84
+              },
+              "background": "chrome",
+              "border": {
+                "width": 2,
+                "color": "border"
+              }
+            }
+          ],
+          "size": {
+            "px": 252
+          },
+          "min": 44,
+          "max": 480,
+          "gap": 10,
+          "resizable": false
+        },
+        {
+          "id": "work",
+          "type": "column",
+          "children": [
+            {
+              "id": "tabs",
+              "type": "block",
+              "content": {
+                "mod": "omarchy-tabs"
+              },
+              "size": {
+                "px": 36
+              },
+              "background": "chrome",
+              "border": {
+                "width": 2,
+                "color": "border"
+              }
+            },
+            {
+              "id": "work-body",
+              "type": "row",
+              "children": [
+                {
+                  "id": "main",
+                  "type": "block",
+                  "content": {
+                    "tab": "active",
+                    "pane": {
+                      "header": {
+                        "content": {
+                          "mod": "omarchy-pane"
+                        },
+                        "reveal": "always",
+                        "height": 30,
+                        "position": "top"
+                      },
+                      "background": "background",
+                      "border": {
+                        "width": 2,
+                        "color": "border"
+                      },
+                      "focus": {
+                        "width": 2,
+                        "color": "accent"
+                      },
+                      "radius": 0,
+                      "gap": 10,
+                      "lone": true
+                    }
+                  }
+                },
+                {
+                  "id": "panel",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "panel-body",
+                      "type": "stack",
+                      "children": [
+                        {
+                          "id": "files",
+                          "type": "block",
+                          "content": {
+                            "mod": "omarchy-files"
+                          }
+                        },
+                        {
+                          "id": "changes",
+                          "type": "stack",
+                          "children": [
+                            {
+                              "id": "changes-view",
+                              "type": "block",
+                              "content": {
+                                "mod": "omarchy-changes",
+                                "props": {
+                                  "graph": "git-graph"
+                                }
+                              }
+                            },
+                            {
+                              "id": "git-graph",
+                              "type": "block",
+                              "content": {
+                                "mod": "omarchy-changes",
+                                "props": {
+                                  "view": "graph",
+                                  "back": "changes-view"
+                                }
+                              }
+                            }
+                          ],
+                          "active": "changes-view"
+                        },
+                        {
+                          "id": "browser-notes",
+                          "type": "block",
+                          "content": {
+                            "mod": "omarchy-browser"
+                          }
+                        }
+                      ],
+                      "active": "changes"
+                    }
+                  ],
+                  "size": {
+                    "px": 475
+                  },
+                  "min": 280,
+                  "max": 900,
+                  "background": "chrome",
+                  "border": {
+                    "width": 2,
+                    "color": "border"
+                  }
+                }
+              ],
+              "gap": 10
+            }
+          ],
+          "gap": 10,
+          "resizable": false
+        }
+      ],
+      "padding": 10,
+      "gap": 10,
+      "resizable": true
+    },
+    {
+      "id": "copy-toast",
+      "type": "block",
+      "content": {
+        "mod": "copy-toast"
+      },
+      "size": {
+        "px": 0
+      }
+    }
+  ],
+  "background": {
+    "image": "backgrounds/omarchy/tokyo-night/0-liftoff.webp",
+    "fit": "cover"
+  },
+  "theme": {
+    "light": "tokyo-night",
+    "dark": "tokyo-night"
+  },
+  "font": "Kode Mono",
+  "ui_font": "Kode Mono",
+  "terminal_padding": [
+    12,
+    12
+  ],
+  "resizable": false,
+  "titlebar": "none",
+  "traffic_lights": [
+    12,
+    8
+  ],
+  "preview": "layouts/omarchy.svg",
+  "terminal_menu": "omarchy-menu",
+  "toast": "agent-notify"
+}
