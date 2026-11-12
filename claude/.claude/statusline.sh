@@ -78,12 +78,18 @@ else
 fi
 
 # ===== COUNTDOWN (to prompt cache expiry; when met, idle compaction runs just before it) =====
+# T-? = no prompt_cache yet (resumed session, no response yet); cold = cache expired
+HAS_PC=$(printf '%s' "$INPUT" | jq -r 'if .prompt_cache then 1 else 0 end')
 EXP=$(printf '%s' "$INPUT" | jq -r '.prompt_cache.expires_at // empty | floor')
 case "$EXP" in ''|*[!0-9]*) EXP=0 ;; esac
 LEFT=$(( EXP - $(date +%s) ))
-if [ "$TTL" = "1h" ] && [ "$LEFT" -gt 0 ]; then
+sep
+if [ "$HAS_PC" != "1" ]; then
+  printf '\033[38;5;42mT-?%s' "$RST"
+elif [ "$LEFT" -le 0 ]; then
+  printf '%scold%s' "$DIM" "$RST"
+else
   if [ "$IDLE_MET" -eq 1 ]; then TCOL=$'\033[38;5;220m'; else TCOL=$DIM; fi
-  sep
   if [ "$LEFT" -lt 60 ]; then printf '%sT-<1m%s' "$TCOL" "$RST"; else printf '%sT-%sm%s' "$TCOL" "$(( LEFT / 60 ))" "$RST"; fi
 fi
 
