@@ -259,12 +259,12 @@
     }
   ],
   "background": {
-    "image": "backgrounds/omarchy/starship/1-starbase.webp",
+    "image": "backgrounds/omarchy/hackerman/1-synth-scape.webp",
     "fit": "cover"
   },
   "theme": {
     "light": "flexoki-light",
-    "dark": "starship"
+    "dark": "hackerman"
   },
   "font": "Kode Mono",
   "ui_font": "Kode Mono",
