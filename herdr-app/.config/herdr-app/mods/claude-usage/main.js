@@ -118,7 +118,6 @@ export default class ClaudeUsage extends View {
         cx.stop_propagation();
       })
       .on_click(() => this.open())
-      .tooltip(this.list.map((w) => `${w.long}: ${w.used}%`).join("\n") || "No Claude usage yet")
       .when(old && Boolean(this.updated), (el) => el.child(div().whitespace_nowrap().text_color(t.dim).child(ago(now - this.updated))))
       .when(!segs.length, (el) => el.child(div().whitespace_nowrap().text_color(t.dim).child("Claude usage: no data")))
       .children(segs.flatMap((s, i) => (i ? [sep(i), s] : [s])));
@@ -127,9 +126,8 @@ export default class ClaudeUsage extends View {
   open() {
     const b = this.anchor;
     const z = Number(settings()?.zoom) || 1;
-    const height = 76 + Math.max(1, this.list.length) * 64;
     const at = b ? { x: Math.max(0, b.x + b.width - (POPUP_W + GAP) * z), y: b.y + b.height + GAP * z } : undefined;
-    openOverlay({ mod: MOD, kind: "popup", frame: "none", width: POPUP_W, height, at, props: { details: true } });
+    openOverlay({ mod: MOD, kind: "popup", frame: "none", width: POPUP_W, at, props: { details: true } });
   }
 
   details() {
