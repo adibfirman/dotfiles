@@ -9,6 +9,14 @@
 - Claude in Chrome: use its tools only when I started the session with `claude --chrome`. Same Level 3 rule.
 - For code search or go to definition, delegate to the `coder` subagent. It uses the fff tools.
 
+### herdr-app terminals (`hc`)
+
+- My agents run in herdr-app. Its CLI is `hc` (herdr-core), not `herdr`.
+- A pane id like `t7` or `t1g` is an `hc` terminal address. Never look it up with `herdr pane`.
+- Before the first `hc` call in a session, run `hc --skill` and follow that manual.
+- `$HC_TERMINAL_ID` is your own address.
+- Levels: `hc ls`, `hc get`, and `hc read` are Level 1. Run `hc send` and `hc keys` only when I ask to message a pane. `hc kill`, `hc rm`, and `hc run` are Level 3: ask first.
+
 ## MCP Tool Usage
 
 ### GitHub
