@@ -38,6 +38,7 @@ export default class OmarchyThemes extends View {
       await writeTextFile(file, JSON.stringify({ ...person, appearance: x.light ? "light" : "dark" }, null, 2) + "\n", raw).catch(() => null);
     }
     run("app.theme", { name: x.name });
+    try { run("omarchy-bar.match-wallpaper"); } catch { /* omarchy-bar is not in this layout */ }
     closeOverlay(props().overlay);
   }
 

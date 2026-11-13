@@ -266,8 +266,6 @@
     "light": "flexoki-light",
     "dark": "hackerman"
   },
-  "font": "Kode Mono",
-  "ui_font": "Kode Mono",
   "terminal_padding": [
     12,
     12

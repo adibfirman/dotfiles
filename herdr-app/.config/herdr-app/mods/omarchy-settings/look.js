@@ -155,6 +155,7 @@ function themePicker(t, light) {
           .hover((s) => s.bg(t.raised))
           .on_click((_e, cx) => {
             run("app.theme", { name });
+            try { run("omarchy-bar.match-wallpaper"); } catch { /* omarchy-bar is not in this layout */ }
             cx.notify();
           })
           .child(
