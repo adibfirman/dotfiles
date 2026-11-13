@@ -110,7 +110,7 @@
             }
           ],
           "size": {
-            "px": 237
+            "px": 271
           },
           "min": 44,
           "max": 480,
@@ -228,7 +228,6 @@
                   },
                   "min": 280,
                   "max": 900,
-                  "hidden": true,
                   "background": "chrome",
                   "border": {
                     "width": 2,
@@ -259,12 +258,12 @@
     }
   ],
   "background": {
-    "image": "backgrounds/omarchy/catppuccin-frappe/1-totoro.webp",
+    "image": "backgrounds/omarchy/tokyo-night/0-liftoff.webp",
     "fit": "cover"
   },
   "theme": {
     "light": "catppuccin-latte",
-    "dark": "catppuccin-frappe"
+    "dark": "tokyo-night"
   },
   "terminal_padding": [
     6,
