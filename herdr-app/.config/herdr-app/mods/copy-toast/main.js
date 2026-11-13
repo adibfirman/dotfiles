@@ -7,9 +7,12 @@
 // the clipboard every 100 ms. When the text changes, it shows "Copied" and
 // stops. It also stops after 30 s or at the next press. It never writes the
 // clipboard. Copying the same text again shows no toast.
+// A mod that copies and shows its own toast first sets
+// shared("copy-toast.handled") to Date.now(). When that time is at or after
+// the press that started the watch, this mod shows nothing.
 
 import { View, div } from "gpui-kit";
-import { notify } from "herdr";
+import { notify, shared } from "herdr";
 
 const POLL_MS = 100;
 const MAX_MS = 30000;
@@ -32,6 +35,8 @@ export default class CopyToast extends View {
     this.watch = cx.timer.every(POLL_MS, (cx) => {
       if (cx.read_from_clipboard() !== before) {
         this.stop();
+        // Another mod copied this text and showed its own toast.
+        if ((shared("copy-toast.handled") ?? 0) >= started) return;
         notify({ title: "Copied", level: "success", timeout: 1500 });
       } else if (Date.now() - started > MAX_MS) {
         this.stop();

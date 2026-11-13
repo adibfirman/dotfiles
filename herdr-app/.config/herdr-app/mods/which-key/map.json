@@ -43,7 +43,8 @@
         { "keys": ["h"], "label": "focus left", "command": "pane.go", "args": { "direction": "left" } },
         { "keys": ["j"], "label": "focus down", "command": "pane.go", "args": { "direction": "down" } },
         { "keys": ["k"], "label": "focus up", "command": "pane.go", "args": { "direction": "up" } },
-        { "keys": ["l"], "label": "focus right", "command": "pane.go", "args": { "direction": "right" } }
+        { "keys": ["l"], "label": "focus right", "command": "pane.go", "args": { "direction": "right" } },
+        { "keys": ["shift-i"], "label": "copy pane id", "copy": "terminal" }
       ]
     },
     {

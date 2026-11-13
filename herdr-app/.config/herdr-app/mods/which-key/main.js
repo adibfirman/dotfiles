@@ -6,7 +6,7 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, hc, focused, props, closeOverlay, openOverlay, nextCommand, readTextFile, appHome, theme, notify } from "herdr";
+import { run, hc, focused, props, closeOverlay, openOverlay, nextCommand, readTextFile, appHome, theme, notify, setShared } from "herdr";
 
 // macOS can report a shifted digit as its symbol. Map it back to "shift-<digit>".
 const SHIFTED = { "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9", ")": "0" };
@@ -102,6 +102,8 @@ export default class WhichKey extends View {
     if (entry.worktree) {
       const space = focused()?.space;
       openOverlay({ mod: "worktree", kind: "dialog", width: 440, height: 260, props: { space, action: entry.worktree } });
+    } else if (entry.copy === "terminal") {
+      this.copyTerminal(cx);
     } else if (entry.command) {
       run(entry.command, entry.args ?? {});
     }
@@ -113,6 +115,19 @@ export default class WhichKey extends View {
         this.handle.focus();
       }
     }
+  }
+
+  // Copies the focused terminal's hc address (for example t1g), like herdr's prefix+shift+i.
+  copyTerminal(cx) {
+    const address = focused()?.terminal;
+    if (!address) {
+      notify({ title: "No terminal to copy", level: "warning" });
+      return;
+    }
+    // Tell copy-toast that this copy shows its own toast.
+    setShared("copy-toast.handled", Date.now());
+    cx.write_to_clipboard(address);
+    notify({ title: "Pane copied", body: address, level: "success" });
   }
 
   handle_key(e, cx) {
