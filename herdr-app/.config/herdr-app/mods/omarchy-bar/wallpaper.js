@@ -6,14 +6,17 @@ const cache = () => `${appHome()}/backgrounds/desktop`;
 
 // Copies the picture into backgrounds/desktop/ (the layout only takes paths in the app home).
 // Its type comes from its first bytes: GNOME's ~/.config/background and Windows' TranscodedWallpaper have no extension.
+// An ISO-BMFF ("ftyp") picture such as macOS' HEIC becomes JPEG through sips; one sips can't read falls back to the theme's.
 // Named by content, so an edited file at the same path still changes; only the current one stays.
 async function cached(src) {
   if (window()?.platform === "windows") return cachedOnWindows(src);
   const script = `
     src=$(readlink -f "$1") || exit 1
     magic=$(od -An -tx1 -N12 "$src" | tr -d ' \n') || exit 1
+    heic=
     case "$magic" in
       89504e47*) ext=png ;;
+      ????????66747970*) ext=jpg; heic=1 ;;
       ffd8ff*) ext=jpg ;;
       52494646????????57454250) ext=webp ;;
       *) exit 1 ;;
@@ -22,7 +25,10 @@ async function cached(src) {
     hash=\${hash%% *}
     file="$2/current-$hash.$ext"
     mkdir -p "$2" || exit 1
-    if [ ! -f "$file" ]; then cp -- "$src" "$file" || exit 1; fi
+    if [ ! -f "$file" ]; then
+      if [ -n "$heic" ]; then sips -s format jpeg "$src" --out "$file.tmp" >/dev/null && mv -f -- "$file.tmp" "$file" || { rm -f -- "$file.tmp"; exit 1; }
+      else cp -- "$src" "$file" || exit 1; fi
+    fi
     for old in "$2"/current-*; do
       if [ "$old" != "$file" ] && [ -f "$old" ]; then rm -f -- "$old"; fi
     done
@@ -91,14 +97,19 @@ async function windowsWallpaper() {
   return (r?.code === 0 && r.stdout.trim()) || null;
 }
 
-// Where the desktop's picture is: Omarchy's link, or, when asked, GNOME's or Windows' setting.
-// macOS is left out: it asks permission first, and its built-in pictures are HEIC.
+// macOS: the current desktop's picture, through System Events (HEIC pictures become JPEG in cached()).
+async function macWallpaper() {
+  const r = await exec("osascript", ["-e", 'tell application "System Events" to get picture of current desktop']).catch(() => null);
+  return (r?.code === 0 && r.stdout.trim()) || null;
+}
+
+// Where the desktop's picture is: Omarchy's link, or, when asked, GNOME's, Windows' or macOS' setting.
 async function desktopSource() {
   const omarchy = await omarchyLink();
   if (omarchy) return { omarchy: true, path: omarchy };
   if (!(await following())) return null;
   const platform = window()?.platform;
-  const path = platform === "windows" ? await windowsWallpaper() : platform === "linux" ? await gnomeWallpaper() : null;
+  const path = platform === "windows" ? await windowsWallpaper() : platform === "linux" ? await gnomeWallpaper() : platform === "macos" ? await macWallpaper() : null;
   return path ? { omarchy: false, path } : null;
 }
 

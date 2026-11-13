@@ -296,7 +296,7 @@ export function look(view, t, cx) {
       row(
         t,
         "Desktop wallpaper",
-        "Show your desktop's wallpaper instead of the theme's, on GNOME and Windows. Omarchy always does.",
+        "Show your desktop's wallpaper instead of the theme's, on macOS, GNOME and Windows. Omarchy always does.",
         toggle(t, "st-desktop-wallpaper", p.follow_desktop_wallpaper === true, (_e, cx) =>
           view.change((q) => (q.follow_desktop_wallpaper = q.follow_desktop_wallpaper !== true), cx, () => run("omarchy-bar.match-wallpaper")),
         ),
