@@ -6,6 +6,7 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui
 import { props, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, panes, setShared } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
+const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
 
 // Model settings by role group (Q45). A group shows "mixed" when its roles differ.
 const GROUPS = [
@@ -42,12 +43,15 @@ export default class ForgeStart extends View {
     Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, following: null, settings: null, settingsOpen: false, merged: new Set() });
     this.follow = TextareaState.new({ placeholder: "Follow-up: a QA bug, a change, or a review note", rows: 3 });
     this.ticket = InputState.new({ placeholder: "Ticket, like INTR-123 (empty: none)" });
-    this.goal = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 5 });
+    this.goal = TextareaState.new({ placeholder: "The goal, the rules, and the files it should touch", rows: 5 });
     // References: one per line (a doc URL, a Confluence page, a Jira key, a GitHub link, a file or image path).
     // Files dropped on the dialog are added here.
     // Workspace runs (a root that holds repos): which repos the change touches, one per line or comma separated.
     this.repoIn = InputState.new({ placeholder: "Repos, like api, web-app (grill can add more)" });
-    this.refs = TextareaState.new({ placeholder: "References, one per line: URL, Confluence page, JIRA-123, file or image path (or drop files here)", rows: 3 });
+    this.refs = TextareaState.new({ placeholder: "A URL, a Confluence page, JIRA-123, or a file or image path", rows: 3 });
+    // Settings → Allowed tools: one add row per phase (key cycles on click).
+    this.toolIn = Object.fromEntries(["grill", "verify", "exec"].map((ph) => [ph, InputState.new({ placeholder: "pnpm lint" })]));
+    this.toolKey = { grill: "bash", verify: "bash", exec: "bash" };
     cx.spawn(async (cx) => {
       // Settings load on their own, so the defaults show even outside a git repo.
       if (this.folder) {
@@ -146,10 +150,11 @@ export default class ForgeStart extends View {
   settingsView(t, button) {
     const s = this.settings;
     if (!s) return div().text_size(11.5).text_color(this.settingsError ? t.blocked : t.dim).child(this.settingsError ? `Settings: ${this.settingsError}` : "Loading settings…");
-    const editable = Boolean(this.repo); // project settings live in a repo's .forge/
+    const editable = Boolean(this.repo); // project settings live in this repo's or workspace's .forge/
     const chip = (id, label, on, f) => div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5)
       .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted)
       .when(editable && !this.busy, (e) => e.cursor_pointer().hover((x) => x.bg(t.hover)).on_click((_e, cx) => f(cx))).child(label);
+    const heading = (text) => div().pt(6).text_size(11.5).font_semibold().text_color(t.muted).child(text);
     const rows = GROUPS.map(([label, rs], i) => {
       const known = rs.filter((r) => s.models[r]);
       const values = [...new Set(known.map((r) => s.models[r].value))];
@@ -159,25 +164,57 @@ export default class ForgeStart extends View {
         .child(div().w(130).text_size(12).truncate().child(label))
         .children(["opus", "sonnet", "haiku"].map((m) => chip(`fs-m-${i}-${m}`, m, value === m, (cx) => this.config(cx, ["model", ...known.map((r) => `${r}=${m}`)]))))
         .child(div().text_size(11).text_color(project ? t.accent : t.dim).child(project ? "project" : value === "mixed" ? "mixed" : "default"))
-        .when(project, (e) => e.child(div().id(`fs-reset-${i}`).text_size(11).text_color(t.muted).cursor_pointer().on_click((_e, cx) => this.config(cx, ["model", ...known.map((r) => `${r}=default`)])).child("reset")));
+        .when(project, (e) => e.child(div().id(`fs-reset-${i}`).text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
+          .on_click((_e, cx) => this.config(cx, ["model", ...known.map((r) => `${r}=default`)])).child("reset")));
     });
+    const KEYS = ["bash", "tools", "mcp", "read", "write"];
     const phases = ["grill", "verify", "exec"].map((ph) => {
       const src = s.sources[ph];
-      return div().text_size(11.5).text_color(t.muted).child(`${ph}: ${src.allow.map(short).join(", ")}${src.mcp.length ? ` · MCP: ${src.mcp.join(", ")}` : ""}`);
+      const mine = s.project?.[ph] ?? [];
+      const mineRules = new Set(mine.map((e) => (e.key === "bash" ? `Bash(${e.value}:*)` : e.key === "mcp" ? `mcp__${e.value}` : e.value)));
+      const defaults = src.allow.filter((r) => !mineRules.has(r)).map(short);
+      return v_flex().id(`fs-tools-${ph}`).gap(6).p(8).rounded(6).bg(t.background).border_1().border_color(t.border)
+        .child(h_flex().gap(8).items_start()
+          .child(div().w(52).flex_none().text_size(12).font_semibold().child(ph))
+          .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.muted)
+            .child(`${defaults.join(", ")}${src.mcp.length ? ` · MCP: ${src.mcp.join(", ")}` : ""}`)))
+        .when(mine.length > 0, (e) => e.child(h_flex().flex_wrap().gap(6).pl(60)
+          .children(mine.map((m, i) => h_flex().id(`fs-mine-${ph}-${i}`).h(22).px(8).gap(6).items_center().rounded(5).bg(alpha(t.accent, 0.14)).text_size(11.5).text_color(t.accent)
+            .child(`${m.key}: ${m.value}`)
+            .when(editable, (c) => c.child(div().id(`fs-rm-${ph}-${i}`).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.blocked))
+              .tooltip("Remove from this repo").on_click((_e, cx) => this.config(cx, ["disallow", ph, m.key, m.value])).child("×")))))))
+        .when(editable, (e) => e.child(h_flex().gap(6).items_center().pl(60)
+          .child(div().id(`fs-key-${ph}`).h(26).w(56).flex().items_center().justify_center().rounded(5).bg(t.raised).text_size(11.5).cursor_pointer()
+            .hover((x) => x.bg(t.hover)).tooltip("Click to change: bash, tools, mcp, read, write")
+            .on_click((_e, cx) => { this.toolKey[ph] = KEYS[(KEYS.indexOf(this.toolKey[ph]) + 1) % KEYS.length]; cx.notify(); })
+            .child(this.toolKey[ph]))
+          .child(div().flex_1().h(26).px(8).flex().items_center().rounded(5).border_1().border_color(t.input).bg(t.popover)
+            .child(Input.new(this.toolIn[ph]).h_full().text_size(11.5)))
+          .child(button(`fs-add-${ph}`, "Add", (cx) => this.addTool(cx, ph)))));
     });
-    return v_flex().gap(6).p(10).rounded(8).bg(t.surface).border_1().border_color(t.border)
-      .child(div().text_size(11.5).text_color(t.dim).child(editable ? "Models: from the next agent. Cap: from the next cycle. Saved in .forge/ of this repo." : "The defaults. They can be changed per repo, from a space inside a git repo."))
+    return v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)
+      .child(div().text_size(11.5).text_color(t.dim).child(editable
+        ? `Saved in ${this.workspace ? "this workspace's" : "this repo's"} .forge/, kept for every later run here. Models and tools apply from the next agent, the cap from the next cycle.`
+        : "The defaults. They can be changed per repo or workspace."))
+      .child(heading("Models"))
       .children(rows)
-      .child(h_flex().gap(6).items_center().pt(4)
-        .child(div().w(130).text_size(12).child("Agents at once"))
+      .child(heading("Agents at once"))
+      .child(h_flex().gap(6).items_center()
         .child(chip("fs-cap-dn", "−", false, (cx) => this.config(cx, ["cap", String(Math.max(1, s.cap.value - 1))])))
-        .child(div().w(20).text_size(12).child(String(s.cap.value)))
+        .child(div().w(20).flex().justify_center().text_size(12).child(String(s.cap.value)))
         .child(chip("fs-cap-up", "+", false, (cx) => this.config(cx, ["cap", String(Math.min(8, s.cap.value + 1))])))
         .child(div().text_size(11).text_color(s.cap.from === "project" ? t.accent : t.dim).child(s.cap.from)))
-      .child(div().pt(4).text_size(12).child("Allowed tools"))
+      .child(heading("Allowed tools"))
       .children(phases)
-      .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map(short).join("\n")).child(`Deny floor: ${s.deny.length} rules, always on (hover to see)`))
+      .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map(short).join("\n")).child(`Deny floor: ${s.deny.length} rules, always on, wins over anything above (hover to see)`))
       .when(editable, (e) => e.child(h_flex().justify_end().child(button("fs-edit-sources", "Edit project SOURCES.md", (cx) => this.editSources(cx)))));
+  }
+
+  addTool(cx, ph) {
+    const value = this.toolIn[ph].value().trim();
+    if (!value) return;
+    this.toolIn[ph].set_value("");
+    this.config(cx, ["allow", ph, this.toolKey[ph], value]);
   }
 
   refList() {
@@ -252,55 +289,75 @@ export default class ForgeStart extends View {
   render(cx) {
     const t = theme();
     const name = this.repo ? this.repo.top.split("/").pop() : String(this.folder ?? "").split("/").pop();
-    const field = (child) => div().rounded(6).border_1().border_color(t.input).bg(t.background).child(child);
-    const button = (id, label, f, primary = false) => div().id(id).h(28).px(12).flex().items_center().rounded(6).text_size(12).cursor_pointer()
-      .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground).hover((s) => s.bg(primary ? t.solid : t.hover))
-      .when(!this.busy, (e) => e.on_click((_e, cx) => f(cx))).child(label);
+    const inputField = (state) => div().h(32).px(10).flex().items_center().rounded(6).border_1().border_color(t.input).bg(t.background)
+      .child(Input.new(state).h_full().text_size(12));
+    const areaField = (state) => div().px(10).py(8).rounded(6).border_1().border_color(t.input).bg(t.background)
+      .child(Textarea.new(state).text_size(12));
+    const label = (text, hint) => h_flex().justify_between().items_end().text_size(11.5)
+      .child(div().font_semibold().text_color(t.muted).child(text))
+      .when(Boolean(hint), (e) => e.child(div().text_color(t.dim).child(hint)));
+    const button = (id, text, f, primary = false) => div().id(id).h(28).px(12).flex().items_center().rounded(6).text_size(12).cursor_pointer()
+      .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground).hover((x) => x.bg(primary ? t.solid : t.hover))
+      .when(!this.busy, (e) => e.on_click((_e, cx) => f(cx))).child(text);
     const phase = (r) => {
       const h = r.head ?? {};
       return h.phase === "gate" ? ["◆ waiting for you", t.accent] : h.phase === "done" ? ["✓ done", t.done] : [`● ${h.phase ?? "?"}`, t.working];
     };
+    const where = this.workspace ? "workspace" : "repo";
     return v_flex().id("forge-start").size_full().min_h(0).bg(t.popover).text_color(t.foreground).text_size(13)
       .on_drop((e, cx) => this.dropped(e.paths ?? [], cx))
       .child(h_flex().h(44).flex_none().px(16).items_center().justify_between().border_b(1).border_color(t.border)
         .child(div().font_semibold().child(`Forge · ${name}`))
-        .child(div().id("fs-close").text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("×")))
-      .child(v_flex().id("fs-body").flex_1().min_h(0).overflow_y_scrollbar().p(16).gap(10)
-        .when(Boolean(this.error), (e) => e.child(div().text_size(12).text_color(t.blocked).child(this.error)))
+        .child(div().id("fs-close").text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground)).on_click(() => this.close()).child("×")))
+      .child(v_flex().id("fs-body").flex_1().min_h(0).overflow_y_scrollbar().p(16).gap(14)
+        .when(Boolean(this.error), (e) => e.child(div().p(8).rounded(6).bg(alpha(t.blocked, 0.12)).text_size(12).text_color(t.blocked).child(this.error)))
         .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
         .when(Boolean(this.notRepo), (e) => e.child(h_flex().justify_end().child(button("fs-git-init", "Make this a git repo", (cx) => this.gitInit(cx), true))))
-        .when(Boolean(this.workspace), (e) => e.child(div().text_size(11.5).text_color(t.accent).child(`Workspace: ${this.childRepos.length} repos. A run can change several of them, each in its own worktree under worktrees/<ticket>/.`)))
-        .when(!this.notRepo, (e) => e.child(div().text_size(11.5).text_color(t.dim).child(`Runs in this ${this.workspace ? "workspace" : "repo"} ${this.runs.length}`)))
-        .children(this.runs.map((r, i) => {
-          const [label, color] = phase(r);
-          const open = this.following === r.dir;
-          return v_flex().id(`fs-run-${i}`).gap(6).p(10).rounded(8).bg(t.surface).border_1().border_color(open ? t.accent : t.border)
-            .child(h_flex().gap(8).items_center()
-              .child(v_flex().flex_1().min_w(0)
-                .child(div().font_semibold().truncate().child(r.title || r.ticket))
-                .child(div().text_size(11.5).text_color(t.dim).truncate().child(`${r.ticket} · cycle ${r.head?.cycle ?? "?"} · ${r.branch ?? "?"}`)))
-              .child(div().flex_none().text_size(11.5).text_color(color).child(label)))
-            .child(h_flex().gap(8).justify_end().items_center()
-              .when(this.merged.has(r.dir), (e) => e.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
-              .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r.dir, r.worktree); this.close(); }))
-              .child(this.merged.has(r.dir)
-                ? button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r))
-                : button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))
-            .when(open, (e) => e.child(field(Textarea.new(this.follow).text_size(12)))
-              .child(field(Textarea.new(this.refs).text_size(12)))
-              .child(h_flex().justify_end().child(button(`fs-send-${i}`, "Send follow-up", (cx) => this.sendFollow(cx, r), true))));
-        }))
-        .when(!this.runs.length && !this.error && !this.notRepo, (e) => e.child(div().text_size(12).text_color(t.dim).child("No forge run in this repo yet.")))
+        .when(Boolean(this.workspace), (e) => e.child(div().p(8).rounded(6).bg(alpha(t.accent, 0.10)).text_size(11.5).text_color(t.accent)
+          .child(`Workspace with ${this.childRepos.length} repos. A run can change several of them, each in its own worktree under worktrees/<ticket>/<repo>.`)))
         .when(!this.notRepo, (e) => e
-          .child(div().pt(8).text_size(11.5).text_color(t.dim).child(`New run in ${this.repo?.top ?? this.folder ?? ""}`))
-          .child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.ticket).h_full().text_size(12))))
-          .when(Boolean(this.workspace), (e2) => e2.child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.repoIn).h_full().text_size(12)))))
-          .child(field(Textarea.new(this.goal).text_size(12)))
-          .when(!this.following, (e2) => e2.child(field(Textarea.new(this.refs).text_size(12))))
-          .child(h_flex().justify_between().items_center()
-            .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
-            .child(button("fs-start", "Start", (cx) => this.start(cx), true))))
-        .child(div().id("fs-settings-toggle").pt(8).text_size(11.5).text_color(t.dim).cursor_pointer().hover((x) => x.text_color(t.foreground))
+          .child(v_flex().gap(8)
+            .child(h_flex().gap(6).items_center()
+              .child(div().text_size(12).font_semibold().child(`Runs in this ${where}`))
+              .child(div().px(6).rounded(5).bg(t.raised).text_size(11).text_color(t.muted).child(String(this.runs.length))))
+            .children(this.runs.map((r, i) => {
+              const [state, color] = phase(r);
+              const open = this.following === r.dir;
+              return v_flex().id(`fs-run-${i}`).gap(8).p(10).rounded(8).bg(t.surface).border_1().border_color(open ? t.accent : t.border)
+                .child(h_flex().gap(8).items_center()
+                  .child(v_flex().flex_1().min_w(0)
+                    .child(div().font_semibold().truncate().child(r.title || r.ticket))
+                    .child(div().text_size(11.5).text_color(t.dim).truncate().child(`${r.ticket} · cycle ${r.head?.cycle ?? "?"} · ${r.branch ?? (r.repos?.length ? `${r.repos.length} repos` : "?")}`)))
+                  .child(div().flex_none().text_size(11.5).text_color(color).child(state)))
+                .child(h_flex().gap(8).justify_end().items_center()
+                  .when(this.merged.has(r.dir), (x) => x.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
+                  .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r.dir, r.worktree); this.close(); }))
+                  .child(this.merged.has(r.dir)
+                    ? button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r))
+                    : button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))
+                .when(open, (x) => x
+                  .child(label("Follow-up", "a QA bug, a change, a review note"))
+                  .child(areaField(this.follow))
+                  .child(label("References", "one per line · or drop files"))
+                  .child(areaField(this.refs))
+                  .child(h_flex().justify_end().child(button(`fs-send-${i}`, "Send follow-up", (cx) => this.sendFollow(cx, r), true))));
+            }))
+            .when(!this.runs.length && !this.error, (x) => x.child(div().text_size(12).text_color(t.dim).child(`No forge run in this ${where} yet.`))))
+          .when(!this.following, (x) => x.child(v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)
+            .child(h_flex().justify_between().items_center()
+              .child(div().text_size(12).font_semibold().child("New run"))
+              .child(div().text_size(11).text_color(t.dim).truncate().child(this.repo?.top ?? this.folder ?? "")))
+            .child(label("Ticket", "optional"))
+            .child(inputField(this.ticket))
+            .when(Boolean(this.workspace), (y) => y.child(label("Repos", "comma separated · grill can add more")).child(inputField(this.repoIn)))
+            .child(label("What to build"))
+            .child(areaField(this.goal))
+            .child(label("References", "one per line · or drop files"))
+            .child(areaField(this.refs))
+            .child(h_flex().justify_between().items_center().pt(2)
+              .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
+              .child(button("fs-start", "Start", (cx) => this.start(cx), true))))))
+        .child(div().id("fs-settings-toggle").text_size(12).font_semibold().text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => { this.settingsOpen = !this.settingsOpen; cx.notify(); })
           .child(`${this.settingsOpen ? "▾" : "▸"} Settings`))
         .when(this.settingsOpen, (e) => e.child(this.settingsView(t, button))));

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadState } from "../src/append";
-import { settings, setCap, setModels } from "../src/config";
+import { allow, disallow, settings, setCap, setModels } from "../src/config";
 import { add, setup, toExec } from "./helpers";
 
 test("settings: defaults, then project overrides marked as project", () => {
@@ -20,6 +20,24 @@ test("settings: defaults, then project overrides marked as project", () => {
   setModels(env.repo, ["unit=default"]);
   expect(settings(env.repo).models["unit"].from).toBe("default");
   expect(readFileSync(join(env.repo, ".forge", "models.md"), "utf8")).toContain("- grill-coord: haiku");
+});
+
+test("allow and disallow: project entries per phase, deny floor and unknown MCP refused", () => {
+  const env = setup();
+  allow(env.repo, "exec", "bash", "pnpm lint");
+  allow(env.repo, "exec", "bash", "pnpm lint"); // no duplicate
+  allow(env.repo, "grill", "mcp", "context7");
+  let s = settings(env.repo);
+  expect(s.project.exec).toEqual([{ key: "bash", value: "pnpm lint" }]);
+  expect(s.sources.exec.allow).toContain("Bash(pnpm lint:*)");
+  expect(s.sources.grill.mcp).toContain("context7");
+  expect(() => allow(env.repo, "exec", "bash", "git push --force")).toThrow(/blocked by the deny floor/);
+  expect(() => allow(env.repo, "grill", "mcp", "nope")).toThrow(/not in ~\/.claude\/mcp-servers.json/);
+  expect(() => allow(env.repo, "deploy", "bash", "x")).toThrow(/phase must be/);
+  disallow(env.repo, "exec", "bash", "pnpm lint");
+  s = settings(env.repo);
+  expect(s.project.exec).toEqual([]);
+  expect(s.sources.exec.allow).not.toContain("Bash(pnpm lint:*)");
 });
 
 test("bad values are refused", () => {

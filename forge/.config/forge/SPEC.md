@@ -347,3 +347,9 @@ Coordinators close each other at a handoff (`forge reconcile`), but nothing foll
 ## 20. Skills plugin without symlinks in the repo (2026-11-15)
 
 The repo held two relative symlinks (`skills-plugin/skills/code-review → ../../../../../claude/.claude/skills/code-review`). They worked, but they depend on the dotfiles layout and on stow folding `~/.config/forge`. Now `skills.md` lists the skill names, and `forge spawn` builds `~/.local/share/forge/skills-plugin/` at run time: `.claude-plugin/plugin.json` plus one link per installed skill to `~/.claude/skills/<name>` on that machine (a missing skill is skipped). Checked on a real claude: it loads `forge-skills:code-review` and `forge-skills:technical`. 109 tests pass.
+
+## 21. Allowed tools from the dialog, and dialog layout (2026-11-15)
+
+- Q53 (A): Settings → Allowed tools shows, per phase, the default tools, the entries this repo or workspace added (chips with ×), and an Add row (the key cycles through bash, tools, mcp, read, write on click; then a value). It calls `forge config allow|disallow <phase> <key> <value>`, which edits only `<main>/.forge/SOURCES.md` under `## <phase>`. An entry the deny floor blocks is refused (it would never apply), and so is an MCP server that is not in `~/.claude/mcp-servers.json`. `forge settings` returns `project`, the entries per phase, so the dialog can offer × on exactly those.
+- Settings are per repo (main checkout) or per workspace root, saved in its `.forge/`, and kept for every later run and session there.
+- Layout: labeled fields, text areas padded like the inputs, a "New run" card, "one per line · or drop files" on References, and "workspace" instead of "repo" in a workspace. 110 tests pass.

@@ -9,7 +9,7 @@ import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, coordinators, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
-import { ensureProjectSources, projectCap, setCap, setModels, settings } from "./config";
+import { allow, disallow, ensureProjectSources, projectCap, setCap, setModels, settings } from "./config";
 import { addRepos, branchRepos, reposWithHead } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
@@ -35,6 +35,8 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
   forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
   forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
+  forge config allow|disallow <phase> <tools|bash|mcp|read|write> <value> [--main <dir>]
+                                              add or remove one allowed entry for this repo or workspace
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
   forge runs                                  every registered run on this machine, as JSON
   forge register                              add a run made before the registry existed
@@ -217,10 +219,11 @@ export async function main(argv: string[]): Promise<number> {
         const [what, ...vals] = rest;
         if (what === "model" && vals.length) setModels(main, vals);
         else if (what === "cap" && vals.length === 1) setCap(main, Number(vals[0]));
+        else if ((what === "allow" || what === "disallow") && vals.length >= 3) (what === "allow" ? allow : disallow)(main, vals[0], vals[1], vals.slice(2).join(" "));
         else if (what === "sources-file" && !vals.length) {
           print({ file: ensureProjectSources(main) });
           return 0;
-        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config sources-file");
+        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config sources-file");
         print(settings(main));
         return 0;
       }
