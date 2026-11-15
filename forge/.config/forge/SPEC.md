@@ -236,3 +236,22 @@ Found and fixed:
 7. `forge status` gives `cyclePath`, the absolute cycle folder.
 
 Seen and accepted: one security gate wrote `## VERDICT: PASS` as a heading. Gate prompts now ask for `VERDICT:` as the first line.
+
+## 11. Build notes (M3: forge mod)
+
+The mod lives in the `herdr-app` stow package: `herdr-app/.config/herdr-app/mods/forge/`.
+
+- `layout.js`: Blueprint's layered layout, copied unchanged (MIT, `BLUEPRINT-LICENSE.md`).
+- `graph.js`: pure code with tests (`node --test 'test/*.test.mjs'`, 7 pass). It parses the `ts` graphs of a spec, builds the run graph from `forge status` (phases in a chain, nodes under their phase, exec nodes under their wave), and reads the agent decisions list.
+- `data.js`: git for the repo, `~/.local/bin/forge` for the run, push.
+- `main.js`: the view. It has a header (ticket, cycle, phase, running/cap, Pause/Resume), tabs (Run, Gate while the gate is open, one per spec graph, Spec), a node detail panel (output file, or the agent's terminal through `terminal.keep` while it runs), the gate view (spec, agent decisions with Override, comment, Approve), a start form, and a footer (follow-up; Push and Create PR when the cycle is done).
+- It follows the focused terminal's repo, or a pinned run: `herdr-app do pane.split --direction right --mod forge --props '{"run":"<run dir>"}'`. Pane props come from `props()` in the `herdr` module, not from the `init` argument.
+- It writes what it sees to `<app home>/data/forge/last-state.json` after each load, for debugging.
+
+Found while building:
+
+1. Herdr does not reload a symlinked mod folder when its files change (Blueprint says the same). Stow links the folder, so after an edit, restart Herdr, or test from a real copy (`mods/forge-dev`).
+2. `herdr-app shot` returns the last frame while the window is covered, so a screenshot can be stale. `last-state.json` shows the data without one.
+3. A shell filter here strips comments from `cat` output. Copy files with Python or `rtk proxy`.
+
+Not checked yet: how the graph, the gate view, and the buttons look and work in the app.
