@@ -45,6 +45,8 @@ export function normalize(node) {
     title: node.title,
     repo: node.repository?.nameWithOwner ?? "",
     draft: Boolean(node.isDraft),
+    state: node.state ?? "OPEN",
+    mergedAt: node.mergedAt ?? null,
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
     head: node.headRefName,
@@ -68,6 +70,8 @@ export function normalize(node) {
  * kind picks the color: bad, wait, good, idle.
  */
 export function prState(pr) {
+  if (pr.state === "MERGED") return { label: "Merged", kind: "good", rank: 7 };
+  if (pr.state === "CLOSED") return { label: "Closed", kind: "idle", rank: 8 };
   if (pr.draft) return { label: "Draft", kind: "idle", rank: 6 };
   if (pr.mergeable === "CONFLICTING") return { label: "Merge conflict", kind: "bad", rank: 0 };
   if (pr.ci.status === "failed") return { label: "CI failed", kind: "bad", rank: 1 };
@@ -107,6 +111,14 @@ export function timeline(pr, now = Date.now()) {
     steps.push({ label: "Changes requested", sub: pr.unresolved ? `${pr.unresolved} open threads` : "", status: "failed" });
   } else {
     steps.push({ label: "Waiting for review", sub: pr.unresolved ? `${pr.unresolved} open threads` : "", status: "todo" });
+  }
+  if (pr.state === "MERGED") {
+    steps.push({ label: `Merged → ${pr.base}`, sub: pr.mergedAt ? ago(pr.mergedAt, now) : "", status: "done" });
+    return steps;
+  }
+  if (pr.state === "CLOSED") {
+    steps.push({ label: "Closed without merge", sub: "", status: "failed" });
+    return steps;
   }
   steps.push({
     label: pr.mergeable === "CONFLICTING" ? "Merge conflict" : `Merge into ${pr.base}`,

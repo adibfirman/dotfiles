@@ -54,6 +54,14 @@ test("prState follows the sync script's order", () => {
   assert.equal(s({}), "Open");
 });
 
+test("merged and closed PRs", () => {
+  const now = Date.parse("2026-11-15T12:00:00Z");
+  const merged = normalize(node({ state: "MERGED", mergedAt: "2026-11-15T11:59:30Z", mergeable: "CONFLICTING" }));
+  assert.equal(prState(merged).label, "Merged");
+  assert.deepEqual(timeline(merged, now).at(-1), { label: "Merged → main", sub: "just now", status: "done" });
+  assert.equal(prState(normalize(node({ state: "CLOSED" }))).label, "Closed");
+});
+
 test("sortPrs: urgent first, then newest", () => {
   const a = normalize(node({ url: "a", updatedAt: "2026-11-15T12:00:00Z" }));
   const b = normalize(node({ url: "b", mergeable: "CONFLICTING" }));

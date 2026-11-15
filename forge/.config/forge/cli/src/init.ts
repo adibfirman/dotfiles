@@ -2,6 +2,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writ
 import { basename, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { mainCheckout, openFirstCycle, Refused, slugify, type Run } from "./append";
+import { register } from "./registry";
 
 const herdrBin = () => process.env.FORGE_HERDR ?? "herdr";
 
@@ -76,5 +77,7 @@ export function init(contextFile: string, cwd = process.cwd(), cap = Number(proc
   const run: Run = { dir, ticket, main, worktree };
   const { cycleDir } = openFirstCycle(run, cap);
   copyFileSync(contextFile, join(cycleDir, "context.md"));
+  // ticket: none runs on the current branch, so record it for the PR lookup.
+  register(run, readFileSync(contextFile, "utf8"), branch ?? git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]).out ?? null);
   return run;
 }

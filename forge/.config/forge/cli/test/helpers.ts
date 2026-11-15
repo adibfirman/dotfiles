@@ -56,7 +56,7 @@ export function setup(opts: { cap?: number; sources?: string; registry?: Record<
   const log = join(root, "hc.log");
   writeFileSync(log, "");
 
-  Object.assign(process.env, { FORGE_TRUST_WAIT_MS: "300", FORGE_HOME: home, FORGE_HC: hc, FAKE_HC_LOG: log, FAKE_HC_MODE: "ok", FORGE_MCP_REGISTRY: registry });
+  Object.assign(process.env, { FORGE_REGISTRY: join(root, "runs.jsonl"), FORGE_TRUST_WAIT_MS: "300", FORGE_HOME: home, FORGE_HC: hc, FAKE_HC_LOG: log, FAKE_HC_MODE: "ok", FORGE_MCP_REGISTRY: registry });
   delete process.env.FORGE_RUN;
   delete process.env.HC_TERMINAL_ID;
 

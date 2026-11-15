@@ -5,6 +5,7 @@ import { KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
 import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, followup, reconcile, startCoordinator } from "./agents";
+import { registerExisting, runs } from "./registry";
 import { status } from "./status";
 import { tlc } from "./tlc";
 
@@ -19,6 +20,8 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge approve                               the gate: approve the spec and start exec
   forge followup <text> [--source <s>]        a QA bug, request, gate comment, or PR review
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
+  forge runs                                  every registered run on this machine, as JSON
+  forge register                              add a run made before the registry existed
   forge status                                the current cycle as JSON
   forge tlc <model dir>                       run TLC on one TLA+ model
 
@@ -108,6 +111,17 @@ export function main(argv: string[]): number {
       case "reconcile": {
         if (rest.length) throw new UsageError("forge reconcile takes no arguments");
         print(reconcile(findRun(runFlag)));
+        return 0;
+      }
+      case "runs": {
+        if (rest.length) throw new UsageError("forge runs takes no arguments");
+        print(runs());
+        return 0;
+      }
+      case "register": {
+        if (rest.length) throw new UsageError("forge register takes no arguments");
+        registerExisting(findRun(runFlag));
+        print({ ok: true });
         return 0;
       }
       case "status": {

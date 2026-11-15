@@ -268,4 +268,10 @@ The mod lives in `herdr-app/.config/herdr-app/mods/prs/`. Open it with `herdr-ap
 - The ticket link comes from an untracked file, `<app home>/data/prs/config.json` (`{"ticketUrl": ".../browse/{key}"}`), so no company URL is in dotfiles.
 - It writes what it sees to `<app home>/data/prs/last-state.json`. Checked on 2026-11-15: 38 PRs, 2 matched to local worktrees.
 
-Not checked yet: the look, and Push and Send to forge on a real PR.
+Changed after review (Q31 = B): the sidebar shows **forge runs** by default, with an **All** toggle for every open PR of mine.
+
+- `forge init` adds each run to a global registry, `~/.local/state/forge/runs.jsonl` (`FORGE_REGISTRY` to move it): ticket, run folder, main checkout, worktree, branch (the current branch for `ticket: none`), repo (from `origin`), title (the first line of the context), and time. `forge runs` lists the runs whose folder still exists, with their HEAD. `forge register` adds a run made before the registry existed.
+- Forge mode asks GitHub for the newest PR of each run's branch in one GraphQL call (one aliased field per run), in any state, so merged and closed PRs stay visible. A run without a PR shows "No PR yet". When its cycle is done, its detail offers Create PR (draft, body from `exec/PR.md`).
+- Checked in the app: the test run shows with no PR (the test repo has no remote). The aliased query was checked against GitHub: it found the open PR of a real branch and no PR for a branch that does not exist.
+
+Not checked yet: the look, and Push, Create PR, and Send to forge on a real PR.
