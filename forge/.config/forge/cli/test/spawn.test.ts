@@ -25,6 +25,7 @@ describe("spawn", () => {
     expect(prompt).toBe("You are _common.\n\n---\n\nYou are fact-finder.\n");
     expect(settings.permissions.deny).toContain("Bash(git push:*)");
     expect(settings.attribution).toEqual({ commit: "", pr: "" });
+    expect(settings.claudeMdExcludes).toContain(require("node:path").join(require("node:os").homedir(), ".claude", "**"));
     const task = call[call.length - 1];
     expect(task.startsWith("Find where tokens are refreshed.")).toBe(true);
     expect(task).toContain("hc send t1");

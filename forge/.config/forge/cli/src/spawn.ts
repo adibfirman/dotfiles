@@ -119,6 +119,9 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   writeFileSync(settings, JSON.stringify({
     ...JSON.parse(readFileSync(denyFile, "utf8")),
     attribution: { commit: "", pr: "" }, includeCoAuthoredBy: false,
+    // Under $HOME, Claude also reads ~/.claude/CLAUDE.md as a parent folder's project file, so agents would get
+    // the user's own global rules (and an import dialog nobody answers). The repo's own CLAUDE.md still loads.
+    claudeMdExcludes: [join(homedir(), ".claude", "**"), join(homedir(), "CLAUDE.md"), join(homedir(), "CLAUDE.local.md")],
     env: { FORGE_RUN: run.dir, FORGE_NODE: id, PATH: path },
   }, null, 2) + "\n");
 
@@ -149,6 +152,11 @@ function acceptTrust(terminal: string): boolean {
   while (Date.now() < until) {
     const screen = hc(["read", "--lines", "0", terminal]).out;
     if (/Yes, I trust this folder/.test(screen)) return hc(["keys", terminal, "down", "enter"]).code === 0;
+    // A project CLAUDE.md that imports outside files asks first; its default ("No, disable external imports") is the safe answer.
+    if (/Allow external CLAUDE\.md file imports/.test(screen)) {
+      hc(["keys", terminal, "enter"]);
+      continue;
+    }
     if (/^\s*❯ \s*$/m.test(screen) || /esc to interrupt|⏺/.test(screen)) return false;
     Bun.sleepSync(500);
   }
