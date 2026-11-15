@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git restore:*)",
+      "Bash(git rebase:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git worktree remove:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr close:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh api:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(sudo:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(npm publish:*)",
+      "Bash(herdr worktree remove:*)",
+      "Bash(hc kill:*)",
+      "Bash(hc rm:*)",
+      "Bash(hc run:*)",
+      "Edit(~/.claude/**)",
+      "Edit(~/.config/**)",
+      "Edit(**/.git/**)",
+      "mcp__claude_ai_Slack",
+      "mcp__claude_ai_Atlassian",
+      "mcp__claude_ai_Gmail",
+      "mcp__claude_ai_Google_Calendar"
+    ]
+  }
+}

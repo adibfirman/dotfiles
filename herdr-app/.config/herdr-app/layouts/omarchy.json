@@ -258,12 +258,12 @@
     }
   ],
   "background": {
-    "image": "backgrounds/omarchy/tokyo-night/0-liftoff.webp",
+    "image": "backgrounds/omarchy/catppuccin-frappe/1-totoro.webp",
     "fit": "cover"
   },
   "theme": {
     "light": "catppuccin-latte",
-    "dark": "tokyo-night"
+    "dark": "catppuccin-frappe"
   },
   "terminal_padding": [
     6,

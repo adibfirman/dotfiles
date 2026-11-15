@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -20,6 +20,17 @@ function find(node, id) {
 const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // About how many characters a row's text gets at the sidebar's width (12px mono is ~7px; badge, gaps and status take ~84px).
 const room = () => Math.floor(((find(layout(), "sidebar")?.size?.px ?? 243) - 84) / 7);
+
+// Show one forge run: the forge graph on the right and the PR view below it, in the run's space.
+// Panes already in that tab follow the shared selection instead of opening again.
+function showRun(space, dir) {
+  setShared("forge.selected", { dir, at: Date.now() });
+  if (space) run("space.select", { id: space.id });
+  const tab = space?.tabs?.find((x) => x.active)?.id;
+  const inTab = panes().filter((p) => p.tab === tab);
+  if (!inTab.some((p) => p.mod === "forge")) run("pane.split", { direction: "right", mod: "forge", props: { run: dir } });
+  if (!inTab.some((p) => p.mod === "prs")) run("pane.split", { direction: "down", mod: "prs", props: { run: dir } });
+}
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
@@ -64,6 +75,53 @@ export default class Spaces extends View {
     // `git status` walks the whole tree, on another machine a process there:
     // only when its answer could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
+    // Forge runs, shown under the space whose folder is their worktree.
+    this.forge = [];
+    this.loadForge(cx);
+    cx.timer.every(8000, (cx) => this.loadForge(cx));
+  }
+
+  loadForge(cx) {
+    cx.spawn(async (cx) => {
+      const r = await exec(`${home()}/.local/bin/forge`, ["runs"], { timeout: 20000 }).catch(() => null);
+      if (r?.code !== 0) return;
+      const next = JSON.parse(r.stdout);
+      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused]));
+      if (key === this.forgeKey) return;
+      this.forgeKey = key;
+      this.forge = next;
+      cx.notify();
+    });
+  }
+
+  // A space's forge runs as child rows: click opens the forge panel pinned to that run.
+  forgeRows({ w, tree }, t) {
+    const here = place(w, panes()); // the folder; where() is a [machine, folder] cache key
+    return this.forge.filter((f) => f.worktree === here || f.worktree === w.folder).map((f) => {
+      const h = f.head ?? {};
+      const [mark, color] = h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
+      return h_flex().id(`forge-${f.dir}`).h(22).flex_none().pl(tree ? 48 : 30).pr(8).gap(6).items_center().text_size(11.5).text_color(t.muted)
+        .cursor_pointer().hover((s) => s.bg(t.foreground + "14").text_color(t.foreground))
+        .tooltip(`${f.ticket} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}`)
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          showRun(w, f.dir);
+        })
+        .child(div().flex_none().text_color(color).child(h.paused ? "Ⅱ" : mark))
+        .child(div().flex_1().min_w(0).truncate().child(f.title || f.ticket))
+        .child(div().flex_none().text_size(10.5).text_color(h.phase === "gate" ? t.accent : t.dim).child(h.phase === "gate" ? "you" : h.phase ?? ""));
+    });
+  }
+
+  // The "+" on a hovered space: open a forge run, follow one up, or start one in this space's folder.
+  forgePlus(t, w) {
+    return div().id(`forge-plus-${w.id}`).flex_none().px(4).text_size(13).text_color(t.dim).hover((s) => s.text_color(t.foreground))
+      .tooltip("Forge: start a run here, or follow up an existing one")
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: place(w, panes()) } });
+      })
+      .child("+");
   }
 
   checkNew(cx) {
@@ -292,7 +350,7 @@ export default class Spaces extends View {
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
     const rows = this.ordered();
-    const draw = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
+    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.forgeRows(r, t)]);
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
@@ -300,7 +358,7 @@ export default class Spaces extends View {
         || spaces().some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = m => div().id(`machine-loading-${m ?? "local"}`).h(26).flex_none().px(8).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
-    if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
+    if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.flatMap(draw);
     const machineNames = [null, ...remote];
     return machineNames.flatMap((m) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
@@ -335,7 +393,7 @@ export default class Spaces extends View {
         .on_click(() => run("space.new", { machine: m ?? "" }))
         .child(svg("mods/omarchy-chrome/plus.svg").size(12)).when(!collapsed, el => el.child("New space there"));
       if (!collapsed && rebuilt) return [head];
-      return [head, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
+      return [head, ...(folded ? [] : mine.length ? mine.flatMap(draw) : [loading(m) ? loadingRow(m) : empty])];
     });
   }
 
@@ -457,6 +515,7 @@ export default class Spaces extends View {
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
           // A space with an agent working, waiting on you, or finished gets a square in that status color.
           .when(!tree && ["working", "blocked", "done"].includes(w.status), el => el.child(div().size(6).flex_none().ml(6).bg(tone(t, w.status))))
+          .when(this.hovered === w.id, el => el.child(this.forgePlus(t, w)))
           .when(this.hovered === w.id || this.arming === w.id, el => el.child(this.closer(t, w))),
       );
   }

@@ -11,3 +11,6 @@
 .herdr-context/
 
 .dev-deploy/
+
+# forge run state (specs, events, refs, agent outputs): stays on disk, never committed
+.forge/
