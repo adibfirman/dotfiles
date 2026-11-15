@@ -2,7 +2,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as fs from "fs/promises";
-import { theme, panes, exec, readTextFile, writeTextFile, notify, run, appHome, home, window as host } from "herdr";
+import { theme, panes, exec, readTextFile, writeTextFile, notify, run, appHome, home, shared, props as given, window as host } from "herdr";
 import { ago, prState, sortPrs, timeline } from "./model.js";
 import { failedLog, fetchPrs, fetchRunPrs, openThreads } from "./github.js";
 
@@ -28,6 +28,10 @@ export default class Prs extends View {
       /* no storage: default */
     }
     Object.assign(this, { mode, items: [], local: new Map(), error: null, loading: false, at: null, open: null, busy: null, remotes: new Map(), config: {} });
+    // props.run (opened for one forge run) or a click on a forge row ("forge.selected") opens that run's detail.
+    this.wanted = given()?.run ?? null;
+    if (this.wanted) this.mode = "forge";
+    this.selAt = shared("forge.selected")?.at ?? null;
     cx.timer.every(REFRESH_MS, (cx) => this.refresh(cx));
     this.refresh(cx);
   }
@@ -57,6 +61,10 @@ export default class Prs extends View {
         const items = mode === "forge" ? await this.forgeItems() : await this.allItems();
         if (mode !== this.mode) return; // switched while loading
         this.items = items;
+        if (this.wanted && items.some((i) => i.key === this.wanted)) {
+          this.open = this.wanted;
+          this.wanted = null;
+        }
         this.error = null;
         this.at = new Date().toISOString();
         this.local = await this.localInfo(items);
@@ -210,6 +218,15 @@ export default class Prs extends View {
 
   render(cx) {
     const t = theme();
+    const sel = shared("forge.selected");
+    if (sel?.at && sel.at !== this.selAt) {
+      this.selAt = sel.at;
+      if (this.items.some((i) => i.key === sel.dir) && this.mode === "forge") this.open = sel.dir;
+      else {
+        Object.assign(this, { mode: "forge", wanted: sel.dir, open: null });
+        this.refresh(cx);
+      }
+    }
     const item = this.open && this.items.find((i) => i.key === this.open);
     return v_flex().id("prs").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13).overflow_hidden()
       .child(item ? this.detail(t, item) : this.list(t));

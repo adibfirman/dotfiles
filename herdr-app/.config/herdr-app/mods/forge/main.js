@@ -2,7 +2,7 @@
 // The forge CLI owns the state; this mod reads `forge status` and calls forge commands.
 import { View, div, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView } from "gpui-base";
-import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, props as given } from "herdr";
+import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
 import { agentDecisions, boxSize, parseTsGraph, runGraph, tsBlocks } from "./graph.js";
@@ -28,6 +28,8 @@ export default class Forge extends View {
     // props.run pins one run folder: `herdr-app do pane.split --direction right --mod forge --props '{"run":"<dir>"}'`.
     // Pane props come from props() (the init argument does not carry them).
     this.pinned = this.propsRun = given()?.run ?? props?.run ?? null;
+    // A click on a forge row in the spaces sidebar sets "forge.selected"; this panel then shows that run.
+    this.selAt = shared("forge.selected")?.at ?? null;
     cx.timer.every(8000, (cx) => this.refresh(cx));
     this.refresh(cx);
   }
@@ -37,6 +39,11 @@ export default class Forge extends View {
   refresh(cx) {
     const p = given()?.run ?? null;
     if (p && p !== this.propsRun) Object.assign(this, { propsRun: p, pinned: p, cwd: null });
+    const sel = shared("forge.selected");
+    if (sel?.at && sel.at !== this.selAt) {
+      this.selAt = sel.at;
+      Object.assign(this, { propsRun: sel.dir, pinned: sel.dir, cwd: null, tab: "run", selected: null, detail: null });
+    }
     const f = focused();
     if (f?.cwd && !this.pinnedByProps()) this.cwd = f.cwd;
     if ((!this.cwd && !this.pinned) || this.loading) return;
@@ -237,6 +244,7 @@ export default class Forge extends View {
   render(cx) {
     const t = theme();
     this.zoom = zoomOf(settings());
+    if ((shared("forge.selected")?.at ?? null) !== this.selAt) this.refresh(cx);
     return v_flex().id("forge").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13).overflow_hidden()
       .child(this.header(t, cx))
       .when(Boolean(this.st), (el) => el.child(this.tabs(t)))

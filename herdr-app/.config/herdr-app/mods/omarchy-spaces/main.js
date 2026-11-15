@@ -21,6 +21,17 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // About how many characters a row's text gets at the sidebar's width (12px mono is ~7px; badge, gaps and status take ~84px).
 const room = () => Math.floor(((find(layout(), "sidebar")?.size?.px ?? 243) - 84) / 7);
 
+// Show one forge run: the forge graph on the right and the PR view below it, in the run's space.
+// Panes already in that tab follow the shared selection instead of opening again.
+function showRun(space, dir) {
+  setShared("forge.selected", { dir, at: Date.now() });
+  if (space) run("space.select", { id: space.id });
+  const tab = space?.tabs?.find((x) => x.active)?.id;
+  const inTab = panes().filter((p) => p.tab === tab);
+  if (!inTab.some((p) => p.mod === "forge")) run("pane.split", { direction: "right", mod: "forge", props: { run: dir } });
+  if (!inTab.some((p) => p.mod === "prs")) run("pane.split", { direction: "down", mod: "prs", props: { run: dir } });
+}
+
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
 function place(s, ps) {
@@ -94,8 +105,7 @@ export default class Spaces extends View {
         .tooltip(`${f.ticket} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}`)
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          run("space.select", { id: w.id });
-          run("pane.split", { direction: "right", mod: "forge", props: { run: f.dir } });
+          showRun(w, f.dir);
         })
         .child(div().flex_none().text_color(color).child(h.paused ? "Ⅱ" : mark))
         .child(div().flex_1().min_w(0).truncate().child(f.title || f.ticket))

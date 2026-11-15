@@ -3,13 +3,24 @@
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { space, folder } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces } from "herdr";
+import { props, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, panes, setShared } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const forge = async (args, cwd) => {
   const r = await exec(forgeBin(), args, { cwd, timeout: 120_000 }).catch((e) => ({ code: 1, stdout: "", stderr: String(e?.message ?? e) }));
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
 };
+
+// Show one forge run: the forge graph on the right and the PR view below it, in the run's space.
+// Panes already in that tab follow the shared selection instead of opening again.
+function showRun(space, dir) {
+  setShared("forge.selected", { dir, at: Date.now() });
+  if (space) run("space.select", { id: space.id });
+  const tab = space?.tabs?.find((x) => x.active)?.id;
+  const inTab = panes().filter((p) => p.tab === tab);
+  if (!inTab.some((p) => p.mod === "forge")) run("pane.split", { direction: "right", mod: "forge", props: { run: dir } });
+  if (!inTab.some((p) => p.mod === "prs")) run("pane.split", { direction: "down", mod: "prs", props: { run: dir } });
+}
 
 export default class ForgeStart extends View {
   init(_props, cx) {
@@ -39,12 +50,9 @@ export default class ForgeStart extends View {
     closeOverlay(this.overlay);
   }
 
-  // The run's own space when one shows its worktree, else this space; then the forge panel pinned to it.
+  // The run's own space when one shows its worktree, else this space.
   openPanel(dir, worktree) {
-    const own = spaces().find((s) => s.folder === worktree);
-    const id = own?.id ?? this.space;
-    if (id) run("space.select", { id });
-    run("pane.split", { direction: "right", mod: "forge", props: { run: dir } });
+    showRun(spaces().find((s) => s.folder === worktree) ?? spaces().find((s) => s.id === this.space), dir);
   }
 
   task(cx, label, work) {
