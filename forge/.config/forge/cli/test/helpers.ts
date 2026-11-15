@@ -56,7 +56,10 @@ export function setup(opts: { cap?: number; sources?: string; registry?: Record<
   const log = join(root, "hc.log");
   writeFileSync(log, "");
 
-  Object.assign(process.env, { FORGE_REF_RETRY_MS: "0,0", FORGE_REGISTRY: join(root, "runs.jsonl"), FORGE_TRUST_WAIT_MS: "300", FORGE_HOME: home, FORGE_HC: hc, FAKE_HC_LOG: log, FAKE_HC_MODE: "ok", FORGE_MCP_REGISTRY: registry });
+  mkdirSync(join(root, "skills", "code-review"), { recursive: true });
+  writeFileSync(join(root, "skills", "code-review", "SKILL.md"), "---\nname: code-review\n---\n");
+  writeFileSync(join(home, "skills.md"), "- code-review\n- not-installed\n");
+  Object.assign(process.env, { FORGE_PLUGIN_DIR: join(root, "plugin"), FORGE_SKILLS_ROOT: join(root, "skills"), FORGE_REF_RETRY_MS: "0,0", FORGE_REGISTRY: join(root, "runs.jsonl"), FORGE_TRUST_WAIT_MS: "300", FORGE_HOME: home, FORGE_HC: hc, FAKE_HC_LOG: log, FAKE_HC_MODE: "ok", FORGE_MCP_REGISTRY: registry });
   delete process.env.FORGE_RUN;
   delete process.env.HC_TERMINAL_ID;
 

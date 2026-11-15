@@ -343,3 +343,7 @@ Decisions Q47 to Q52: a root folder that is not a git repo but holds repos (like
 ## 19. Closing the last coordinator (2026-11-15)
 
 Coordinators close each other at a handoff (`forge reconcile`), but nothing follows the coordinator whose `phase_done` ends the run. Found when the test run's last exec coordinator stayed open and idle. Fix: that `forge append phase_done` starts a detached `forge close <id>` after `FORGE_CLOSE_DELAY_S` (default 60 s), so the coordinator can print its summary first. The screen is saved before the terminal ends. At the gate nothing changes: Approve or a comment starts the next coordinator, which closes the old one.
+
+## 20. Skills plugin without symlinks in the repo (2026-11-15)
+
+The repo held two relative symlinks (`skills-plugin/skills/code-review → ../../../../../claude/.claude/skills/code-review`). They worked, but they depend on the dotfiles layout and on stow folding `~/.config/forge`. Now `skills.md` lists the skill names, and `forge spawn` builds `~/.local/share/forge/skills-plugin/` at run time: `.claude-plugin/plugin.json` plus one link per installed skill to `~/.claude/skills/<name>` on that machine (a missing skill is skipped). Checked on a real claude: it loads `forge-skills:code-review` and `forge-skills:technical`. 109 tests pass.

@@ -95,6 +95,17 @@ describe("claude argv", () => {
     expect(args.indexOf("--permission-mode")).toBeGreaterThan(args.indexOf("--add-dir"));
   });
 
+  test("the skills plugin is built at run time: installed skills linked, missing ones skipped", () => {
+    const { run, root } = setup();
+    const { args } = claudeArgs(run, "exec", "unit", "u1", currentCycleDir(run));
+    const dir = args[args.indexOf("--plugin-dir") + 1];
+    expect(dir).toBe(join(root, "plugin"));
+    const fs = require("node:fs");
+    expect(fs.readlinkSync(join(dir, "skills", "code-review"))).toBe(join(root, "skills", "code-review"));
+    expect(fs.existsSync(join(dir, "skills", "not-installed"))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(join(dir, ".claude-plugin", "plugin.json"), "utf8")).name).toBe("forge-skills");
+  });
+
   test("an MCP server missing from the registry is refused", () => {
     const { run } = setup({ sources: "## grill\n- mcp: nope\n" });
     expect(() => claudeArgs(run, "grill", "grill-coord", "c", currentCycleDir(run))).toThrow(/MCP server "nope"/);

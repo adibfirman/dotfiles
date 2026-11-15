@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -29,6 +29,39 @@ export function terminalName(ticket: string, cycle: number, id: string, gen: num
 }
 
 const abs = (p: string) => `//${p.replace(/^\//, "")}`;
+
+/**
+ * The plugin folder agents load with --plugin-dir, built at run time (no symlinks in the repo): one link
+ * per skill in skills.md, pointing at ~/.claude/skills/<name> on this machine. Missing skills are skipped.
+ */
+export function skillsPlugin(home = forgeHome()): string {
+  const dir = process.env.FORGE_PLUGIN_DIR ?? join(homedir(), ".local", "share", "forge", "skills-plugin");
+  mkdirSync(join(dir, ".claude-plugin"), { recursive: true });
+  mkdirSync(join(dir, "skills"), { recursive: true });
+  const manifest = join(dir, ".claude-plugin", "plugin.json");
+  const want = JSON.stringify({ name: "forge-skills", version: "0.1.0", description: "User skills that forge agents load" }, null, 2) + "\n";
+  if (!existsSync(manifest) || readFileSync(manifest, "utf8") !== want) writeFileSync(manifest, want);
+  const names = [...read(join(home, "skills.md")).matchAll(/^-\s+([A-Za-z0-9._-]+)\s*$/gm)].map((m) => m[1]);
+  const skillsRoot = process.env.FORGE_SKILLS_ROOT ?? join(homedir(), ".claude", "skills");
+  for (const name of names) {
+    const target = join(skillsRoot, name);
+    const link = join(dir, "skills", name);
+    let current: string | null = null;
+    try {
+      current = lstatSync(link).isSymbolicLink() ? readlinkSync(link) : "not a link";
+    } catch {
+      current = null;
+    }
+    if (!existsSync(join(target, "SKILL.md"))) {
+      if (current !== null) unlinkSync(link);
+      continue;
+    }
+    if (current === target) continue;
+    if (current !== null) unlinkSync(link);
+    symlinkSync(target, link);
+  }
+  return dir;
+}
 
 /** The role prompt: _common.md, then _coordinator.md for coordinators, then roles/<role>.md. */
 function promptFile(home: string, role: string, spawnDir: string, id: string): string {
@@ -99,7 +132,7 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
     "--add-dir", ...dirs,
     "--permission-mode", "dontAsk",
     "--settings", settings,
-    "--plugin-dir", join(home, "skills-plugin"),
+    "--plugin-dir", skillsPlugin(home),
     "--append-system-prompt-file", prompt,
     "--model", model,
   ];
