@@ -110,6 +110,20 @@ test("node_done through the CLI closes the agent's terminal", async () => {
   expect(hcCalls(env).map((c) => c[0])).toContain("kill");
 });
 
+test("the coordinator that ends the run is closed after a delay", async () => {
+  const env = setup();
+  process.env.FORGE_RUN = env.run.dir;
+  startCoordinator(env.run);
+  add(env.run, "phase_done");
+  add(env.run, "phase_done");
+  approve(env.run); // exec-coord-1
+  Object.assign(process.env, { FORGE_NODE: "exec-coord-1", FORGE_CLOSE_DELAY_S: "0" });
+  expect(await quiet(() => main(["append", "phase_done"]))).toBe(0);
+  delete process.env.FORGE_NODE;
+  for (let i = 0; i < 40 && !hcCalls(env).some((c) => c[0] === "kill"); i++) await Bun.sleep(100);
+  expect(hcCalls(env).filter((c) => c[0] === "kill")).toHaveLength(1);
+});
+
 test("specs: draft, gate copy, and the approved one", async () => {
   const env = setup();
   const dir = currentCycleDir(env.run);

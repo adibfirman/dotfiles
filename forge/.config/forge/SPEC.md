@@ -339,3 +339,7 @@ Decisions Q47 to Q52: a root folder that is not a git repo but holds repos (like
 - Nodes carry `data.repo`; a unit, gate, or commit node in a workspace run must have one, and forge starts it in that repo's worktree (plain git works there). Files are `<repo>/<path>`, so two repos can change the same relative path in one wave.
 - One commit node per repo per wave, the 4 gates per repo, and one `exec/PR-<repo>.md` per repo linking the others. The forge panel pushes every branched repo and opens one draft PR per repo. The prs pane shows one row per repo ("<title> · <repo>").
 - `forge status` and `forge runs` show `mode` and `repos`. 107 tests pass (7 workspace tests on real git repos with bare origins, including a base that moves after grill and an untouched user checkout).
+
+## 19. Closing the last coordinator (2026-11-15)
+
+Coordinators close each other at a handoff (`forge reconcile`), but nothing follows the coordinator whose `phase_done` ends the run. Found when the test run's last exec coordinator stayed open and idle. Fix: that `forge append phase_done` starts a detached `forge close <id>` after `FORGE_CLOSE_DELAY_S` (default 60 s), so the coordinator can print its summary first. The screen is saved before the terminal ends. At the gate nothing changes: Approve or a comment starts the next coordinator, which closes the old one.

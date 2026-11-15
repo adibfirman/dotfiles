@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 import { existsSync, readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { join as pathJoin } from "node:path";
 import { appendEvent, findRun, Refused } from "./append";
 import { KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
 import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
-import { approve, followup, reconcile, startCoordinator } from "./agents";
+import { approve, coordinators, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { ensureProjectSources, projectCap, setCap, setModels, settings } from "./config";
@@ -108,6 +110,15 @@ export async function main(argv: string[]): Promise<number> {
         // A finished agent's terminal is closed (screen saved), so idle agents do not pile up.
         if ((kind === "node_done" || kind === "node_fail") && node) closeTerminal(cycleDir, nodeSpawnId(node, state.nodes.get(node)!.gen));
         const started = FREES_SLOT.includes(kind) ? drainQueue(run) : [];
+        // The run just ended: nothing will start a next coordinator to close this one, so close it
+        // after a short delay (it prints its summary first). FORGE_CLOSE_DELAY_S changes the delay.
+        const self = process.env.FORGE_NODE;
+        if (kind === "phase_done" && state.phase === "done" && self && coordinators(run).some((c) => c.id === self)) {
+          const delay = String(Number(process.env.FORGE_CLOSE_DELAY_S ?? 60));
+          spawn("sh", ["-c", 'sleep "$1"; "$2" "$3" close "$4" --run "$5"', "forge-close", delay, process.execPath, pathJoin(import.meta.dir, "main.ts"), self, run.dir], {
+            detached: true, stdio: "ignore", env: process.env,
+          }).unref();
+        }
         print({ ok: true, event, started });
         return 0;
       }
@@ -160,6 +171,15 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         }
         throw new UsageError("forge refs add <url|path|KEY>... | forge refs list | forge refs refresh <n>");
+      }
+      case "close": {
+        // Internal: close a coordinator of the current cycle (its screen is saved first).
+        if (rest.length !== 1) throw new UsageError("forge close <coordinator id>");
+        const run = findRun(runFlag);
+        const c = coordinators(run).find((x) => x.id === rest[0]);
+        if (!c) throw new Refused(`no coordinator ${rest[0]} in this cycle`);
+        print({ closed: closeTerminal(c.cycleDir, c.id) });
+        return 0;
       }
       case "reconcile": {
         if (rest.length) throw new UsageError("forge reconcile takes no arguments");
