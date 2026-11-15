@@ -3,6 +3,7 @@ import { appendFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { entries, registerExisting, runs, titleOf } from "../src/registry";
+import { init } from "../src/init";
 import { setup } from "./helpers";
 
 test("init registers the run with its title and current branch", () => {
@@ -31,6 +32,16 @@ test("register twice keeps one entry", () => {
   const env = setup();
   registerExisting(env.run);
   expect(entries()).toHaveLength(1);
+});
+
+test("init --here uses this checkout and its branch, with the ticket as the run name", () => {
+  const env = setup();
+  spawnSync("git", ["checkout", "-q", "-b", "feat/INTR-9"], { cwd: env.repo });
+  const ctx = join(env.root, "here.md");
+  writeFileSync(ctx, "---\nticket: INTR-9\n---\n# Retry payments\n");
+  const run = init(ctx, env.repo, 4, true);
+  expect([run.ticket, run.worktree]).toEqual(["INTR-9", env.repo]);
+  expect(entries().find((e) => e.ticket === "INTR-9")).toMatchObject({ branch: "feat/INTR-9", title: "Retry payments" });
 });
 
 test("titleOf skips front matter and heading marks", () => {

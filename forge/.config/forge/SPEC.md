@@ -292,3 +292,12 @@ Found and fixed:
 
 1. `forge followup` sent the first follow-up to `exec-coord-1`, which had finished but whose terminal was still open. It handled it, but by luck. Fix: a coordinator counts as live only when it runs the current phase (`80f799a`).
 2. The classifier wrote its note after `forge coord`, and the next coordinator closed it first, so the note was lost. Fix: the note comes before the action.
+
+## 15. Spaces integration (2026-11-15)
+
+Decisions (Q32 to Q35, revised by the user): forge shows inside the spaces sidebar, and "+" works from the space's folder.
+
+- `omarchy-spaces` loads `forge runs` every 8 s and draws each run as a child row under the space whose folder is the run's worktree: ✓ done, ● running, ◆ "you" at the gate, Ⅱ paused. A click selects the space and opens the forge panel pinned to that run (`pane.split` right, `props.run`).
+- Hovering a space shows a "+". It opens the new `forge-start` dialog for the space's folder: the repo's runs (from `.forge` through the registry) with Open and Follow up, and a New run form (optional ticket, what to build).
+- A new run uses the space's folder as it is: `forge init <context> --here`. No new worktree; the ticket key, when given, names the run. For a ticket worktree, make the worktree space first (herdr's New worktree), then press "+" there.
+- The stowed mods (`forge`, `prs`, `omarchy-spaces`, `forge-start`) load their new code after a Herdr restart.

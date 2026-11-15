@@ -39,8 +39,11 @@ function hideForge(main: string) {
   if (!text.split("\n").includes(".forge/")) appendFileSync(exclude, (text && !text.endsWith("\n") ? "\n" : "") + ".forge/\n");
 }
 
-/** Start a run from context.md: worktree for the ticket, .forge/tickets/<ticket>/, cycle 001 at grill. */
-export function init(contextFile: string, cwd = process.cwd(), cap = Number(process.env.FORGE_CAP ?? 4)): Run {
+/**
+ * Start a run from context.md: worktree for the ticket, .forge/tickets/<ticket>/, cycle 001 at grill.
+ * here: run in cwd's checkout as it is (no new worktree); the ticket key still names the run.
+ */
+export function init(contextFile: string, cwd = process.cwd(), cap = Number(process.env.FORGE_CAP ?? 4), here = false): Run {
   if (!existsSync(contextFile)) throw new Refused(`context file not found: ${contextFile}`);
   const fm = frontMatter(readFileSync(contextFile, "utf8"));
   const main = mainCheckout(cwd);
@@ -49,7 +52,12 @@ export function init(contextFile: string, cwd = process.cwd(), cap = Number(proc
   let worktree: string;
   let branch: string | null = null;
 
-  if (ticketField === "none") {
+  if (here) {
+    if (ticketField !== "none" && !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like INTR-123`);
+    worktree = git(cwd, ["rev-parse", "--show-toplevel"]).out || cwd;
+    branch = git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]).out || null;
+    ticket = ticketField !== "none" ? ticketField : `local-${slugify(basename(contextFile).replace(/\.md$/, "").replace(/^\./, ""))}`;
+  } else if (ticketField === "none") {
     ticket = `local-${slugify(basename(contextFile).replace(/\.md$/, "").replace(/^\./, ""))}`;
     worktree = cwd;
   } else {

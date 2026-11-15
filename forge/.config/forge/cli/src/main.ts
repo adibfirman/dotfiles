@@ -11,7 +11,7 @@ import { tlc } from "./tlc";
 
 const USAGE = `forge: guard and spawner for forge coordinators
 
-  forge init <context.md>                     start a run: ticket worktree, cycle 001 at grill
+  forge init <context.md> [--here]            start a run: ticket worktree (or this checkout with --here), cycle 001 at grill
   forge append <kind> [--node <id>] [--data '<json>']
                                               add one checked event to the current cycle
   forge spawn <role> <node> <task>            start a node in an hc terminal (queues at the cap)
@@ -54,8 +54,10 @@ export function main(argv: string[]): number {
     const [cmd, ...rest] = args;
     switch (cmd) {
       case "init": {
-        if (rest.length !== 1) throw new UsageError("forge init <context.md>");
-        print(status(init(rest[0])));
+        const here = rest.includes("--here");
+        const files = rest.filter((a) => a !== "--here");
+        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here]");
+        print(status(init(files[0], process.cwd(), Number(process.env.FORGE_CAP ?? 4), here)));
         return 0;
       }
       case "append": {
