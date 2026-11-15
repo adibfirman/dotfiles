@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { currentCycleDir } from "../src/append";
 import { allowRules, deniedBy, mergeSources, modelFor, parseSources, toolchainPreset } from "../src/sources";
 import { claudeArgs } from "../src/spawn";
@@ -62,6 +63,23 @@ describe("toolchain preset", () => {
     mkdirSync(dir);
     writeFileSync(join(dir, "go.mod"), "module x\n");
     expect(toolchainPreset(dir)).toBe("## exec\n- bash: go build, go vet, go test\n");
+  });
+
+  test("test files with no package.json: the plain test runners", () => {
+    const { repo } = setup();
+    mkdirSync(join(repo, "mods", "x", "test"), { recursive: true });
+    writeFileSync(join(repo, "mods", "x", "test", "a.test.mjs"), "");
+    spawnSync("git", ["add", "."], { cwd: repo });
+    expect(toolchainPreset(repo)).toBe("## exec\n- bash: node --test, bun test\n");
+  });
+
+  test("test files in a bun repo: bun test is not added twice", () => {
+    const { repo } = setup();
+    writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: {} }));
+    writeFileSync(join(repo, "bun.lock"), "");
+    writeFileSync(join(repo, "a.test.ts"), "");
+    spawnSync("git", ["add", "."], { cwd: repo });
+    expect(toolchainPreset(repo)).toBe("## exec\n- bash: bun test, npx tsc --noEmit\n- bash: node --test\n");
   });
 
   test("nothing to add", () => {

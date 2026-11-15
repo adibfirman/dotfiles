@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { Refused } from "./append";
@@ -68,7 +69,18 @@ export function toolchainPreset(worktree: string): string {
     lines.push(`- bash: ${cmds.join(", ")}`);
   }
   if (existsSync(join(worktree, "go.mod"))) lines.push("- bash: go build, go vet, go test");
+  // Test files with no package.json to run them (like mods in a dotfiles repo): allow the plain test runners.
+  if (hasTestFiles(worktree)) {
+    const cmds = ["node --test", "bun test"].filter((c) => !lines.some((l) => l.includes(c))); // a bun repo has bun test already
+    lines.push(`- bash: ${cmds.join(", ")}`);
+  }
   return lines.length ? `## exec\n${lines.join("\n")}\n` : "";
+}
+
+/** Whether git tracks any *.test.{mjs,js,ts} file in the worktree (git's pathspec `*` crosses folders). */
+function hasTestFiles(worktree: string): boolean {
+  const r = spawnSync("git", ["ls-files", "--", "*.test.mjs", "*.test.js", "*.test.ts"], { cwd: worktree, encoding: "utf8" });
+  return r.status === 0 && r.stdout.trim().length > 0;
 }
 
 /** Role → model from models.md lines `- role: model`. A project file overrides single roles. */
