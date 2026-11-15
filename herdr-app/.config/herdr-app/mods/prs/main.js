@@ -2,7 +2,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as fs from "fs/promises";
-import { theme, panes, exec, readTextFile, writeTextFile, notify, run, appHome, home, shared, props as given, window as host } from "herdr";
+import { theme, panes, terminals, exec, readTextFile, writeTextFile, notify, run, appHome, home, shared, props as given, window as host } from "herdr";
 import { ago, prState, sortPrs, timeline } from "./model.js";
 import { failedLog, fetchPrs, fetchRunPrs, openThreads } from "./github.js";
 
@@ -106,11 +106,13 @@ export default class Prs extends View {
       let cwd = item.fr?.worktree ?? null;
       if (!cwd && item.pr) cwd = (await this.paneFor(item.pr, shown))?.cwd ?? null;
       if (!cwd) continue;
-      const inside = shown.filter((p) => p.cwd === cwd || p.cwd.startsWith(`${cwd}/`));
+      // A forge run's agents are its own terminals (label forge=<ticket>/…). Other panes in the same folder
+      // (your own sessions) are not the run's agent.
+      const inside = item.fr ? [] : shown.filter((p) => p.cwd === cwd || p.cwd.startsWith(`${cwd}/`));
       const pane = inside.find((p) => p.status) ?? inside[0] ?? null;
       const ahead = await exec("git", ["rev-list", "--count", "@{upstream}..HEAD"], { cwd }).catch(() => null);
       const l = { cwd, pane, ahead: ahead?.code === 0 ? Number(ahead.stdout.trim()) : null };
-      if (item.fr) l.forge = { dir: item.fr.runDir ?? item.fr.dir, main: item.fr.main, ...(item.fr.head ?? {}) };
+      if (item.fr) l.forge = { dir: item.fr.runDir ?? item.fr.dir, main: item.fr.main, ticket: item.fr.ticket, ...(item.fr.head ?? {}) };
       else if (item.pr.ticket) {
         const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd }).catch(() => null);
         const main = common?.code === 0 ? common.stdout.trim().replace(/\/\.git\/?$/, "") : null;
@@ -227,7 +229,7 @@ export default class Prs extends View {
   render(cx) {
     const t = theme();
     const sel = shared("forge.selected");
-    if (sel?.at && sel.at !== this.selAt) {
+    if (sel?.at && sel.at !== this.selAt && !given()?.run) {
       this.selAt = sel.at;
       const hit = this.mode === "forge" && this.items.find((i) => i.key === sel.dir || i.fr?.runDir === sel.dir);
       if (hit) this.open = hit.key;
@@ -238,6 +240,9 @@ export default class Prs extends View {
     }
     const item = this.open && this.items.find((i) => i.key === this.open);
     return v_flex().id("prs").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13).overflow_hidden()
+      // In a run window, a press that reaches the window drags it: stop presses here, so dragging the graph
+      // pans it and the window stays where it is. (Inner handlers, like the graph's pan, run first.)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .child(item ? this.detail(t, item) : this.list(t));
   }
 
@@ -252,6 +257,15 @@ export default class Prs extends View {
   }
 
   agentRow(t, l) {
+    if (l?.forge && !l.pane) {
+      // The run's live agents, from their hc labels.
+      const mine = terminals().filter((x) => x.state === "live" && String(x.labels?.forge ?? "").startsWith(`${l.forge.ticket ?? ""}/`));
+      if (!mine.length) return null;
+      const working = mine.filter((x) => x.status === "working").length;
+      return h_flex().gap(6).items_center().text_size(11.5).text_color(t.muted)
+        .child(div().w(7).h(7).rounded_full().bg(working ? t.working : t.idle))
+        .child(div().truncate().child(`${mine.length} forge agent${mine.length > 1 ? "s" : ""}${working ? ` · ${working} working` : ""}`));
+    }
     const p = l?.pane;
     if (!p) return null;
     const c = p.status === "working" ? t.working : p.status === "blocked" ? t.blocked : p.status === "done" ? t.done : t.idle;
@@ -355,7 +369,10 @@ export default class Prs extends View {
       .text_color(ticketUrl ? t.accent : t.foreground).when(Boolean(ticketUrl), (d) => d.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)));
     return v_flex().size_full().min_h(0)
       .child(h_flex().h(44).flex_none().px(12).items_center().justify_between().border_b(1).border_color(t.border)
-        .child(div().id("prs-back").text_size(12).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.open = null; cx.notify(); }).child("‹ List"))
+        // Pinned to one run (in a run window): no list to go back to.
+        .child(given()?.run
+          ? div().text_size(12).font_semibold().child("Pull request")
+          : div().id("prs-back").text_size(12).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.open = null; cx.notify(); }).child("‹ List"))
         .when(Boolean(pr), (e) => e.child(div().id("prs-gh").text_size(12).text_color(t.muted).cursor_pointer().on_click(() => this.openUrl(pr.url)).child("GitHub ↗"))))
       .child(body)
       .child(h_flex().h(44).flex_none().px(12).gap(8).items_center().justify_end().border_t(1).border_color(t.border)

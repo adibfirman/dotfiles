@@ -2,7 +2,7 @@
 // The forge CLI owns the state; this mod reads `forge status` and calls forge commands.
 import { View, div, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView } from "gpui-base";
-import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, props as given } from "herdr";
+import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, setShared, closeOverlay, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
 import { agentDecisions, boxSize, parseTsGraph, runGraph, tsBlocks } from "./graph.js";
@@ -40,7 +40,7 @@ export default class Forge extends View {
     const p = given()?.run ?? null;
     if (p && p !== this.propsRun) Object.assign(this, { propsRun: p, pinned: p, cwd: null });
     const sel = shared("forge.selected");
-    if (sel?.at && sel.at !== this.selAt) {
+    if (sel?.at && sel.at !== this.selAt && !this.propsRun) {
       this.selAt = sel.at;
       Object.assign(this, { propsRun: sel.dir, pinned: sel.dir, cwd: null, tab: "run", selected: null, detail: null });
     }
@@ -252,14 +252,23 @@ export default class Forge extends View {
     });
   }
 
+  // The run window went away (closed, or its coordinator ended): the sidebar no longer marks the run as open.
+  async close() {
+    if (given()?.overlay && shared("forge.window")?.run === this.propsRun) setShared("forge.window", null);
+  }
+
   // ---------------------------------------------------------------- view
 
   render(cx) {
     const t = theme();
     this.zoom = zoomOf(settings());
-    if ((shared("forge.selected")?.at ?? null) !== this.selAt) this.refresh(cx);
+    if (!this.propsRun && (shared("forge.selected")?.at ?? null) !== this.selAt) this.refresh(cx);
     return v_flex().id("forge").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13).overflow_hidden()
+      // In a run window, a press that reaches the window drags it: stop presses here, so dragging the graph
+      // pans it and the window stays where it is. (Inner handlers, like the graph's pan, run first.)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .child(this.header(t, cx))
+      .when(Boolean(this.cycleText()), (el) => el.child(this.cycleLine(t)))
       .when(Boolean(this.st), (el) => el.child(this.tabs(t)))
       .child(div().id("forge-body").flex_1().min_h(0).relative()
         .on_size_change((s, cx) => {
@@ -307,7 +316,26 @@ export default class Forge extends View {
       .when(st.queue.length > 0, (e) => e.child(div().text_size(12).text_color(t.dim).child(`${st.queue.length} queued`)))
       .child(div().flex_1())
       .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
-      .child(this.button(t, "f-pause", st.paused ? "Resume" : "Pause", (cx) => this.act(cx, st.paused ? "resumed" : "paused", ["append", st.paused ? "resume" : "pause"]), { enabled: st.phase !== "done" }));
+      .child(this.button(t, "f-pause", st.paused ? "Resume" : "Pause", (cx) => this.act(cx, st.paused ? "resumed" : "paused", ["append", st.paused ? "resume" : "pause"]), { enabled: st.phase !== "done" }))
+
+  }
+
+  // Why the current cycle exists, for every cycle after the first: a counterexample, a follow-up, a gate comment.
+  cycleText() {
+    const st = this.st;
+    if (!st || st.cycle <= 1) return null;
+    const o = st.cycleOpen ?? {};
+    const src = { gate: "gate comment", qa: "QA follow-up", pr: "PR follow-up", user: "follow-up" };
+    if (String(o.slug ?? "").startsWith("cex")) return `fixing a TLA+ counterexample from cycle ${st.cycle - 1}: ${o.reason ?? ""}`;
+    if (o.followup) return `${src[o.followup.source] ?? "follow-up"}: ${o.followup.text}`;
+    return o.reason || `started at ${o.start ?? "?"}`;
+  }
+
+  cycleLine(t) {
+    const text = this.cycleText();
+    return h_flex().id("f-cycle-line").h(26).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5).tooltip(text)
+      .child(div().flex_none().font_semibold().text_color(t.accent).child(`Cycle ${this.st.cycle}`))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(text));
   }
 
   graphs() {

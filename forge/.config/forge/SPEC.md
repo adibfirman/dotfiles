@@ -353,3 +353,13 @@ The repo held two relative symlinks (`skills-plugin/skills/code-review → ../..
 - Q53 (A): Settings → Allowed tools shows, per phase, the default tools, the entries this repo or workspace added (chips with ×), and an Add row (the key cycles through bash, tools, mcp, read, write on click; then a value). It calls `forge config allow|disallow <phase> <key> <value>`, which edits only `<main>/.forge/SOURCES.md` under `## <phase>`. An entry the deny floor blocks is refused (it would never apply), and so is an MCP server that is not in `~/.claude/mcp-servers.json`. `forge settings` returns `project`, the entries per phase, so the dialog can offer × on exactly those.
 - Settings are per repo (main checkout) or per workspace root, saved in its `.forge/`, and kept for every later run and session there.
 - Layout: labeled fields, text areas padded like the inputs, a "New run" card, "one per line · or drop files" on References, and "workspace" instead of "repo" in a workspace. 110 tests pass.
+
+## 22. First real run in dotfiles (2026-11-15)
+
+Found while running forge in this repo:
+
+1. Under `$HOME`, Claude reads `~/.claude/CLAUDE.md` as a parent folder's project file, so agents got the user's own global rules, and its `@CLAUDE.work.md` import raised a dialog nobody answered (the run sat at grill with 0 agents). Fix: every agent's settings set `claudeMdExcludes` for `~/.claude/**`, `~/CLAUDE.md`, `~/CLAUDE.local.md`; the repo's own CLAUDE.md still loads. Checked in dotfiles: before, the agent saw the global rules; after, it did not. forge also answers the import dialog with its default ("No").
+2. Runs showed under the wrong space: a space's first terminal, or the folder it was created with, can be in another repo. Now a run shows under the space it was started from (shared `forge.spaces`), else the space most in its folder (agent panes 2, shells 1, its own folder 1); "+" uses the folder most of a space's panes are in.
+3. A run opens in one floating window, not in tabs or the current tab: a read-only view of the run's current coordinator (its screen without Claude's prompt box, following phase handoffs), the forge graph, and the PR view (`forge-window` mod: title bar and agent view). The window does not move (every part stops presses). The sidebar marks the open run. Start opens nothing.
+4. A TLA+ counterexample opened cycle 2 at grill, as designed. The forge header now shows why a cycle exists ("Cycle 2 · fixing a TLA+ counterexample from cycle 1: …", or the follow-up it handles). `forge status` reports `cycleOpen` and the current `coordinator`; `forge runs` reports each run's coordinator.
+5. Runs started without a ticket are named after the goal (`local-<words>-<suffix>`).

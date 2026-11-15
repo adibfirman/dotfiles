@@ -3,7 +3,7 @@
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { space, folder } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, panes, setShared } from "herdr";
+import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, terminals, shared, setShared } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -26,15 +26,23 @@ const forge = async (args, cwd) => {
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
 };
 
-// Show one forge run: the forge graph on the right and the PR view below it, in the run's space.
-// Panes already in that tab follow the shared selection instead of opening again.
-function showRun(space, dir) {
-  setShared("forge.selected", { dir, at: Date.now() });
-  if (space) run("space.select", { id: space.id });
-  const tab = space?.tabs?.find((x) => x.active)?.id;
-  const inTab = panes().filter((p) => p.tab === tab);
-  if (!inTab.some((p) => p.mod === "forge")) run("pane.split", { direction: "right", mod: "forge", props: { run: dir } });
-  if (!inTab.some((p) => p.mod === "prs")) run("pane.split", { direction: "down", mod: "prs", props: { run: dir } });
+// A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open.
+function openRunWindow(f) {
+  const title = f.title || f.ticket;
+  // Left: a read-only view of the run's current coordinator (no terminal, so no input box and no typing into
+  // the agent; it follows phase handoffs). Right: the forge graph above the PR view.
+  const layout = { type: "column", children: [
+    { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title } } },
+    { type: "row", children: [
+      { type: "block", size: { weight: 1 }, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
+      { type: "column", size: { weight: 1 }, children: [
+        { type: "block", size: { weight: 3 }, content: { mod: "forge", props: { run: f.dir } } },
+        { type: "block", size: { weight: 2 }, content: { mod: "prs", props: { run: f.dir } } },
+      ] },
+    ] },
+  ] };
+  const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout });
+  setShared("forge.window", { run: f.dir, id });
 }
 
 export default class ForgeStart extends View {
@@ -228,9 +236,9 @@ export default class ForgeStart extends View {
     cx.notify();
   }
 
-  // The run's own space when one shows its worktree, else this space.
-  openPanel(dir, worktree) {
-    showRun(spaces().find((s) => s.folder === worktree) ?? spaces().find((s) => s.id === this.space), dir);
+  // The run's floating window (the same one a click on its row in the spaces sidebar opens).
+  openPanel(r) {
+    openRunWindow(r);
   }
 
   task(cx, label, work) {
@@ -268,7 +276,9 @@ export default class ForgeStart extends View {
     const ticket = this.ticket.value().trim();
     this.task(cx, "new run", async () => {
       const inbox = `${this.repo.main}/.forge/inbox`;
-      const file = `${inbox}/${Date.now()}.md`;
+      // A run without a ticket is named after the file: use the goal's first words, plus a short suffix.
+      const slug = goal.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").split("-").slice(0, 4).join("-") || "run";
+      const file = `${inbox}/${slug}-${Date.now().toString(36).slice(-4)}.md`;
       await exec("mkdir", ["-p", inbox]);
       const refs = this.refList();
       const refLines = refs.length ? `refs:\n${refs.map((x) => `  - ${x}`).join("\n")}\n` : "";
@@ -281,8 +291,10 @@ export default class ForgeStart extends View {
       const st = JSON.parse(init.out);
       const coord = await forge(["coord", "--run", st.run], this.repo.main);
       if (!coord.ok) throw new Error(coord.err);
-      this.openPanel(st.run, st.worktree);
-      return `${st.ticket}: the grill coordinator is running.`;
+      // Remember the space this run was started from: the spaces sidebar shows it there. The forge and prs
+      // panes open only when you click the run's row (or Open), not on Start.
+      if (this.space) setShared("forge.spaces", { ...(shared("forge.spaces") ?? {}), [st.run]: this.space });
+      return `${st.ticket}: the grill coordinator is running. Click its row under the space to watch it.`;
     });
   }
 
@@ -331,7 +343,7 @@ export default class ForgeStart extends View {
                   .child(div().flex_none().text_size(11.5).text_color(color).child(state)))
                 .child(h_flex().gap(8).justify_end().items_center()
                   .when(this.merged.has(r.dir), (x) => x.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
-                  .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r.dir, r.worktree); this.close(); }))
+                  .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r); this.close(); }))
                   .child(this.merged.has(r.dir)
                     ? button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r))
                     : button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))

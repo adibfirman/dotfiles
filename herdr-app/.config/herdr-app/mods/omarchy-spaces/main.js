@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
+import { spaces, machines, panes, terminals, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -21,15 +21,23 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // About how many characters a row's text gets at the sidebar's width (12px mono is ~7px; badge, gaps and status take ~84px).
 const room = () => Math.floor(((find(layout(), "sidebar")?.size?.px ?? 243) - 84) / 7);
 
-// Show one forge run: the forge graph on the right and the PR view below it, in the run's space.
-// Panes already in that tab follow the shared selection instead of opening again.
-function showRun(space, dir) {
-  setShared("forge.selected", { dir, at: Date.now() });
-  if (space) run("space.select", { id: space.id });
-  const tab = space?.tabs?.find((x) => x.active)?.id;
-  const inTab = panes().filter((p) => p.tab === tab);
-  if (!inTab.some((p) => p.mod === "forge")) run("pane.split", { direction: "right", mod: "forge", props: { run: dir } });
-  if (!inTab.some((p) => p.mod === "prs")) run("pane.split", { direction: "down", mod: "prs", props: { run: dir } });
+// A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open.
+function openRunWindow(f) {
+  const title = f.title || f.ticket;
+  // Left: a read-only view of the run's current coordinator (no terminal, so no input box and no typing into
+  // the agent; it follows phase handoffs). Right: the forge graph above the PR view.
+  const layout = { type: "column", children: [
+    { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title } } },
+    { type: "row", children: [
+      { type: "block", size: { weight: 1 }, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
+      { type: "column", size: { weight: 1 }, children: [
+        { type: "block", size: { weight: 3 }, content: { mod: "forge", props: { run: f.dir } } },
+        { type: "block", size: { weight: 2 }, content: { mod: "prs", props: { run: f.dir } } },
+      ] },
+    ] },
+  ] };
+  const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout });
+  setShared("forge.window", { run: f.dir, id });
 }
 
 // Where a space is now: its first terminal's live folder, else where it was made.
@@ -86,7 +94,7 @@ export default class Spaces extends View {
       const r = await exec(`${home()}/.local/bin/forge`, ["runs"], { timeout: 20000 }).catch(() => null);
       if (r?.code !== 0) return;
       const next = JSON.parse(r.stdout);
-      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused]));
+      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused, f.coordinator?.terminal]));
       if (key === this.forgeKey) return;
       this.forgeKey = key;
       this.forge = next;
@@ -94,23 +102,53 @@ export default class Spaces extends View {
     });
   }
 
+  // Which one space shows a run: the space it was started from (the + dialog records it in shared
+  // "forge.spaces"), else the space most in the run's folder (agent panes 2, shells 1, the space's own
+  // folder 1). Each run shows under exactly one space.
+  forgeOwner(f, sp, ps) {
+    const recorded = (shared("forge.spaces") ?? {})[f.dir];
+    if (recorded && sp.some((s) => s.id === recorded)) return recorded;
+    const inside = (cwd) => cwd === f.worktree || (cwd ?? "").startsWith(`${f.worktree}/`);
+    let best = null, bestScore = 0;
+    for (const s of sp) {
+      const tabs = new Set((s.tabs ?? []).map((x) => x.id));
+      const score = ps.filter((p) => tabs.has(p.tab) && inside(p.cwd)).reduce((n, p) => n + (p.status ? 2 : 1), 0) + (s.folder === f.worktree ? 1 : 0);
+      if (score > bestScore) [best, bestScore] = [s.id, score];
+    }
+    return best;
+  }
+
   // A space's forge runs as child rows: click opens the forge panel pinned to that run.
   forgeRows({ w, tree }, t) {
-    const here = place(w, panes()); // the folder; where() is a [machine, folder] cache key
-    return this.forge.filter((f) => f.worktree === here || f.worktree === w.folder).map((f) => {
+    const sp = spaces(), ps = panes();
+    return this.forge.filter((f) => this.forgeOwner(f, sp, ps) === w.id).map((f) => {
       const h = f.head ?? {};
       const [mark, color] = h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
-      return h_flex().id(`forge-${f.dir}`).h(22).flex_none().pl(tree ? 48 : 30).pr(8).gap(6).items_center().text_size(11.5).text_color(t.muted)
+      const open = shared("forge.window")?.run === f.dir;
+      return h_flex().id(`forge-${f.dir}`).h(22).flex_none().pl(tree ? 48 : 30).pr(8).gap(6).items_center().text_size(11.5)
+        .text_color(open ? t.foreground : t.muted).when(open, (e) => e.bg(t.accent + "26").border_l(2).border_color(t.accent))
         .cursor_pointer().hover((s) => s.bg(t.foreground + "14").text_color(t.foreground))
         .tooltip(`${f.ticket} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}`)
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          showRun(w, f.dir);
+          openRunWindow(f);
         })
         .child(div().flex_none().text_color(color).child(h.paused ? "Ⅱ" : mark))
         .child(div().flex_1().min_w(0).truncate().child(f.title || f.ticket))
         .child(div().flex_none().text_size(10.5).text_color(h.phase === "gate" ? t.accent : t.dim).child(h.phase === "gate" ? "you" : h.phase ?? ""));
     });
+  }
+
+  // The folder a space works in: where most of its panes are (agent panes 2, shells 1). Its stored folder
+  // only breaks a tie or fills in for an empty space: a space made from one repo can live in another.
+  workFolder(w, ps) {
+    const tabs = new Set((w.tabs ?? []).map((x) => x.id));
+    const score = new Map();
+    for (const p of ps) if (tabs.has(p.tab) && p.cwd) score.set(p.cwd, (score.get(p.cwd) ?? 0) + (p.status ? 2 : 1));
+    if (w.folder) score.set(w.folder, (score.get(w.folder) ?? 0) + 0.5);
+    let best = null, top = 0;
+    for (const [folder, n] of score) if (n > top) [best, top] = [folder, n];
+    return best ?? place(w, ps);
   }
 
   // The "+" on a hovered space: open a forge run, follow one up, or start one in this space's folder.
@@ -119,7 +157,7 @@ export default class Spaces extends View {
       .tooltip("Forge: start a run here, or follow up an existing one")
       .on_click((_e, cx) => {
         cx.stop_propagation();
-        openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: place(w, panes()) } });
+        openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: this.workFolder(w, panes()) } });
       })
       .child("+");
   }
