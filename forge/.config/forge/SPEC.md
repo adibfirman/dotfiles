@@ -281,3 +281,14 @@ Not checked yet: the look, and Push, Create PR, and Send to forge on a real PR.
 A regression commit (`cdfdcc4`, refund allowed for a cancelled order) and a QA report through `forge followup --source qa`. No coordinator was running, so forge started a classifier. It cited the approved spec (`gate/SPEC.md:118`, D10), picked `exec`, and opened cycle `002-fix-cancelled-refund-guard` with the approval carried over: no new context file, no restart, no gate. exec-coord ran plan → 1 unit → 4 gates (all PASS) → commit `fafeb88 fix: refund only paid orders` with a regression test. 13 tests pass, the follow-up is marked handled, and the commit has no co-author line.
 
 Found: the coordinator's task text named `exec/gates/<id>.md` as the output, while forge's footer names `exec/<id>.md`, so gate outputs went to two places. Fix: `_coordinator.md` says never to name an output file in a task.
+
+## 14. Gate comment and fix loop tests (2026-11-15)
+
+- Spec change follow-up ("every refund must record a reason") → cycle `003-refund-reason` at grill, approval dropped → 12 invariants → gate.
+- Gate comment (`forge followup --source gate`: "limit the reason to 200 characters") → a classifier (no coordinator runs at the gate) → cycle `004-refund-reason-length` at grill. Its spec carries cycle 3 (never executed), marks D20 "No maximum reason length" as SUPERSEDED by D26, and adds 2 invariants. 14 models, all PASS with caught mutants → gate again.
+- Fix loop: approved cycle 4. When the first gate node was added, a test script changed the limit in `src/order.ts` from 200 to 2000 (a deliberate defect). All 4 gates failed in round 0 (BEH 2, SPEC 2, SEC 1, REVIEW 1 must-fix) → `fix-u-refund-reason-length-r1` at wave 102 → gates round 1 at wave 103, all PASS → commit `9f9d05e feat: require refund reason, limit it to 200 characters`. The limit is back at 200 and 29 tests pass.
+
+Found and fixed:
+
+1. `forge followup` sent the first follow-up to `exec-coord-1`, which had finished but whose terminal was still open. It handled it, but by luck. Fix: a coordinator counts as live only when it runs the current phase (`80f799a`).
+2. The classifier wrote its note after `forge coord`, and the next coordinator closed it first, so the note was lost. Fix: the note comes before the action.
