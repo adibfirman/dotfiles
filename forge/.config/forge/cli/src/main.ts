@@ -6,7 +6,7 @@ import { init } from "./init";
 import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
-import { addRef, listRefs, refreshRef } from "./refs";
+import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { frontMatterList } from "./init";
 import { dirname, resolve } from "node:path";
 import { status } from "./status";
@@ -63,9 +63,11 @@ export async function main(argv: string[]): Promise<number> {
         const here = rest.includes("--here");
         const files = rest.filter((a) => a !== "--here");
         if (files.length !== 1) throw new UsageError("forge init <context.md> [--here]");
+        // refs: in the front matter are fetched first, relative to the context file. A failed ref
+        // stops the start before anything is written.
+        const fetched = await fetchAll(frontMatterList(readFileSync(files[0], "utf8"), "refs"), dirname(resolve(files[0])));
         const run = init(files[0], process.cwd(), Number(process.env.FORGE_CAP ?? 4), here);
-        // refs: in the front matter are fetched now, relative to the context file.
-        for (const ref of frontMatterList(readFileSync(files[0], "utf8"), "refs")) await addRef(run, ref, dirname(resolve(files[0])));
+        storeRefs(run, fetched);
         print(status(run));
         return 0;
       }
@@ -119,8 +121,7 @@ export async function main(argv: string[]): Promise<number> {
         for (let r = takeFlag(rest, "--ref"); r !== undefined; r = takeFlag(rest, "--ref")) refs.push(r);
         if (rest.length !== 1) throw new UsageError("forge followup <text> [--source qa|gate|pr|user] [--ref <url|path>]...");
         const run = findRun(runFlag);
-        const added = [];
-        for (const r of refs) added.push(...(await addRef(run, r)));
+        const added = await addRefs(run, refs); // all or nothing: a failed ref sends no follow-up
         const text = added.length ? `${rest[0]}\n\nNew references: ${added.map((e) => `refs/${e.file}`).join(", ")}` : rest[0];
         print(followup(run, text, source));
         return 0;
@@ -129,9 +130,7 @@ export async function main(argv: string[]): Promise<number> {
         const [sub, ...items] = rest;
         const run = findRun(runFlag);
         if (sub === "add" && items.length) {
-          const added = [];
-          for (const r of items) added.push(...(await addRef(run, r)));
-          print(added);
+          print(await addRefs(run, items));
           return 0;
         }
         if (sub === "list" && !items.length) {

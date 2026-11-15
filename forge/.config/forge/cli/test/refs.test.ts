@@ -123,3 +123,69 @@ test("agent tasks name the refs index once refs exist", async () => {
   const run = hcCalls(env).find((c) => c[0] === "run")!;
   expect(run[run.length - 1]).toContain(`References for this run: ${join(env.run.dir, "refs", "INDEX.md")}`);
 });
+
+describe("failures (Q40 to Q43)", () => {
+  let flaky: ReturnType<typeof Bun.serve>;
+  let hits: Record<string, number> = {};
+  let url = "";
+  beforeAll(() => {
+    flaky = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const p = new URL(req.url).pathname;
+        hits[p] = (hits[p] ?? 0) + 1;
+        if (p === "/flaky") return hits[p] < 3 ? new Response("busy", { status: 503 }) : new Response("ok now", { headers: { "content-type": "text/plain" } });
+        if (p === "/gone") return new Response("no", { status: 404 });
+        if (p === "/login") return new Response('<html><head><title>Sign in - Docs</title></head><body><form><input type="password"></form></body></html>', { headers: { "content-type": "text/html" } });
+        return new Response("fine", { headers: { "content-type": "text/plain" } });
+      },
+    });
+    url = `http://localhost:${flaky.port}`;
+  });
+  afterAll(() => flaky.stop());
+
+  test("a 503 is retried twice, a 404 is not", async () => {
+    const env = setup();
+    hits = {};
+    await addRef(env.run, `${url}/flaky`);
+    expect(hits["/flaky"]).toBe(3);
+    await expect(addRef(env.run, `${url}/gone`)).rejects.toThrow(/ref 1 of 1 failed: .*HTTP 404/);
+    expect(hits["/gone"]).toBe(1);
+  });
+
+  test("a login page is a failure", async () => {
+    const env = setup();
+    await expect(addRef(env.run, `${url}/login`)).rejects.toThrow(/looks like a login page/);
+  });
+
+  test("refs add is all or nothing", async () => {
+    const env = setup();
+    await expect(quiet(() => main(["refs", "add", `${url}/ok`, `${url}/gone`, "--run", env.run.dir]))).resolves.toBe(1);
+    expect(listRefs(env.run)).toEqual([]);
+  });
+
+  test("init with a failed ref creates no run", async () => {
+    const env = setup();
+    const ctx = join(env.root, "bad.md");
+    writeFileSync(ctx, `---\nticket: INTR-77\nrefs:\n  - ${url}/ok\n  - ${url}/gone\n---\n# Bad ref\n`);
+    process.chdir(env.repo);
+    expect(await quiet(() => main(["init", ctx, "--here"]))).toBe(1);
+    expect(require("node:fs").existsSync(join(env.repo, ".forge", "tickets", "INTR-77"))).toBe(false);
+  });
+
+  test("followup with a failed ref sends nothing", async () => {
+    const env = setup();
+    process.env.FORGE_RUN = env.run.dir;
+    expect(await quiet(() => main(["followup", "x", "--ref", `${url}/gone`]))).toBe(1);
+    expect(status(env.run).followups).toEqual([]);
+  });
+
+  test("a failed refresh keeps the old copy", async () => {
+    const env = setup();
+    hits = {};
+    const [e] = await addRef(env.run, `${url}/ok`);
+    flaky.stop(true);
+    await expect(quiet(() => main(["refs", "refresh", String(e.n), "--run", env.run.dir]))).resolves.toBe(1);
+    expect(listRefs(env.run).map((x) => x.n)).toEqual([e.n]);
+  });
+});

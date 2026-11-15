@@ -314,3 +314,10 @@ Decisions Q36 to Q39: references are added in `context.md` (`refs:` list), in th
 - Agents can read `refs/` but not write it (it is outside every agent's output folder).
 - `CONFLUENCE_DOMAIN` may hold a full URL; hosts are normalized. A network error is a refusal, not a crash.
 - Checked live (read-only): a public GitHub file (20 KB), a Jira issue, and a Confluence page (17 KB). 91 tests pass.
+
+Failures (Q40 to Q43, 2026-11-15): refs are fetched only when added, never during a phase, so a ref can never stop a wave.
+
+- All or nothing: every ref is fetched (into memory) before forge writes anything. One failure means no run is created (`forge init`), no follow-up is sent (`--ref`), and no ref is added (`refs add a b c`). The error names the ref: `ref 2 of 3 failed: <source>: <reason>`. The + dialog keeps what you typed.
+- Retries: 2, after 2 s and 5 s (`FORGE_REF_RETRY_MS`), for HTTP 5xx, 429, timeouts, and lost connections. 401, 403, and 404 fail at once.
+- A login page is a failure: HTML with a password field, or a short page titled "Sign in" or "Log in".
+- A failed refresh changes nothing; the old copy stays.
