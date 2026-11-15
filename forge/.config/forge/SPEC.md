@@ -255,3 +255,17 @@ Found while building:
 3. A shell filter here strips comments from `cat` output. Copy files with Python or `rtk proxy`.
 
 Not checked yet: how the graph, the gate view, and the buttons look and work in the app.
+
+## 12. Build notes (M4: prs mod)
+
+The mod lives in `herdr-app/.config/herdr-app/mods/prs/`. Open it with `herdr-app do pane.split --direction right --mod prs`.
+
+- `model.js`: pure code with tests (`node --test 'test/*.test.mjs'`, 7 pass). The state rules come from `herdr/.config/herdr/scripts/sync-all-pr-worktree-labels`: draft; then merge conflict, CI failed (cancelled runs do not count), open threads or changes requested, blocked, approved on the head commit. The list sorts by that order, then by the last update.
+- `github.js`: one GraphQL call through `gh` for all open PRs (`is:pr is:open author:@me`), with checks, reviews, threads, merge state, and files. It retries once, because GitHub sometimes answers this query with a 502. Send to forge reads the open threads and the failed job logs (`gh run view --job <id> --log-failed`).
+- `main.js`: the list (title, repo #n, ticket, CI, state, forge phase, agent) and the detail (branch → base, agent with Go, a timeline, the checks, the ticket link, the forge cycle, changed files, Push, Send to forge). It refreshes every 2 minutes and on ↻.
+- A PR matches a local pane by repo (`git remote get-url origin`) and branch. The ticket comes from the branch name. A forge run is `<main>/.forge/tickets/<ticket>/`.
+- Send to forge writes the failed logs and the open threads to `<run>/inbox/pr-<n>-<time>.md` and runs `forge followup "PR #n: … Details: <file>" --source pr`.
+- The ticket link comes from an untracked file, `<app home>/data/prs/config.json` (`{"ticketUrl": ".../browse/{key}"}`), so no company URL is in dotfiles.
+- It writes what it sees to `<app home>/data/prs/last-state.json`. Checked on 2026-11-15: 38 PRs, 2 matched to local worktrees.
+
+Not checked yet: the look, and Push and Send to forge on a real PR.
