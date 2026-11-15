@@ -18,7 +18,7 @@ export default class Forge extends View {
     Object.assign(this, {
       cwd: null, repo: null, runs: [], dir: null, pinned: null, st: null, error: null,
       specText: "", tab: "run", lastPhase: null, selected: null, detail: null,
-      size: { width: 640, height: 420 }, zoom: 1, busy: null, loading: false, gen: 0, layouts: new Map(),
+      size: { width: 640, height: 420 }, zoom: 1, busy: null, loading: false, gen: 0, layouts: new Map(), views: {}, drag: null, dragged: false,
     });
     this.followup = InputState.new({ placeholder: "Follow-up: a QA bug or a new request, then Enter" });
     this.followup.on("submit", (_e, cx) => this.sendFollowup(cx));
@@ -294,10 +294,10 @@ export default class Forge extends View {
   }
 
   tabs(t) {
-    const items = [["run", "Run"], ...(this.st.phase === "gate" ? [["gate", "Gate"]] : []), ...this.graphs().map((b, i) => [`g${i}`, b.title]), ...(this.specText ? [["spec", "Spec"]] : [])];
+    const items = [["run", "Run"], ...(this.st.phase === "gate" ? [["gate", "Gate"]] : []), ...this.graphs().map((b, i) => [`g${i}`, b.title, b.full]), ...(this.specText ? [["spec", "Spec"]] : [])];
     if (!items.some(([k]) => k === this.tab)) this.tab = "run";
     return h_flex().h(TABS_H).flex_none().px(10).gap(6).items_center().border_b(1).border_color(t.border).overflow_hidden()
-      .children(items.map(([k, label]) => div().id(`f-tab-${k}`).h(24).px(9).flex().items_center().rounded(6).text_size(12).max_w(200).truncate().cursor_pointer()
+      .children(items.map(([k, label, full]) => div().id(`f-tab-${k}`).tooltip(full ?? label).h(24).px(9).flex().items_center().rounded(6).text_size(12).max_w(200).truncate().cursor_pointer()
         .bg(this.tab === k ? t.raised : t.background).border_1().border_color(this.tab === k ? t.input : t.border).text_color(this.tab === k ? t.foreground : t.muted)
         .on_click((_e, cx) => { this.tab = k; this.selected = null; cx.notify(); })
         .child(k === "gate" ? `● ${label}` : label)));
@@ -380,8 +380,13 @@ export default class Forge extends View {
     }
     const b = L.bounds, pad = 24;
     const bw = b.maxX - b.minX || 1, bh = b.maxY - b.minY || 1;
-    const z = Math.max(0.35, Math.min(1.2, (W - 2 * pad) / bw, (H - 2 * pad) / bh));
-    const ox = (W - bw * z) / 2 - b.minX * z, oy = Math.max(pad, (H - bh * z) / 2) - b.minY * z;
+    const fit = () => {
+      const z = Math.max(0.2, Math.min(1.2, (W - 2 * pad) / bw, (H - 2 * pad) / bh));
+      return { z, ox: (W - bw * z) / 2 - b.minX * z, oy: Math.max(pad, (H - bh * z) / 2) - b.minY * z };
+    };
+    const v = this.views[key] ?? fit();
+    this.cur = { key, v, fit };
+    const { z, ox, oy } = v;
     const X = (x) => x * z + ox, Y = (y) => y * z + oy;
 
     let lines = PathBuilder.stroke(1.25), arrows = PathBuilder.fill();
@@ -414,12 +419,63 @@ export default class Forge extends View {
       els.push(v_flex().id(`f-n-${key}-${n.id}`).absolute().left(left).top(top).w(w).h(h).justify_center().px(8 * z).rounded(8 * z)
         .bg(n.kind === "phase" ? t.surface : t.background).border(picked ? 2 : n.status === "running" || n.status === "waiting" ? 2 : 1)
         .border_color(picked ? t.accent : color).cursor_pointer().hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => { this.selected = n.id; if (n.node) this.open(n, cx); else if (n.details.length || n.path) this.detail = { title: n.label, text: [n.sub, ...n.details].filter(Boolean).join("\n\n") }; cx.notify(); })
+        .on_click((_e, cx) => { if (this.dragged) return; this.selected = n.id; if (n.node) this.open(n, cx); else if (n.details.length || n.path) this.detail = { title: n.label, text: [n.sub, ...n.details].filter(Boolean).join("\n\n") }; cx.notify(); })
         .child(h_flex().min_w(0).text_size(12.5 * z).font_semibold()
           .when(Boolean(mark), (e) => e.child(div().flex_none().text_color(color).child(mark)))
           .child(div().min_w(0).truncate().text_color(n.status === "pending" ? t.muted : t.foreground).child(n.label)))
         .when(Boolean(n.sub), (e) => e.child(div().text_size(10.5 * z).truncate().text_color(t.muted).child(n.sub))));
     }
-    return div().id(`f-canvas-${key}`).size_full().relative().overflow_hidden().bg(t.canvas).children(els);
+    const ctl = (id, label, f, tip) => div().id(id).h(24).min_w(24).px(6).flex().items_center().justify_center().rounded(5).text_size(12).cursor_pointer()
+      .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { f(); cx.notify(); }).child(label);
+    els.push(h_flex().absolute().right(10).bottom(10).gap(2).p(3).rounded(7).bg(t.popover).border_1().border_color(t.border)
+      .child(ctl("f-zoom-out", "−", () => this.zoomBy(0.8), "Zoom out (⌘/Ctrl + scroll)"))
+      .child(ctl("f-zoom-fit", `${Math.round(z * 100)}%`, () => delete this.views[key], "Fit the graph to the pane"))
+      .child(ctl("f-zoom-in", "+", () => this.zoomBy(1.25), "Zoom in (⌘/Ctrl + scroll)")));
+    return div().id(`f-canvas-${key}`).size_full().relative().overflow_hidden().bg(t.canvas)
+      .on_scroll_wheel((e, cx) => {
+        const p = this.pointer(e);
+        // Same directions as Blueprint's canvas.
+        if (e.modifiers?.control || e.modifiers?.platform) this.zoomBy(Math.exp(e.delta.y * 0.003), p);
+        else this.pan(e.delta.x / this.zoom, e.delta.y / this.zoom);
+        cx.notify();
+      })
+      .on_mouse_down("left", (e) => {
+        this.dragged = false;
+        this.drag = { x: e.position.x, y: e.position.y, v: { ...this.cur.v } };
+      })
+      .on_mouse_move((e, cx) => {
+        const d = this.drag;
+        if (!d) return;
+        const dx = (e.position.x - d.x) / this.zoom, dy = (e.position.y - d.y) / this.zoom;
+        if (!this.dragged && Math.hypot(dx, dy) < 3) return;
+        this.dragged = true;
+        this.views[this.cur.key] = { ...d.v, ox: d.v.ox + dx, oy: d.v.oy + dy };
+        cx.notify();
+      })
+      .on_mouse_up("left", () => { this.drag = null; })
+      .on_hover((h) => { if (!h) this.drag = null; })
+      .children(els);
+  }
+
+  // A point in the canvas, in layout px (pointer positions arrive in real px).
+  pointer(e) {
+    const r = e.local_position ?? (e.bounds ? { x: e.position.x - e.bounds.x, y: e.position.y - e.bounds.y } : null);
+    return r ? { x: r.x / this.zoom, y: r.y / this.zoom } : { x: this.size.width / 2, y: this.size.height / 2 };
+  }
+
+  // Zoom around a point (default: the middle), keeping that point still. 20% to 300%.
+  zoomBy(factor, at = { x: this.size.width / 2, y: this.size.height / 2 }) {
+    if (!this.cur) return;
+    const v = this.views[this.cur.key] ?? this.cur.v;
+    const z = Math.max(0.2, Math.min(3, v.z * factor));
+    const wx = (at.x - v.ox) / v.z, wy = (at.y - v.oy) / v.z;
+    this.views[this.cur.key] = { z, ox: at.x - wx * z, oy: at.y - wy * z };
+  }
+
+  pan(dx, dy) {
+    if (!this.cur) return;
+    const v = this.views[this.cur.key] ?? this.cur.v;
+    this.views[this.cur.key] = { ...v, ox: v.ox + dx, oy: v.oy + dy };
   }
 }

@@ -13,7 +13,8 @@ export function tsBlocks(markdown) {
   for (const line of lines) {
     if (code) {
       if (/^```\s*$/.test(line)) {
-        out.push({ title: clean(above) || clean(heading) || `Graph ${out.length + 1}`, code: code.join("\n") });
+        const full = plain(above) || plain(heading) || `Graph ${out.length + 1}`;
+        out.push({ title: full.replace(/\s*\([^)]*\)/g, "").trim().slice(0, 40) || full.slice(0, 40), full, code: code.join("\n") });
         code = null;
         above = "";
       } else code.push(line);
@@ -32,7 +33,8 @@ export function tsBlocks(markdown) {
   return out;
 }
 
-const clean = (s) => s.replace(/^#+\s*/, "").replace(/^\d+\.\s*/, "").replace(/[:*`]+$/g, "").replace(/\*\*/g, "").trim().slice(0, 48);
+// A title without heading marks, numbering, bold, or a trailing colon. Tabs drop "(…)" parts; the tooltip keeps them.
+const plain = (s) => s.replace(/^#+\s*/, "").replace(/^\d+\.\s*/, "").replace(/\*\*/g, "").replace(/[:*`]+$/g, "").trim();
 
 /**
  * The call-graph format: a line starting with → is a node, and its parent is the nearest node above

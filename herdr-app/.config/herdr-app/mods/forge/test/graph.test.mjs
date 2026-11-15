@@ -7,7 +7,8 @@ const spec = readFileSync(new URL("./spec-fixture.md", import.meta.url), "utf8")
 
 test("tsBlocks finds every ts graph with its title", () => {
   const blocks = tsBlocks(spec);
-  assert.deepEqual(blocks.map((b) => b.title), ["System flow", "Order state machine (after this change)", "Exec plan"]);
+  assert.deepEqual(blocks.map((b) => b.title), ["System flow", "Order state machine", "Exec plan"]);
+  assert.equal(blocks[1].full, "Order state machine (after this change)");
 });
 
 test("parseTsGraph: nodes, parents by indent, details, and paths", () => {
