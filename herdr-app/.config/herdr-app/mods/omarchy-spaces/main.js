@@ -26,13 +26,15 @@ function openRunWindow(f) {
   const title = f.title || f.ticket;
   // Left: a read-only view of the run's current coordinator (no terminal, so no input box and no typing into
   // the agent; it follows phase handoffs). Right: the forge graph above the PR view.
-  const layout = { type: "column", children: [
+  // Each part is a framed panel with a gap around it.
+  const panel = { background: "background", border: { width: 1, color: "border" }, radius: 8 };
+  const layout = { type: "column", background: "chrome", children: [
     { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title } } },
-    { type: "row", children: [
-      { type: "block", size: { weight: 1 }, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
-      { type: "column", size: { weight: 1 }, children: [
-        { type: "block", size: { weight: 3 }, content: { mod: "forge", props: { run: f.dir } } },
-        { type: "block", size: { weight: 2 }, content: { mod: "prs", props: { run: f.dir } } },
+    { type: "row", padding: 8, gap: 8, children: [
+      { type: "block", size: { weight: 1 }, min: 260, ...panel, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
+      { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
+        { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
+        { type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } },
       ] },
     ] },
   ] };
