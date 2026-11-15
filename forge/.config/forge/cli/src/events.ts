@@ -6,7 +6,7 @@ export const WORK: readonly Phase[] = ["grill", "verify", "exec"];
 
 export const KINDS = [
   "cycle_open", "node_add", "node_start", "node_done", "node_fail", "node_evolve",
-  "phase_done", "approved", "comment", "followup", "pause", "resume",
+  "phase_done", "approved", "comment", "followup", "pause", "resume", "coord_start",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 
@@ -184,6 +184,11 @@ export function apply(s: State, e: Event): string | null {
     case "comment":
     case "followup": {
       if (!text(e.data, "text")) return `${e.kind} needs data.text`;
+      break;
+    }
+    case "coord_start": {
+      // A coordinator or classifier is not a node: it runs the phase, so it is not in the cap or the barrier.
+      if (!text(e.data, "role") || !text(e.data, "id")) return "coord_start needs data.role and data.id";
       break;
     }
     case "pause": {

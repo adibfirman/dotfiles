@@ -19,7 +19,9 @@ describe("spawn", () => {
     expect(call).not.toContain("--outlive-parent");
     expect(call[call.indexOf("--label") + 2]).toBe("claude");
     const settings = JSON.parse(require("node:fs").readFileSync(call[call.indexOf("--settings") + 1], "utf8"));
-    expect(settings.env).toEqual({ FORGE_RUN: env.run.dir, FORGE_NODE: "facts-auth" });
+    expect(settings.env).toEqual({ FORGE_RUN: env.run.dir, FORGE_NODE: "facts-auth-g0" });
+    const prompt = require("node:fs").readFileSync(call[call.indexOf("--append-system-prompt-file") + 1], "utf8");
+    expect(prompt).toBe("You are _common.\n\n---\n\nYou are fact-finder.\n");
     expect(settings.permissions.deny).toContain("Bash(git push:*)");
     const task = call[call.length - 1];
     expect(task.startsWith("Find where tokens are refreshed.")).toBe(true);
@@ -27,11 +29,10 @@ describe("spawn", () => {
     expect(loadState(env.run).state.nodes.get("facts-auth")!.status).toBe("running");
   });
 
-  test("a coordinator outlives its parent", () => {
+  test("a coordinator role cannot be spawned as a node", () => {
     const env = setup();
     add(env.run, "node_add", "coord");
-    spawnNode(env.run, "grill-coord", "coord", "BOOT");
-    expect(hcCalls(env)[0]).toContain("--outlive-parent");
+    expect(() => spawnNode(env.run, "grill-coord", "coord", "BOOT")).toThrow(/use forge coord/);
   });
 
   test("queues at the cap and starts the queued node when a slot frees", () => {
@@ -75,7 +76,7 @@ describe("spawn", () => {
     const r = spawnNode(env.run, "fact-finder", "a", "Find the retry logic in payments.");
     expect(r.recovered).toBe(true);
     const calls = hcCalls(env).map((c) => c[0]);
-    expect(calls[0]).toBe("run");
+    expect(calls).toContain("run");
     expect(calls.slice(-2)).toEqual(["read", "send"]);
     expect(calls).not.toContain("keys");
   });
@@ -93,6 +94,18 @@ describe("spawn", () => {
     add(env.run, "node_add", "a");
     expect(spawnNode(env.run, "fact-finder", "a", "x").trusted).toBe(false);
     expect(hcCalls(env).map((c) => c[0])).toEqual(["run", "read"]);
+  });
+
+  test("a retry ends the old terminal before it reuses the name", () => {
+    const env = setup();
+    add(env.run, "node_add", "a");
+    spawnNode(env.run, "fact-finder", "a", "x");
+    add(env.run, "node_fail", "a", { sig: "E1" });
+    spawnNode(env.run, "fact-finder", "a", "x");
+    const calls = hcCalls(env).map((c) => c[0]);
+    expect(calls.filter((c) => c === "run")).toHaveLength(2);
+    expect(calls.indexOf("kill")).toBeGreaterThan(calls.indexOf("run"));
+    expect(calls.lastIndexOf("run")).toBeGreaterThan(calls.indexOf("kill"));
   });
 
   test("a failed hc run records node_fail", () => {

@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { loadState, type Run } from "./append";
 import { running } from "./events";
 import { queued } from "./spawn";
+import { coordinators, followups, specs } from "./agents";
 
 /** The current cycle as plain JSON, rebuilt from events.jsonl alone. */
 export function status(run: Run) {
@@ -24,5 +25,8 @@ export function status(run: Run) {
       ...(n.role ? { role: n.role } : {}),
     })),
     queue: queued(cycleDir).map((q) => ({ node: q.node, role: q.role })),
+    coordinators: coordinators(run).map((c) => ({ role: c.role, id: c.id })),
+    followups: followups(run),
+    spec: specs(run),
   };
 }

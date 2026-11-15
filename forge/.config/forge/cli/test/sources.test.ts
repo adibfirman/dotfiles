@@ -88,7 +88,8 @@ describe("claude argv", () => {
     expect(args.slice(0, 3)).toEqual(["--setting-sources", "project", "--strict-mcp-config"]);
     expect(args.slice(-2)).toEqual(["--model", "opus"]);
     expect(args).toContain("mcp__context7");
-    expect(args).toContain(join(cycleDir, "grill"));
+    expect(args).toContain(cycleDir); // a coordinator writes the whole cycle folder
+    expect(args).toContain(`Edit(/${join(cycleDir, "**")})`);
     expect(args).toContain(`Edit(/${join(run.dir, "**/events.jsonl")})`);
     expect(args).toContain(`Read(/${join(run.dir, "**")})`);
     expect(args.indexOf("--permission-mode")).toBeGreaterThan(args.indexOf("--add-dir"));

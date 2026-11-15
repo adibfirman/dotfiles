@@ -2,7 +2,8 @@
 import { appendEvent, findRun, Refused } from "./append";
 import { KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
-import { drainQueue, spawnNode } from "./spawn";
+import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
+import { approve, followup, reconcile, startCoordinator } from "./agents";
 import { status } from "./status";
 import { tlc } from "./tlc";
 
@@ -12,6 +13,10 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge append <kind> [--node <id>] [--data '<json>']
                                               add one checked event to the current cycle
   forge spawn <role> <node> <task>            start a node in an hc terminal (queues at the cap)
+  forge coord [--role classifier]             start the coordinator of the current phase
+  forge approve                               the gate: approve the spec and start exec
+  forge followup <text> [--source <s>]        a QA bug, request, gate comment, or PR review
+  forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
   forge status                                the current cycle as JSON
   forge tlc <model dir>                       run TLC on one TLA+ model
 
@@ -63,7 +68,9 @@ export function main(argv: string[]): number {
         }
         const kind = rest[0] as Kind;
         const run = findRun(runFlag);
-        const { event } = appendEvent(run, { kind, node, data });
+        const { event, cycleDir, state } = appendEvent(run, { kind, node, data });
+        // A finished agent's terminal is closed (screen saved), so idle agents do not pile up.
+        if ((kind === "node_done" || kind === "node_fail") && node) closeTerminal(cycleDir, nodeSpawnId(node, state.nodes.get(node)!.gen));
         const started = FREES_SLOT.includes(kind) ? drainQueue(run) : [];
         print({ ok: true, event, started });
         return 0;
@@ -73,6 +80,28 @@ export function main(argv: string[]): number {
         const r = spawnNode(findRun(runFlag), rest[0], rest[1], rest[2]);
         print(r);
         return r.status === "queued" ? 3 : 0;
+      }
+      case "coord": {
+        const role = takeFlag(rest, "--role");
+        if (rest.length) throw new UsageError("forge coord [--role classifier]");
+        print(startCoordinator(findRun(runFlag), role));
+        return 0;
+      }
+      case "approve": {
+        if (rest.length) throw new UsageError("forge approve takes no arguments");
+        print(approve(findRun(runFlag)));
+        return 0;
+      }
+      case "followup": {
+        const source = takeFlag(rest, "--source");
+        if (rest.length !== 1) throw new UsageError("forge followup <text> [--source qa|gate|pr|user]");
+        print(followup(findRun(runFlag), rest[0], source));
+        return 0;
+      }
+      case "reconcile": {
+        if (rest.length) throw new UsageError("forge reconcile takes no arguments");
+        print(reconcile(findRun(runFlag)));
+        return 0;
       }
       case "status": {
         if (rest.length) throw new UsageError("forge status takes no arguments");

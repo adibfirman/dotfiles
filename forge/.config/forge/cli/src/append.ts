@@ -117,6 +117,11 @@ export function appendEvent(run: Run, input: AppendInput): { state: State; cycle
   return withLock(run, () => {
     if (input.kind === "cycle_open") return reopen(run, input.data ?? {});
     const { state, cycleDir } = loadState(run);
+    if (input.kind === "followup") {
+      // Follow-ups get an id that later events point at with data.followup when they handle it.
+      const n = readLines(join(cycleDir, "events.jsonl")).filter((l) => JSON.parse(l).kind === "followup").length + 1;
+      input = { ...input, data: { ...input.data, id: `${state.cycle}-${n}` } };
+    }
     const event: Event = {
       ts: new Date().toISOString(), cycle: state.cycle, phase: state.phase, kind: input.kind,
       ...(input.node ? { node: input.node, gen: state.nodes.get(input.node)?.gen ?? 0 } : {}),
@@ -152,16 +157,17 @@ function reopen(run: Run, data: Data) {
   if (start === "exec" && !state.approved) throw new Refused("a cycle can start at exec only when the spec is approved");
   const slug = slugify(typeof data.slug === "string" ? data.slug : "followup");
   const reason = typeof data.reason === "string" ? data.reason : "";
-  return openCycle(run, state.cycle + 1, start, slug, start === "exec" && state.approved, state.cap, reason);
+  const followup = typeof data.followup === "string" ? { followup: data.followup } : {};
+  return openCycle(run, state.cycle + 1, start, slug, start === "exec" && state.approved, state.cap, reason, followup);
 }
 
-function openCycle(run: Run, cycle: number, start: Phase, slug: string, approved: boolean, cap: number, reason: string) {
+function openCycle(run: Run, cycle: number, start: Phase, slug: string, approved: boolean, cap: number, reason: string, extra: Data = {}) {
   const cycleDir = join(run.dir, "cycles", `${pad(cycle)}-${slug}`);
   mkdirSync(cycleDir, { recursive: true });
   const state = emptyState();
   const event: Event = {
     ts: new Date().toISOString(), cycle, phase: start, kind: "cycle_open",
-    data: { start, slug, approved, cap, reason }, prev: state.lastHash,
+    data: { start, slug, approved, cap, reason, ...extra }, prev: state.lastHash,
   };
   write(join(cycleDir, "events.jsonl"), state, event);
   writeHead(run, state, cycleDir);

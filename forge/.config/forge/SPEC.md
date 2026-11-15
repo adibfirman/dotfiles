@@ -1,6 +1,6 @@
 # forge spec (v0)
 
-Status: approved at the gate on 2026-11-15, with decisions 11 to 13. M1 (forge CLI) built. Source: `~/.claude/plans/forge-recap.md`.
+Status: approved at the gate on 2026-11-15, with decisions 11 to 13. M1 (forge CLI) and M2 (role prompts) built. Source: `~/.claude/plans/forge-recap.md`.
 
 ## 1. Goal and out of scope
 
@@ -204,3 +204,15 @@ Facts found while building M1. Each one is tested.
 7. Claude asks to trust each new folder, and its default answer is "No, exit". `forge spawn` reads the screen and answers "Yes, I trust this folder" (`hc keys down enter`). It runs agents only in the run's own worktree. Tested in a new folder.
 8. hc does not track a task given as a claude argument as a launch task (`first_message` is empty). `hc wait` can return at the startup idle, before the task starts. Coordinators (M2) must wait for the child's `hc send` report, or for turn 1 or later, not for the first idle.
 9. A built-in `code-review` skill also exists. The REVIEW gate role must name `forge-skills:code-review`.
+
+## 9. Build notes (M2)
+
+1. Coordinators and the classifier are not nodes. `forge coord` starts them, and a `coord_start` event records them. They are not in the cap or the phase barrier, because a coordinator runs while its phase ends.
+2. New commands: `forge coord [--role classifier]`, `forge approve` (approved + start exec-coord), `forge followup <text> [--source]`, `forge reconcile`.
+3. `forge followup` sends the follow-up to the live coordinator with `hc send`. With no live coordinator (gate, done, or after a crash), it starts a classifier. A follow-up gets an id (`<cycle>-<n>`). A later event with `data.followup` marks it handled.
+4. `forge reconcile`, at each coordinator boot: a running node whose agent is gone fails with `agent lost`, so it retries. Old coordinators of the run are closed. This is how a coordinator hands off: it starts the next one and stops, and the next one closes it.
+5. `forge append node_done` and `node_fail` close the agent's terminal and save its screen in `.spawn/`. A retry closes the old terminal before it reuses the name.
+6. The role prompt is `roles/_common.md`, then `roles/_coordinator.md` for coordinators, then `roles/<role>.md`, joined into `.spawn/<id>-prompt.md`.
+7. Every agent can read the run folder and write its output folder: the phase folder for a node, the cycle folder for a coordinator (an `Edit(<folder>/**)` allow rule; tested on a real claude). SOURCES sections can name a role. Gates, the planner, and coordinators have no `Edit` or `Write` and no git write commands. Only `unit` and `commit` change the repo.
+8. Exec wave numbers: `plan` 1; plan wave k: units 100k, gates 100k+1, fix round r 100k+2r, gates again 100k+2r+1, commit 100k+99.
+9. The prompts are not yet tested on real agents end to end. That is M5.

@@ -15,6 +15,12 @@ if (args[0] === "run") {
   if (mode === "fail") { console.error("core not running"); process.exit(1); }
   const name = args[args.indexOf("--name") + 1];
   console.log(JSON.stringify({ id: "t-" + name, first_message: { sent: mode !== "unsent" } }));
+} else if (args[0] === "get") {
+  const fs = require("node:fs");
+  const dead = fs.existsSync(process.env.FAKE_HC_LOG + ".dead") ? fs.readFileSync(process.env.FAKE_HC_LOG + ".dead", "utf8").split("\\n") : [];
+  console.log(JSON.stringify(dead.includes(args[1]) ? { state: "exited", exit_code: 0 } : { state: "live", exit_code: null }));
+} else if (args[0] === "kill") {
+  appendFileSync(process.env.FAKE_HC_LOG + ".dead", args[1] + "\\n");
 } else if (args[0] === "keys") {
   appendFileSync(process.env.FAKE_HC_LOG + ".trusted", "1");
 } else if (args[0] === "read") {
@@ -37,7 +43,7 @@ export function setup(opts: { cap?: number; sources?: string; registry?: Record<
 
   const home = join(root, "forge-home");
   mkdirSync(join(home, "roles"), { recursive: true });
-  for (const role of ["unit", "fact-finder", "grill-coord", "gate-beh"]) writeFileSync(join(home, "roles", `${role}.md`), `You are ${role}.\n`);
+  for (const role of ["_common", "_coordinator", "unit", "fact-finder", "grill-coord", "verify-coord", "exec-coord", "classifier", "gate-beh"]) writeFileSync(join(home, "roles", `${role}.md`), `You are ${role}.\n`);
   writeFileSync(join(home, "SOURCES.md"), opts.sources ?? "## all\n- tools: Read\n## grill\n- bash: git log\n## exec\n- tools: Edit\n- bash: git commit\n");
   writeFileSync(join(home, "deny-floor.json"), JSON.stringify({ permissions: { deny: ["Bash(git push:*)", "Edit(~/.claude/**)"] } }));
   writeFileSync(join(home, "models.md"), "- default: sonnet\n- grill-coord: opus\n");
