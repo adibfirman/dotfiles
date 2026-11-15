@@ -20,6 +20,16 @@
           }
         },
         {
+          "id": "sys-monitor",
+          "type": "block",
+          "content": {
+            "mod": "system-monitor"
+          },
+          "size": {
+            "px": 170
+          }
+        },
+        {
           "id": "ai-usage",
           "type": "block",
           "content": {

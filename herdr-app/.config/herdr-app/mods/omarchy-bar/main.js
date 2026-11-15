@@ -81,8 +81,8 @@ export default class OmarchyBar extends View {
         if (narrow !== this.narrow) {
           this.narrow = narrow;
           const sizes = narrow
-            ? [["bar-left", { weight: 1 }], ["ai-usage", { weight: 2 }], ["bar-right", { px: w?.buttons ? 90 : 0 }]]
-            : [["bar-left", { weight: 3 }], ["ai-usage", { weight: 2.5 }], ["bar-right", { px: w?.buttons ? 90 : 0 }]];
+            ? [["bar-left", { weight: 1 }], ["sys-monitor", { px: 170 }], ["ai-usage", { weight: 2 }], ["bar-right", { px: w?.buttons ? 90 : 0 }]]
+            : [["bar-left", { weight: 3 }], ["sys-monitor", { px: 170 }], ["ai-usage", { weight: 2.5 }], ["bar-right", { px: w?.buttons ? 90 : 0 }]];
           for (const [id, size] of sizes) {
             const current = find(layout(), id)?.size;
             if (current && (current.px !== size.px || current.weight !== size.weight)) run("layout.resize", { id, ...size });
