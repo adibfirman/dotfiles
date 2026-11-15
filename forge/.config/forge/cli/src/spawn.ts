@@ -7,7 +7,9 @@ import { appendEvent, loadState, readLines, Refused, withLock, type Run } from "
 import { startBlock } from "./events";
 import { refsIndexPath } from "./refs";
 import { isWorkspace, repoWorktree } from "./repos";
-import { allowRules, deniedBy, denyFloor, expandPath, forgeHome, mcpServerName, mergeSources, modelFor, toolchainPreset } from "./sources";
+import { allowRules, deniedBy, denyFloor, effectiveDeny, expandPath, forgeHome, mcpServerName, mergeSources, modelFor, toolchainPreset } from "./sources";
+import { projectForced } from "./config";
+import { findConnector, isConnector, knownServers, toolPrefix } from "./mcp";
 
 const hcBin = () => process.env.FORGE_HC ?? "hc";
 export const isCoordinator = (role: string) => role.endsWith("-coord") || role === "classifier";
@@ -88,20 +90,39 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   const sections = [phase, "all", ...(isCoordinator(role) ? ["coordinator"] : []), role];
   const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(cwd), read(join(run.main, ".forge", "SOURCES.md"))], sections);
   const denyFile = join(home, "deny-floor.json");
-  const deny = denyFloor(denyFile);
+  // The repo's force-allowed entries for this phase: their rules join the allow list, and the floor rules
+  // they lift leave the deny list (never the NEVER_LIFT ones; HARD_DENY is always added).
+  const forced = projectForced(run.main, phase);
+  const deny = effectiveDeny(denyFloor(denyFile), forced.flatMap((f) => f.lifts));
 
   const outDir = isCoordinator(role) ? cycleDir : join(cycleDir, phase);
   mkdirSync(outDir, { recursive: true });
   // Edit(path) rules cover every file tool, Write included; Write(path) rules are not matched.
-  const allow = [...allowRules(src).filter((r) => !deniedBy(r, deny)), `Read(${abs(join(run.dir, "**"))})`, `Edit(${abs(join(outDir, "**"))})`];
+  const wanted = [...new Set([...allowRules(src), ...forced.map((f) => f.rule)])];
+  const allow = [...wanted.filter((r) => !deniedBy(r, deny)), `Read(${abs(join(run.dir, "**"))})`, `Edit(${abs(join(outDir, "**"))})`];
   const stateDeny = ["**/events.jsonl", "**/queue.jsonl", "run.json", "HEAD"].map((f) => `Edit(${abs(join(run.dir, f))})`);
 
   const registryFile = process.env.FORGE_MCP_REGISTRY ?? join(homedir(), ".claude", "mcp-servers.json");
   const registry = existsSync(registryFile) ? JSON.parse(readFileSync(registryFile, "utf8")).mcpServers ?? {} : {};
   const servers: Record<string, unknown> = {};
+  const connectors: string[] = [];
   for (const name of new Set(src.mcp.map(mcpServerName))) {
+    if (isConnector(name)) {
+      connectors.push(name);
+      continue;
+    }
     if (!registry[name]) throw new Refused(`SOURCES names MCP server "${name}", which is not in ${registryFile}`);
     servers[name] = registry[name];
+  }
+  // claude.ai connectors only load without --strict-mcp-config. Then every other server Claude Code knows here
+  // (yours and the other connectors) is denied by name, so the agent still gets only what SOURCES gives it.
+  let mcpDeny: string[] = [];
+  if (connectors.length) {
+    // The repo's own .mcp.json servers are not in the cached list (it is not per folder): deny them too.
+    const local = existsSync(join(cwd, ".mcp.json")) ? Object.keys(JSON.parse(readFileSync(join(cwd, ".mcp.json"), "utf8")).mcpServers ?? {}) : [];
+    const known = [...knownServers(), ...local.map((name) => ({ name, prefix: toolPrefix(name), connector: false }))];
+    const wanted = new Set([...connectors.map((c) => findConnector(c, known).prefix), ...Object.keys(servers).map(toolPrefix)]);
+    mcpDeny = known.filter((s) => !wanted.has(s.prefix)).map((s) => `mcp__${s.prefix}`);
   }
   const mcpConfig = join(spawnDir, `${id}-mcp.json`);
   writeFileSync(mcpConfig, JSON.stringify({ mcpServers: servers }, null, 2) + "\n");
@@ -117,7 +138,7 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   const path = [...new Set([...(existsSync(bunBin) ? [bunBin] : []), ...(process.env.PATH ?? "").split(":").filter(Boolean)])].join(":");
   // No co-author trailer: commits follow the repo's own format (tested: the attribution keys turn it off).
   writeFileSync(settings, JSON.stringify({
-    ...JSON.parse(readFileSync(denyFile, "utf8")),
+    permissions: { deny: [...deny, ...mcpDeny] },
     attribution: { commit: "", pr: "" }, includeCoAuthoredBy: false,
     // Under $HOME, Claude also reads ~/.claude/CLAUDE.md as a parent folder's project file, so agents would get
     // the user's own global rules (and an import dialog nobody answers). The repo's own CLAUDE.md still loads.
@@ -129,9 +150,9 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   // so they never swallow the task text at the end.
   const args = [
     "--setting-sources", "project",
-    "--strict-mcp-config", "--mcp-config", mcpConfig,
+    ...(connectors.length ? [] : ["--strict-mcp-config"]), "--mcp-config", mcpConfig,
     "--allowedTools", ...allow,
-    "--disallowedTools", ...deny, ...stateDeny,
+    "--disallowedTools", ...deny, ...mcpDeny, ...stateDeny,
     "--add-dir", ...dirs,
     "--permission-mode", "dontAsk",
     "--settings", settings,

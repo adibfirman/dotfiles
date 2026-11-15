@@ -9,7 +9,8 @@ import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, coordinators, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
-import { allow, disallow, ensureProjectSources, projectCap, setCap, setModels, settings } from "./config";
+import { knownServers } from "./mcp";
+import { allow, disallow, ensureProjectSources, force, projectCap, setCap, setModels, settings, unforce } from "./config";
 import { addRepos, branchRepos, reposWithHead } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
@@ -36,6 +37,8 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
   forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
   forge config allow|disallow <phase> <tools|bash|mcp|read|write> <value> [--main <dir>]
+  forge mcp list [--refresh]                  MCP servers Claude Code knows here, claude.ai connectors marked
+  forge config force|unforce <phase> <tools|bash|mcp> <value> [--main <dir>]   allow past the deny floor (this repo only)
                                               add or remove one allowed entry for this repo or workspace
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
   forge runs                                  every registered run on this machine, as JSON
@@ -208,6 +211,13 @@ export async function main(argv: string[]): Promise<number> {
         else throw new UsageError("forge repo add <name[@base]>... | forge repo branch | forge repo list");
         return 0;
       }
+      case "mcp": {
+        const refresh = rest.includes("--refresh");
+        const args = rest.filter((a) => a !== "--refresh");
+        if (args.length !== 1 || args[0] !== "list") throw new UsageError("forge mcp list [--refresh]");
+        print(knownServers(refresh));
+        return 0;
+      }
       case "settings": {
         const main = takeFlag(rest, "--main") ?? mainCheckout(process.cwd());
         if (rest.length) throw new UsageError("forge settings [--main <dir>]");
@@ -220,10 +230,11 @@ export async function main(argv: string[]): Promise<number> {
         if (what === "model" && vals.length) setModels(main, vals);
         else if (what === "cap" && vals.length === 1) setCap(main, Number(vals[0]));
         else if ((what === "allow" || what === "disallow") && vals.length >= 3) (what === "allow" ? allow : disallow)(main, vals[0], vals[1], vals.slice(2).join(" "));
+        else if ((what === "force" || what === "unforce") && vals.length >= 3) (what === "force" ? force : unforce)(main, vals[0], vals[1], vals.slice(2).join(" "));
         else if (what === "sources-file" && !vals.length) {
           print({ file: ensureProjectSources(main) });
           return 0;
-        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config sources-file");
+        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
         print(settings(main));
         return 0;
       }

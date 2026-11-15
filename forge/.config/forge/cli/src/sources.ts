@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { Refused } from "./append";
+import { toolPrefix } from "./mcp";
 
 export const forgeHome = () => process.env.FORGE_HOME ?? join(homedir(), ".config", "forge");
 
@@ -101,6 +102,24 @@ export function denyFloor(file: string): string[] {
   return deny.map(String);
 }
 
+/**
+ * Deny floor rules a repo can never lift with "force allow": they protect the machine, your config, and git history.
+ * HARD_DENY is always added, so lifting `git push` still never allows a force push.
+ */
+export const NEVER_LIFT = ["Bash(rm -rf:*)", "Bash(rm -fr:*)", "Bash(sudo:*)", "Edit(~/.claude/**)", "Edit(**/.git/**)"];
+export const HARD_DENY = ["Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git push --force-with-lease:*)"];
+
+/** The deny floor rules that block one allow rule (same rule, or a Bash command that starts with a denied one). */
+export function blockersOf(allow: string, deny: string[]): string[] {
+  return deny.filter((d) => deniedBy(allow, [d]));
+}
+
+/** The floor for one agent: the floor minus what its repo lifted for its phase, plus the hard rules. */
+export function effectiveDeny(floor: string[], lifted: string[]): string[] {
+  const lift = new Set(lifted.filter((r) => !NEVER_LIFT.includes(r)));
+  return [...new Set([...floor.filter((r) => !lift.has(r)), ...HARD_DENY])];
+}
+
 const bashBody = (rule: string) => /^Bash\((.*?)(?::\*)?\)$/.exec(rule)?.[1];
 
 /** True when a deny rule covers an allow rule: same rule, or a Bash command that starts with a denied one. */
@@ -116,9 +135,10 @@ export function deniedBy(allow: string, deny: string[]): boolean {
 
 export function allowRules(src: Resolved): string[] {
   const mcp = src.mcp.map((m) => {
-    const t = /^([A-Za-z0-9_-]+)\((.*)\)$/.exec(m);
-    if (!t) return [`mcp__${m}`];
-    return t[2].split(/\s+/).filter(Boolean).map((tool) => `mcp__${t[1]}__${tool}`);
+    // A claude.ai connector is named as `claude mcp list` shows it ("claude.ai Atlassian"); its tools are mcp__claude_ai_Atlassian__*.
+    const t = /^(.+?)\((.*)\)$/.exec(m);
+    if (!t) return [`mcp__${toolPrefix(m)}`];
+    return t[2].split(/\s+/).filter(Boolean).map((tool) => `mcp__${toolPrefix(t[1])}__${tool}`);
   }).flat();
   return [...src.tools, ...src.bash.map((b) => `Bash(${b}:*)`), ...mcp];
 }
