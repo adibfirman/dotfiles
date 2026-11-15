@@ -1,6 +1,6 @@
 # forge spec (v0)
 
-Status: approved at the gate on 2026-11-15, with decisions 11 to 13. M1 (forge CLI) and M2 (role prompts) built. Source: `~/.claude/plans/forge-recap.md`.
+Status: approved at the gate on 2026-11-15, with decisions 11 to 13. M1 (forge CLI) and M2 (role prompts) built. M5-lite (one real cycle) passed. Source: `~/.claude/plans/forge-recap.md`.
 
 ## 1. Goal and out of scope
 
@@ -216,3 +216,23 @@ Facts found while building M1. Each one is tested.
 7. Every agent can read the run folder and write its output folder: the phase folder for a node, the cycle folder for a coordinator (an `Edit(<folder>/**)` allow rule; tested on a real claude). SOURCES sections can name a role. Gates, the planner, and coordinators have no `Edit` or `Write` and no git write commands. Only `unit` and `commit` change the repo.
 8. Exec wave numbers: `plan` 1; plan wave k: units 100k, gates 100k+1, fix round r 100k+2r, gates again 100k+2r+1, commit 100k+99.
 9. The prompts are not yet tested on real agents end to end. That is M5.
+
+## 10. M5-lite: first real cycle (2026-11-15)
+
+A test repo (bun, `src/order.ts` with pay and cancel) and the request "add refunds: only paid orders, at most once, full amount". One cycle ran from `forge init` to two local commits. The user only approved at the gate.
+
+- Grill: about 6 minutes. 2 asker rounds, 5 decider nodes, no fact-finder (the repo is small). The spec draft had all sections, 8 invariants, and 6 agent decisions for the user.
+- Verify: 8 TLA+ models, all PASS, and each mutant was caught (checked in each `mutant/tlc.out`). The first try failed (see 1 below). After the fix, the retries passed. `verify-coord-2` took over from `verify-coord-1` through reconcile.
+- Exec: the planner made 2 waves, 4 gates for each wave, and no must-fix finding. 2 commits: `feat: refund paid orders`, `test: cover refund of paid orders`. 12 tests pass. 13 comments went to `review-notes.md`.
+
+Found and fixed:
+
+1. Agents wrote compound shell commands (`M=…; forge tlc $M`, `cd … && …`). The allow list matches how a command starts, so these were denied, and the agents gave up. Fix: `_common.md` says to run each command alone and in plain form, and to write files with the Write tool. `forge spawn --task-file` keeps TLA+ text out of shell arguments. `_coordinator.md` says how to handle `needs <tool>`.
+2. hc terminals have a short PATH (no `~/.bun/bin`), and on macOS `/usr/bin/java` is only a placeholder. Fix: the per-spawn settings pass the caller's PATH, the `forge` wrapper falls back to `~/.bun/bin/bun`, and `forge tlc` finds Homebrew OpenJDK.
+3. `forge reconcile` checked lost nodes before it closed old coordinators, but node agents end with their coordinator. Fix: close old coordinators first.
+4. Gate agents ran `git -C <path> diff`, which was denied. Fix: `_common.md` says to run git without `-C`.
+5. The planner put the tests in the wave after the code, so the wave 1 SPEC gate had no test to check. Fix: a code change and its tests go in the same wave.
+6. Commits got a `Co-Authored-By` trailer. Fix: the per-spawn settings set `attribution` to empty (tested).
+7. `forge status` gives `cyclePath`, the absolute cycle folder.
+
+Seen and accepted: one security gate wrote `## VERDICT: PASS` as a heading. Gate prompts now ask for `VERDICT:` as the first line.

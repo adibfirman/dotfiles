@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { existsSync, readFileSync } from "node:fs";
 import { appendEvent, findRun, Refused } from "./append";
 import { KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
@@ -13,6 +14,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge append <kind> [--node <id>] [--data '<json>']
                                               add one checked event to the current cycle
   forge spawn <role> <node> <task>            start a node in an hc terminal (queues at the cap)
+  forge spawn <role> <node> --task-file <f>   the same, with the task read from a file
   forge coord [--role classifier]             start the coordinator of the current phase
   forge approve                               the gate: approve the spec and start exec
   forge followup <text> [--source <s>]        a QA bug, request, gate comment, or PR review
@@ -76,7 +78,12 @@ export function main(argv: string[]): number {
         return 0;
       }
       case "spawn": {
-        if (rest.length !== 3) throw new UsageError("forge spawn <role> <node> <task>");
+        const taskFile = takeFlag(rest, "--task-file");
+        if (taskFile !== undefined && rest.length === 2) {
+          if (!existsSync(taskFile)) throw new UsageError(`task file not found: ${taskFile}`);
+          rest.push(readFileSync(taskFile, "utf8").trim());
+        }
+        if (rest.length !== 3) throw new UsageError("forge spawn <role> <node> <task> | --task-file <path>");
         const r = spawnNode(findRun(runFlag), rest[0], rest[1], rest[2]);
         print(r);
         return r.status === "queued" ? 3 : 0;

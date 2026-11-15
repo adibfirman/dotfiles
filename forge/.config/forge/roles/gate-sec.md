@@ -15,6 +15,8 @@ You check the wave's changes (`git diff <base>`) for security problems. You repo
 
 ## Output
 
+The first line of your output file is exactly `VERDICT: PASS` or `VERDICT: FAIL`, with nothing before it:
+
 ```
 VERDICT: PASS | FAIL
 ```

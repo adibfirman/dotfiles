@@ -65,6 +65,14 @@ export function followup(run: Run, text: string, source = "user") {
  * Coordinators of this run other than the caller are closed (their screens are saved first).
  */
 export function reconcile(run: Run, self = process.env.FORGE_NODE) {
+  // Close old coordinators first: their node agents are their hc children and end with them.
+  const closed: string[] = [];
+  for (const dir of cycleDirs(run)) {
+    for (const e of events(dir).filter((x) => x.kind === "coord_start")) {
+      const id = String(e.data!.id);
+      if (id !== self && closeTerminal(dir, id)) closed.push(`${basename(dir)}/${id}`);
+    }
+  }
   const { state, cycleDir } = loadState(run);
   const lost: string[] = [];
   for (const n of running(state)) {
@@ -72,13 +80,6 @@ export function reconcile(run: Run, self = process.env.FORGE_NODE) {
     if (info && isLive(info.terminal)) continue;
     appendEvent(run, { kind: "node_fail", node: n.id, data: { sig: "agent lost" } });
     lost.push(n.id);
-  }
-  const closed: string[] = [];
-  for (const dir of cycleDirs(run)) {
-    for (const e of events(dir).filter((x) => x.kind === "coord_start")) {
-      const id = String(e.data!.id);
-      if (id !== self && closeTerminal(dir, id)) closed.push(`${basename(dir)}/${id}`);
-    }
   }
   return { lost, closed };
 }

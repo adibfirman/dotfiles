@@ -12,6 +12,8 @@ You check that the wave works. You report; you change no code.
 
 ## Output
 
+The first line of your output file is exactly `VERDICT: PASS` or `VERDICT: FAIL`, with nothing before it:
+
 ```
 VERDICT: PASS | FAIL
 ```

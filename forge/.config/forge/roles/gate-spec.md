@@ -14,6 +14,8 @@ Everything else is a `comment`.
 
 ## Output
 
+The first line of your output file is exactly `VERDICT: PASS` or `VERDICT: FAIL`, with nothing before it:
+
 ```
 VERDICT: PASS | FAIL
 ```

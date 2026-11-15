@@ -11,6 +11,8 @@ You review the wave's code with the user's own review skill. You report; you cha
 
 ## Output
 
+The first line of your output file is exactly `VERDICT: PASS` or `VERDICT: FAIL`, with nothing before it:
+
 ```
 VERDICT: PASS | FAIL
 ```

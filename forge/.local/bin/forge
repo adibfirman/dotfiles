@@ -1,3 +1,5 @@
 #!/bin/sh
 # forge CLI: the guard and spawner for forge coordinators.
-exec bun "$HOME/.config/forge/cli/src/main.ts" "$@"
+# hc terminals start with a short PATH, so fall back to bun's default install folder.
+BUN=$(command -v bun || echo "$HOME/.bun/bin/bun")
+exec "$BUN" "$HOME/.config/forge/cli/src/main.ts" "$@"

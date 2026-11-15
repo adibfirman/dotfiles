@@ -16,8 +16,14 @@ You are one agent in a forge run. A coordinator agent gave you one task. Do that
 
 ## Tools
 
-- You have only the tools forge gave you. A denied tool is final. Do not look for a way around it.
-- When a denied tool is the only way to finish, end with `STATUS: failed: needs <tool>`.
+- You have only the tools forge gave you. Bash commands are allowed by how they start, for example `forge tlc` or `git log`.
+- Run each command alone and in its plain form. No `cd`, no variables, no `;`, `&&`, `||`, pipes, or redirects. Use absolute paths instead of `cd`.
+  - Good: `forge tlc /abs/path/models/paid-once`
+  - Denied: `cd /abs/path && forge tlc models/paid-once`, `M=/abs/path; forge tlc $M`
+- You already run inside the repo. Run git without `-C`: `git diff <base>`, not `git -C /repo diff <base>`.
+- Create and change files with the Write and Edit tools. They also create folders. Do not use `mkdir`, `cp`, `mv`, `cat >`, or `echo >`.
+- When a command is denied, check that you ran it alone and in plain form, and try once more that way.
+- A tool that is still denied is final. Do not look for a way around it. When it is the only way to finish, end with `STATUS: failed: needs <tool>: <the exact command>`.
 - Do not start other agents. Do not push, open PRs, or post anywhere.
 
 ## Evidence

@@ -19,10 +19,12 @@ describe("spawn", () => {
     expect(call).not.toContain("--outlive-parent");
     expect(call[call.indexOf("--label") + 2]).toBe("claude");
     const settings = JSON.parse(require("node:fs").readFileSync(call[call.indexOf("--settings") + 1], "utf8"));
-    expect(settings.env).toEqual({ FORGE_RUN: env.run.dir, FORGE_NODE: "facts-auth-g0" });
+    expect(settings.env).toMatchObject({ FORGE_RUN: env.run.dir, FORGE_NODE: "facts-auth-g0" });
+    expect(settings.env.PATH.split(":")).toEqual(expect.arrayContaining((process.env.PATH ?? "").split(":").filter(Boolean)));
     const prompt = require("node:fs").readFileSync(call[call.indexOf("--append-system-prompt-file") + 1], "utf8");
     expect(prompt).toBe("You are _common.\n\n---\n\nYou are fact-finder.\n");
     expect(settings.permissions.deny).toContain("Bash(git push:*)");
+    expect(settings.attribution).toEqual({ commit: "", pr: "" });
     const task = call[call.length - 1];
     expect(task.startsWith("Find where tokens are refreshed.")).toBe(true);
     expect(task).toContain("hc send t1");
@@ -136,6 +138,18 @@ describe("CLI", () => {
       console.error = err;
     }
   };
+
+  test("spawn reads the task from --task-file", () => {
+    const env = setup();
+    process.env.FORGE_RUN = env.run.dir;
+    add(env.run, "node_add", "a");
+    const f = require("node:path").join(env.root, "task-a.md");
+    require("node:fs").writeFileSync(f, "Model /\\ this `safely`; with $vars\n");
+    expect(quiet(() => main(["spawn", "fact-finder", "a", "--task-file", f]))).toBe(0);
+    const run = hcCalls(env).find((c) => c[0] === "run")!;
+    expect(run[run.length - 1].startsWith("Model /\\ this `safely`; with $vars")).toBe(true);
+    expect(quiet(() => main(["spawn", "fact-finder", "a", "--task-file", "/nope"]))).toBe(2);
+  });
 
   test("exit codes: ok, refused, usage, queued", () => {
     const env = setup({ cap: 1 });

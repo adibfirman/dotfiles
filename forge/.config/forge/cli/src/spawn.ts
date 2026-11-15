@@ -77,7 +77,15 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   // Deny floor + the run address for the agent's shell (forge commands find the run with it).
   // An env wrapper would hide claude from hc, which then shows no agent status.
   const settings = join(spawnDir, `${id}-settings.json`);
-  writeFileSync(settings, JSON.stringify({ ...JSON.parse(readFileSync(denyFile, "utf8")), env: { FORGE_RUN: run.dir, FORGE_NODE: id } }, null, 2) + "\n");
+  // hc terminals start with a short PATH (no ~/.bun/bin), so the agent gets the caller's PATH.
+  const bunBin = join(homedir(), ".bun", "bin");
+  const path = [...new Set([...(existsSync(bunBin) ? [bunBin] : []), ...(process.env.PATH ?? "").split(":").filter(Boolean)])].join(":");
+  // No co-author trailer: commits follow the repo's own format (tested: the attribution keys turn it off).
+  writeFileSync(settings, JSON.stringify({
+    ...JSON.parse(readFileSync(denyFile, "utf8")),
+    attribution: { commit: "", pr: "" }, includeCoAuthoredBy: false,
+    env: { FORGE_RUN: run.dir, FORGE_NODE: id, PATH: path },
+  }, null, 2) + "\n");
 
   // Variadic flags (--allowedTools, --disallowedTools, --add-dir) are always followed by another flag,
   // so they never swallow the task text at the end.
@@ -173,7 +181,7 @@ export const nodeSpawnId = (node: string, gen: number) => `${node}-g${gen}`;
 
 function taskText(run: Run, cycle: number, phase: string, node: string, gen: number, task: string, outDir: string, reportTo: string | undefined): string {
   const out = join(outDir, `${node}.md`);
-  const report = reportTo ? `When you are done or stuck, report with: hc send ${reportTo} "${node}: done" or hc send ${reportTo} "${node}: failed: <short reason>"` : "When you are done or stuck, say so on screen.";
+  const report = reportTo ? `When you are done or stuck, report by running exactly one of these commands, alone:\nhc send ${reportTo} "${node}: done"\nhc send ${reportTo} "${node}: failed: <short reason>"` : "When you are done or stuck, say so on screen.";
   return `${task}\n\n---\nforge: run ${run.ticket}, cycle ${cycle}, phase ${phase}, node ${node} (generation ${gen}).\nWrite your full output to ${out}. ${report}`;
 }
 

@@ -9,7 +9,7 @@ The state lives in `events.jsonl`, and only `forge` commands change it. You neve
 - `forge reconcile`: at boot. Fails nodes whose agent is gone, closes old coordinators.
 - `forge status`: the cycle as JSON (phase, nodes, queue, follow-ups, spec paths). Run it whenever you are unsure.
 - `forge append node_add --node <id> --data '{"role":"<role>", ...}'`: add a node in the current phase. Ids: a-z, 0-9, dashes, at most 41 characters.
-- `forge spawn <role> <id> "<task>"`: start it. Exit 3 means queued: forge starts it later, and it still reports to you.
+- `forge spawn <role> <id> --task-file <path>`: start it. First write the task to `<cycle folder>/tasks/<id>.md` with the Write tool. Never put a long task, code, or TLA+ in a shell argument. Exit 3 means queued: forge starts it later, and it still reports to you.
 - `forge append node_done --node <id>` and `forge append node_fail --node <id> --data '{"sig":"<signature>"}'`.
 - `forge append node_evolve --node <id>`: allowed after 2 identical failures.
 - `forge append phase_done`, `forge append comment --data '{"text":"..."}'`, `forge append cycle_open --data '{...}'`.
@@ -17,6 +17,8 @@ The state lives in `events.jsonl`, and only `forge` commands change it. You neve
 - `hc wait --children any --timeout 600`, `hc read --lines 80 <terminal>`, `hc get <terminal>`.
 
 When forge refuses (exit 1), read the reason. It names the rule. Fix your next step; never try to get around a rule.
+
+Run each command alone and in plain form, with absolute paths: no `cd`, variables, `;`, `&&`, or pipes. The allow list matches how a command starts. Use `forge status` → `cyclePath` for the cycle folder.
 
 ## Boot
 
@@ -36,6 +38,13 @@ When forge refuses (exit 1), read the reason. It names the rule. Fix your next s
 - `done` needs all three: the output file exists, its last line is `STATUS: done`, and it has the sections the role asks for. Then run `forge append node_done --node <id>`.
 - Anything else is a failure: `forge append node_fail --node <id> --data '{"sig":"<signature>"}'`.
 - A signature is short and stable, with no times or random parts. Good: `missing section Mapping`, `tlc parse error`, `test failed: auth.spec.ts`. The same problem must give the same signature, because forge counts identical failures.
+
+## A node that "needs" a tool
+
+A node that ends with `failed: needs <tool>` hit a permission. Read the newest `.spawn/<id>-g<gen>-*.screen.txt` and find the denied command.
+
+- It was a compound command, or a tool the role does not need (for example `mkdir` instead of the Write tool): retry, and add the plain way to the task.
+- The role really needs that tool: run `forge append comment --data '{"text":"blocked: <role> needs <tool>: <command>"}'`, print `BLOCKED: <role> needs <tool>; add it to SOURCES.md`, and stop retrying that node. Only the user can change SOURCES.
 
 ## Retry and evolve: never give up
 

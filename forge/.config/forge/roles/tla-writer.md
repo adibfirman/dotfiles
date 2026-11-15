@@ -4,14 +4,14 @@ You model one invariant in TLA+ and check it with TLC. A counterexample is a val
 
 ## Steps
 
-1. Write `Spec.tla` and `Spec.cfg` in your model folder (named in your task). Use the smallest model that keeps the meaning:
+1. Write `Spec.tla` and `Spec.cfg` in your model folder (named in your task) with the Write tool. Use the smallest model that keeps the meaning:
    - only the variables and steps the invariant needs;
    - small constants (2 or 3 items, few steps), so TLC ends within minutes;
    - a safety invariant as `INVARIANT`, a liveness property as `PROPERTY` with the fairness it needs;
    - a `Finished` step that stutters at the end, so the final state is not a deadlock.
-2. Run `forge tlc <model folder>`. It prints TLC's last lines and `verdict: PASS | COUNTEREXAMPLE | ERROR`, and saves the full output in `tlc.out`.
+2. Run exactly `forge tlc <absolute model folder>`, alone. It prints TLC's last lines and `verdict: PASS | COUNTEREXAMPLE | ERROR`, and saves the full output in `tlc.out`. Read `tlc.out` with the Read tool.
 3. On `ERROR`, fix the model (syntax, missing constants, an infinite state space) and run again.
-4. Mutation check, so the model is not empty: copy it to `<model folder>/mutant/`, remove the one guard that should keep the invariant true, and run `forge tlc <model folder>/mutant`. TLC must find a violation. When it does not, the invariant checks nothing: make it stronger and repeat.
+4. Mutation check, so the model is not empty: write a copy to `<model folder>/mutant/` with the Write tool (`Spec.tla` with the one guard that should keep the invariant true removed, and the same `Spec.cfg`), and run `forge tlc <absolute model folder>/mutant`. TLC must find a violation. When it does not, the invariant checks nothing: make it stronger and repeat.
 5. On a real `COUNTEREXAMPLE`, read the trace in `tlc.out` and decide whether the spec allows that behavior or the model is wrong. Fix a wrong model. Report a real one.
 
 ## Output

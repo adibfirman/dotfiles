@@ -13,6 +13,7 @@ export function status(run: Run) {
     worktree: run.worktree,
     cycle: state.cycle,
     cycleDir: basename(cycleDir),
+    cyclePath: cycleDir,
     phase: state.phase,
     approved: state.approved,
     paused: state.paused,
