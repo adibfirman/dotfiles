@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { appendEvent, loadState, readLines, Refused, withLock, type Run } from "./append";
 import { startBlock } from "./events";
 import { refsIndexPath } from "./refs";
+import { isWorkspace, repoWorktree } from "./repos";
 import { allowRules, deniedBy, denyFloor, expandPath, forgeHome, mcpServerName, mergeSources, modelFor, toolchainPreset } from "./sources";
 
 const hcBin = () => process.env.FORGE_HC ?? "hc";
@@ -46,13 +47,13 @@ export interface ClaudeCommand { args: string[]; model: string; mcpConfig: strin
  * A node writes only its phase folder; a coordinator writes the whole cycle folder. The run's state
  * files (events, queue, HEAD, run.json) are never writable.
  */
-export function claudeArgs(run: Run, phase: string, role: string, id: string, cycleDir: string): ClaudeCommand {
+export function claudeArgs(run: Run, phase: string, role: string, id: string, cycleDir: string, cwd = run.worktree): ClaudeCommand {
   const home = forgeHome();
   const spawnDir = join(cycleDir, ".spawn");
   mkdirSync(spawnDir, { recursive: true });
   const prompt = promptFile(home, role, spawnDir, id);
   const sections = [phase, "all", ...(isCoordinator(role) ? ["coordinator"] : []), role];
-  const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(run.worktree), read(join(run.main, ".forge", "SOURCES.md"))], sections);
+  const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(cwd), read(join(run.main, ".forge", "SOURCES.md"))], sections);
   const denyFile = join(home, "deny-floor.json");
   const deny = denyFloor(denyFile);
 
@@ -72,7 +73,7 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   const mcpConfig = join(spawnDir, `${id}-mcp.json`);
   writeFileSync(mcpConfig, JSON.stringify({ mcpServers: servers }, null, 2) + "\n");
 
-  const dirs = [...new Set([outDir, ...[...src.read, ...src.write].map((p) => expandPath(p, run.worktree))])].filter((d) => d !== run.worktree);
+  const dirs = [...new Set([outDir, ...[...src.read, ...src.write].map((p) => expandPath(p, cwd))])].filter((d) => d !== cwd);
   const model = modelFor(role, [read(join(home, "models.md")), read(join(run.main, ".forge", "models.md"))]);
 
   // Deny floor + the run address for the agent's shell (forge commands find the run with it).
@@ -124,10 +125,11 @@ function acceptTrust(terminal: string): boolean {
 export interface Launched { terminal: string; name: string; model: string; trusted: boolean; recovered: boolean }
 
 /** Run claude in a new hc terminal. Writes .spawn/<id>.json with the address. */
-export function launch(run: Run, opts: { role: string; id: string; name: string; phase: string; cycle: number; cycleDir: string; task: string; label: string; onFail?: (detail: string) => void }): Launched {
-  const { args, model } = claudeArgs(run, opts.phase, opts.role, opts.id, opts.cycleDir);
+export function launch(run: Run, opts: { role: string; id: string; name: string; phase: string; cycle: number; cycleDir: string; task: string; label: string; cwd?: string; onFail?: (detail: string) => void }): Launched {
+  const cwd = opts.cwd ?? run.worktree;
+  const { args, model } = claudeArgs(run, opts.phase, opts.role, opts.id, opts.cycleDir, cwd);
   const r = hc([
-    "run", "--bg", "--json", "--name", opts.name, "--cwd", run.worktree, "--label", `forge=${opts.label}`,
+    "run", "--bg", "--json", "--name", opts.name, "--cwd", cwd, "--label", `forge=${opts.label}`,
     ...(isCoordinator(opts.role) ? ["--outlive-parent"] : []),
     "claude", ...args, opts.task,
   ]);
@@ -204,6 +206,16 @@ export function spawnNode(run: Run, role: string, nodeId: string, task: string, 
     enqueue(run, cycleDir, { role, node: nodeId, task, reportTo });
     return { status: "queued", node: nodeId, reason: block };
   }
+  // Workspace runs: a node with a repo works in that repo's worktree; one without works at the root.
+  let cwd = run.worktree;
+  if (node.repo) {
+    const wt = repoWorktree(run, node.repo);
+    if (!wt) throw new Refused(`node ${nodeId} names repo ${node.repo}, which is not in this run: forge repo add ${node.repo}`);
+    cwd = wt;
+  } else if (isWorkspace(run) && (role === "unit" || role === "commit" || role.startsWith("gate-"))) {
+    // These run git (diff, commit) and the repo's checks; the workspace root has no git.
+    throw new Refused(`in a workspace run, a ${role} node needs data.repo (one repo per node)`);
+  }
   const id = nodeSpawnId(nodeId, node.gen);
   const name = terminalName(run.ticket, state.cycle, nodeId, node.gen);
   // A retry reuses the name: end the old terminal first.
@@ -225,6 +237,7 @@ export function spawnNode(run: Run, role: string, nodeId: string, task: string, 
     role, id, name, phase: state.phase, cycle: state.cycle, cycleDir,
     task: taskText(run, state.cycle, state.phase, nodeId, node.gen, task, outDir, reportTo),
     label: `${run.ticket}/${state.cycle}/${nodeId}`,
+    cwd,
     onFail: (detail) => appendEvent(run, { kind: "node_fail", node: nodeId, data: { sig: "spawn: hc run failed", detail } }),
   });
   return { status: "started", node: nodeId, terminal: l.terminal, name: l.name, trusted: l.trusted, recovered: l.recovered };

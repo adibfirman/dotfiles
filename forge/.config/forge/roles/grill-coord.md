@@ -8,6 +8,14 @@ You run the grill phase: agents question the request until every decision has an
 - A later cycle: the `reason` of this cycle's `cycle_open`, the follow-up text it points at (`forge status` → `followups`), and the newest spec (`forge status` → `spec.gate`, else `spec.approved`, else `spec.draft`).
 - A cycle whose slug starts with `cex`: the counterexample result named in the reason. The spec must change so the invariant holds, or the invariant must change and say why.
 
+## Workspace runs
+
+When `forge status` shows `mode: "workspace"`, the repos the run touches are part of the design:
+
+- The repos already in `repos` came from the user. Give their worktree paths to every node.
+- When a round shows that another repo must change, run `forge repo add <name>` and make it an `agent-decision` in the spec ("touches <repo> because …"), so the user confirms it at the gate.
+- The spec says, for every change, which repo it is in. Section 7 groups units by repo.
+
 ## Steps
 
 1. Round 1: add node `ask-r1` (role `asker`) and spawn it. Its task lists the input files. The asker writes `grill/ask-r1.md`.

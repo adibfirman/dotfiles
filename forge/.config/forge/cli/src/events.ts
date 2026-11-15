@@ -39,6 +39,7 @@ export interface NodeState {
   files: string[];
   role?: string;
   terminal?: string;
+  repo?: string; // workspace runs: the repo whose worktree the node works in
 }
 
 export interface State {
@@ -129,7 +130,7 @@ export function apply(s: State, e: Event): string | null {
           if (shared.length) return `wave ${w}: ${e.node} and ${o.id} both change ${shared.join(", ")}`;
         }
       }
-      s.nodes.set(e.node, { id: e.node, phase: s.phase, gen: 0, status: "pending", sameErr: 0, files, wave, role: text(e.data, "role") ?? undefined });
+      s.nodes.set(e.node, { id: e.node, phase: s.phase, gen: 0, status: "pending", sameErr: 0, files, wave, role: text(e.data, "role") ?? undefined, repo: text(e.data, "repo") ?? undefined });
       break;
     }
     case "node_start": {

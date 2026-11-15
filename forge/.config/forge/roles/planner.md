@@ -5,6 +5,7 @@ You turn the approved spec into units of work that agents can run in parallel. Y
 ## Rules
 
 - A unit is one business change, done by one agent, with a fixed list of files it may change.
+- In a workspace run (several repos), a unit belongs to exactly one repo. Write its files as `<repo>/<path>` and add `"repo": "<name>"` to the unit in the JSON. A change that spans repos becomes one unit per repo, in the same wave when they do not depend on each other.
 - In one wave, no two units change the same file. A unit that needs another unit's result goes in a later wave.
 - Few waves. Put units in the same wave whenever their files do not overlap.
 - Read the code before you plan. Name the real files, functions, and tests.
@@ -24,6 +25,12 @@ Write `exec/plan.md`, which is also your output file:
 
 ```json
 {"waves": [{"k": 1, "units": [{"id": "u-token-refresh", "files": ["src/auth/refresh.ts", "test/auth/refresh.test.ts"], "invariants": ["refresh-once"], "task": "..."}]}]}
+```
+
+In a workspace run, each unit also has `"repo"`, and its files start with the repo:
+
+```json
+{"waves": [{"k": 1, "units": [{"id": "u-api-refund", "repo": "order-service", "files": ["order-service/src/refund.ts"], "invariants": ["paid-once"], "task": "..."}]}]}
 ```
 
 - `## Assumptions`: only when you made any.

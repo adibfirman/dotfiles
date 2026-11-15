@@ -45,10 +45,26 @@ export function loadRun(dir: string): Run {
 }
 
 /** --run flag, then $FORGE_RUN, then the ticket from the branch name, then the only ticket. */
+/** The nearest folder at or above cwd that holds .forge/tickets (a workspace root). */
+function forgeRoot(cwd: string): string | null {
+  for (let d = cwd; ; d = dirname(d)) {
+    if (existsSync(join(d, ".forge", "tickets"))) return d;
+    if (dirname(d) === d) return null;
+  }
+}
+
 export function findRun(flag: string | undefined, cwd = process.cwd()): Run {
   const given = flag ?? process.env.FORGE_RUN;
   if (given) return loadRun(given);
-  const main = mainCheckout(cwd);
+  let main: string;
+  try {
+    main = mainCheckout(cwd);
+    if (!existsSync(join(main, ".forge", "tickets"))) main = forgeRoot(cwd) ?? main;
+  } catch {
+    const root = forgeRoot(cwd);
+    if (!root) throw new Refused(`no forge run here: ${cwd} is not in a git repo or a forge workspace`);
+    main = root;
+  }
   const tickets = join(main, ".forge", "tickets");
   const names = existsSync(tickets) ? readdirSync(tickets).filter((n) => existsSync(join(tickets, n, "run.json"))) : [];
   const branch = git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]) ?? "";

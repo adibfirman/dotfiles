@@ -8,6 +8,7 @@ import { approve, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { ensureProjectSources, projectCap, setCap, setModels, settings } from "./config";
+import { addRepos, branchRepos, reposWithHead } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
 import { dirname, resolve } from "node:path";
@@ -27,6 +28,8 @@ const USAGE = `forge: guard and spawner for forge coordinators
                                               a QA bug, request, gate comment, or PR review, with references
   forge refs add <url|path|JIRA-KEY>...       fetch references into the run (GitHub, Confluence, Jira, https, files, images)
   forge refs list | forge refs refresh <n>
+  forge repo add <name[@base]>... | forge repo branch | forge repo list
+                                              workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
   forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
   forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
@@ -71,9 +74,18 @@ export async function main(argv: string[]): Promise<number> {
         // refs: in the front matter are fetched first, relative to the context file. A failed ref
         // stops the start before anything is written.
         const fetched = await fetchAll(frontMatterList(readFileSync(files[0], "utf8"), "refs"), dirname(resolve(files[0])));
-        const cap = Number(process.env.FORGE_CAP ?? projectCap(mainCheckout(process.cwd())) ?? 4);
+        let capRoot = process.cwd();
+        try {
+          capRoot = mainCheckout(process.cwd());
+        } catch {
+          /* a workspace root: its own .forge/ */
+        }
+        const cap = Number(process.env.FORGE_CAP ?? projectCap(capRoot) ?? 4);
         const run = init(files[0], process.cwd(), cap, here);
         storeRefs(run, fetched);
+        // repos: in the context join a workspace run now (fetch base, worktree at origin/<base>).
+        const repos = frontMatterList(readFileSync(files[0], "utf8"), "repos");
+        if (repos.length) addRepos(run, repos);
         print(status(run));
         return 0;
       }
@@ -163,6 +175,15 @@ export async function main(argv: string[]): Promise<number> {
         if (rest.length) throw new UsageError("forge register takes no arguments");
         registerExisting(findRun(runFlag));
         print({ ok: true });
+        return 0;
+      }
+      case "repo": {
+        const [sub, ...names] = rest;
+        const run = findRun(runFlag);
+        if (sub === "add" && names.length) print(addRepos(run, names));
+        else if (sub === "branch" && !names.length) print(branchRepos(run));
+        else if (sub === "list" && !names.length) print(reposWithHead(run));
+        else throw new UsageError("forge repo add <name[@base]>... | forge repo branch | forge repo list");
         return 0;
       }
       case "settings": {

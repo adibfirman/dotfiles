@@ -20,6 +20,14 @@ When forge refuses (exit 1), read the reason. It names the rule. Fix your next s
 
 Run each command alone and in plain form, with absolute paths: no `cd`, variables, `;`, `&&`, or pipes. The allow list matches how a command starts. Use `forge status` → `cyclePath` for the cycle folder.
 
+## Workspace runs
+
+`forge status` → `mode: "workspace"` means the run lives at a root that holds several repos (no git at the root). Then:
+
+- `repos` lists the repos in the run, each with its worktree (`<root>/worktrees/<ticket>/<repo>`), base, branch, and HEAD. Agents read and change code only in those worktrees, never in the root checkouts of the same repos.
+- `forge repo add <name>` (or `<name>@<base>`) adds a repo: forge fetches its base and makes its worktree. `forge repo list` shows the repos with their HEAD.
+- A node that works in one repo gets `"repo":"<name>"` in `node_add`; forge then starts it in that repo's worktree. A node without a repo starts at the root.
+
 ## Boot
 
 1. Run `forge reconcile`, then `forge status`.

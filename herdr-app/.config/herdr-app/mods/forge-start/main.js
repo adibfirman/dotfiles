@@ -45,6 +45,8 @@ export default class ForgeStart extends View {
     this.goal = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 5 });
     // References: one per line (a doc URL, a Confluence page, a Jira key, a GitHub link, a file or image path).
     // Files dropped on the dialog are added here.
+    // Workspace runs (a root that holds repos): which repos the change touches, one per line or comma separated.
+    this.repoIn = InputState.new({ placeholder: "Repos, like api, web-app (grill can add more)" });
     this.refs = TextareaState.new({ placeholder: "References, one per line: URL, Confluence page, JIRA-123, file or image path (or drop files here)", rows: 3 });
     cx.spawn(async (cx) => {
       // Settings load on their own, so the defaults show even outside a git repo.
@@ -57,11 +59,19 @@ export default class ForgeStart extends View {
         if (!this.folder) throw new Error("This space has no folder.");
         const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: this.folder }).catch(() => ({ code: 1 }));
         if (common.code !== 0) {
-          this.notRepo = true;
-          throw new Error(`${this.folder} is not a git repo. Forge needs git for its commits, worktrees, and PRs: run git init there, or press + on a space inside a repo.`);
+          // Not a git repo: a workspace when it holds repos (each repo keeps its own git), else offer git init.
+          const kids = await exec("sh", ["-c", 'for d in "$1"/*/; do [ -e "$d.git" ] && basename "$d"; done; true', "forge-start", this.folder]).catch(() => null);
+          this.childRepos = (kids?.stdout ?? "").split("\n").filter((x) => x && x !== "worktrees");
+          if (!this.childRepos.length) {
+            this.notRepo = true;
+            throw new Error(`${this.folder} is not a git repo and holds no repos. Forge needs git for commits, diffs, undo, and PRs.`);
+          }
+          this.workspace = true;
+          this.repo = { main: this.folder, top: this.folder };
+        } else {
+          const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: this.folder });
+          this.repo = { main: common.stdout.trim().replace(/\/\.git\/?$/, ""), top: top.stdout.trim() };
         }
-        const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: this.folder });
-        this.repo = { main: common.stdout.trim().replace(/\/\.git\/?$/, ""), top: top.stdout.trim() };
         const r = await forge(["runs"], this.repo.main);
         if (!r.ok) throw new Error(r.err);
         this.runs = JSON.parse(r.out).filter((x) => x.main === this.repo.main);
@@ -83,6 +93,17 @@ export default class ForgeStart extends View {
 
   close() {
     closeOverlay(this.overlay);
+  }
+
+  // A plain folder (no repos inside): make it a git repo with a first commit of what is there.
+  gitInit(cx) {
+    this.task(cx, "git init", async () => {
+      for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-q", "--allow-empty", "-m", "chore: start forge"]]) {
+        const r = await exec("git", args, { cwd: this.folder, timeout: 120_000 });
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `git ${args[0]} failed`);
+      }
+      return `${this.folder} is now a git repo. Press + again to start a run.`;
+    });
   }
 
   // Change settings through the CLI; it writes only the project files in <main>/.forge/.
@@ -214,8 +235,11 @@ export default class ForgeStart extends View {
       await exec("mkdir", ["-p", inbox]);
       const refs = this.refList();
       const refLines = refs.length ? `refs:\n${refs.map((x) => `  - ${x}`).join("\n")}\n` : "";
-      await writeTextFile(file, `---\nticket: ${ticket || "none"}\n${refLines}---\n${goal}\n`, null);
-      const init = await forge(["init", file, "--here"], this.repo.top);
+      const repos = this.workspace ? this.repoIn.value().split(/[\s,]+/).map((x) => x.trim()).filter(Boolean) : [];
+      const repoLines = repos.length ? `repos:\n${repos.map((x) => `  - ${x}`).join("\n")}\n` : "";
+      await writeTextFile(file, `---\nticket: ${ticket || "none"}\n${repoLines}${refLines}---\n${goal}\n`, null);
+      // A workspace root has no git: forge init sees that and starts a workspace run. A repo runs --here.
+      const init = await forge(this.workspace ? ["init", file] : ["init", file, "--here"], this.repo.top);
       if (!init.ok) throw new Error(init.err);
       const st = JSON.parse(init.out);
       const coord = await forge(["coord", "--run", st.run], this.repo.main);
@@ -244,7 +268,9 @@ export default class ForgeStart extends View {
       .child(v_flex().id("fs-body").flex_1().min_h(0).overflow_y_scrollbar().p(16).gap(10)
         .when(Boolean(this.error), (e) => e.child(div().text_size(12).text_color(t.blocked).child(this.error)))
         .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
-        .when(!this.notRepo, (e) => e.child(div().text_size(11.5).text_color(t.dim).child(`Runs in this repo ${this.runs.length}`)))
+        .when(Boolean(this.notRepo), (e) => e.child(h_flex().justify_end().child(button("fs-git-init", "Make this a git repo", (cx) => this.gitInit(cx), true))))
+        .when(Boolean(this.workspace), (e) => e.child(div().text_size(11.5).text_color(t.accent).child(`Workspace: ${this.childRepos.length} repos. A run can change several of them, each in its own worktree under worktrees/<ticket>/.`)))
+        .when(!this.notRepo, (e) => e.child(div().text_size(11.5).text_color(t.dim).child(`Runs in this ${this.workspace ? "workspace" : "repo"} ${this.runs.length}`)))
         .children(this.runs.map((r, i) => {
           const [label, color] = phase(r);
           const open = this.following === r.dir;
@@ -268,6 +294,7 @@ export default class ForgeStart extends View {
         .when(!this.notRepo, (e) => e
           .child(div().pt(8).text_size(11.5).text_color(t.dim).child(`New run in ${this.repo?.top ?? this.folder ?? ""}`))
           .child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.ticket).h_full().text_size(12))))
+          .when(Boolean(this.workspace), (e2) => e2.child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.repoIn).h_full().text_size(12)))))
           .child(field(Textarea.new(this.goal).text_size(12)))
           .when(!this.following, (e2) => e2.child(field(Textarea.new(this.refs).text_size(12))))
           .child(h_flex().justify_between().items_center()

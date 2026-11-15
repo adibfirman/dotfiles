@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { mainCheckout, openFirstCycle, Refused, slugify, type Run } from "./append";
 import { register } from "./registry";
+import { childRepos } from "./repos";
 
 const herdrBin = () => process.env.FORGE_HERDR ?? "herdr";
 
@@ -55,12 +56,36 @@ function hideForge(main: string) {
 }
 
 /**
+ * Workspace mode: cwd is not a git repo but holds repos. The run lives at cwd/.forge/; repos join with
+ * forge repo add (or repos: in the context), each in its own worktree.
+ */
+function initWorkspace(contextFile: string, fm: Record<string, string>, root: string, cap: number): Run {
+  const repos = childRepos(root);
+  if (!repos.length) throw new Refused(`${root} is not a git repo and holds no git repos. Run git init there, or start forge inside a repo.`);
+  const ticketField = fm.ticket ?? "none";
+  if (ticketField !== "none" && !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like INTR-123`);
+  const type = fm.type ?? "feat";
+  if (!["fix", "feat", "chore"].includes(type)) throw new Refused(`type must be fix, feat, or chore, not "${type}"`);
+  const ticket = ticketField !== "none" ? ticketField : `local-${slugify(basename(contextFile).replace(/\.md$/, "").replace(/^\./, ""))}`;
+  const dir = join(root, ".forge", "tickets", ticket);
+  if (existsSync(join(dir, "run.json"))) throw new Refused(`forge run ${ticket} exists already: use forge status, or add a follow-up`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "run.json"), JSON.stringify({ ticket, mode: "workspace", type, branch: null, base: null, main: root, worktree: root, repos: [], created: new Date().toISOString() }, null, 2) + "\n");
+  const run: Run = { dir, ticket, main: root, worktree: root };
+  const { cycleDir } = openFirstCycle(run, cap);
+  copyFileSync(contextFile, join(cycleDir, "context.md"));
+  register(run, readFileSync(contextFile, "utf8"), null);
+  return run;
+}
+
+/**
  * Start a run from context.md: worktree for the ticket, .forge/tickets/<ticket>/, cycle 001 at grill.
  * here: run in cwd's checkout as it is (no new worktree); the ticket key still names the run.
  */
 export function init(contextFile: string, cwd = process.cwd(), cap = Number(process.env.FORGE_CAP ?? 4), here = false): Run {
   if (!existsSync(contextFile)) throw new Refused(`context file not found: ${contextFile}`);
   const fm = frontMatter(readFileSync(contextFile, "utf8"));
+  if (!git(cwd, ["rev-parse", "--git-dir"]).ok) return initWorkspace(contextFile, fm, cwd, cap);
   const main = mainCheckout(cwd);
   const ticketField = fm.ticket ?? "none";
   let ticket: string;

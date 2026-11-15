@@ -182,9 +182,13 @@ export default class Forge extends View {
     this.busy = "pushing";
     cx.notify();
     cx.spawn(async (cx) => {
-      const r = await push(this.st.worktree);
+      // A workspace run pushes every repo it branched; a repo run pushes its worktree.
+      const targets = this.st.mode === "workspace" ? this.st.repos.filter((r) => r.branch).map((r) => [r.name, r.worktree]) : [[this.st.ticket, this.st.worktree]];
+      const results = [];
+      for (const [name, dir] of targets) results.push([name, await push(dir)]);
       this.busy = null;
-      notify({ title: "Forge: push", body: r.out.slice(0, 400) || "Pushed.", level: r.ok ? "success" : "error" });
+      const ok = results.every(([, r]) => r.ok);
+      notify({ title: "Forge: push", body: results.map(([n, r]) => `${n}: ${r.ok ? "pushed" : r.out.slice(0, 150)}`).join("\n") || "Nothing to push.", level: ok ? "success" : "error" });
       cx.notify();
     });
   }
@@ -196,16 +200,25 @@ export default class Forge extends View {
     cx.spawn(async (cx) => {
       let body = null, ok = false;
       try {
-        const pr = (await readTextFile(`${this.st.cyclePath}/exec/PR.md`)) ?? "";
-        const [first, ...rest] = pr.split("\n");
-        const bodyFile = `${this.st.cyclePath}/exec/PR.body.md`;
-        const old = await readTextFile(bodyFile);
-        await writeTextFile(bodyFile, rest.join("\n").trim() + "\n", old);
         const meta = await readJson(`${this.dir}/run.json`);
-        const r = await exec("gh", ["pr", "create", "--draft", "--base", meta?.base ?? "main", "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: this.st.worktree, timeout: 120_000 });
-        ok = r.code === 0;
-        body = (ok ? r.stdout : r.stderr || r.stdout).trim();
+        // One draft PR per repo: PR-<repo>.md when the run is a workspace, else PR.md.
+        const targets = this.st.mode === "workspace"
+          ? this.st.repos.filter((r) => r.branch).map((r) => ({ name: r.name, dir: r.worktree, base: r.base, file: `PR-${r.name}.md` }))
+          : [{ name: this.st.ticket, dir: this.st.worktree, base: meta?.base ?? "main", file: "PR.md" }];
+        const lines = [];
+        ok = true;
+        for (const tg of targets) {
+          const pr = (await readTextFile(`${this.st.cyclePath}/exec/${tg.file}`)) ?? (await readTextFile(`${this.st.cyclePath}/exec/PR.md`)) ?? "";
+          const [first, ...rest] = pr.split("\n");
+          const bodyFile = `${this.st.cyclePath}/exec/PR.body-${tg.name}.md`;
+          await writeTextFile(bodyFile, rest.join("\n").trim() + "\n", await readTextFile(bodyFile));
+          const r = await exec("gh", ["pr", "create", "--draft", "--base", tg.base, "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: tg.dir, timeout: 120_000 });
+          ok = ok && r.code === 0;
+          lines.push(`${tg.name}: ${(r.code === 0 ? r.stdout : r.stderr || r.stdout).trim()}`);
+        }
+        body = lines.join("\n");
       } catch (e) {
+        ok = false;
         body = String(e?.message ?? e);
       }
       this.busy = null;

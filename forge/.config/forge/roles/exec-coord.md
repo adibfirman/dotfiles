@@ -21,6 +21,16 @@ forge starts an exec node only when every node with a lower wave number is done.
 | gates after fix round r | 100·k + 2r + 1 |
 | `commit-w<k>` | 100·k + 99 |
 
+## Workspace runs
+
+When `forge status` shows `mode: "workspace"`:
+
+- Before the plan, run `forge repo branch`. It fetches each base again and puts every repo's worktree on `<type>/<ticket>` from the newest base.
+- The base of a wave is per repo: take each repo's `head` from `forge repo list`, not `git log`.
+- Every unit, gate, fix, and commit node belongs to one repo: `node_add` gets `"repo":"<name>"`, and `files` are written as `<repo>/<path>`. In the task text, give paths relative to that repo, because the node runs inside the repo's worktree.
+- Run the 4 gates once per repo the wave touches (`g-beh-w<k>-r<r>-<repo>`, and so on), and one commit node per repo (`commit-w<k>-<repo>`).
+- Write one `exec/PR-<repo>.md` per repo, each linking the others ("Part of <ticket>, with <repo> …"), plus `exec/PR.md` as the summary.
+
 ## Steps
 
 1. Add node `plan` (role `planner`, wave 1) and spawn it. Done needs `exec/plan.md` with its JSON block.

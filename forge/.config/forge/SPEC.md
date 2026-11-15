@@ -328,3 +328,14 @@ Failures (Q40 to Q43, 2026-11-15): refs are fetched only when added, never durin
 - Q45: the + dialog has a Settings section: models per role group (opus, sonnet, haiku; "project" marks an override, "reset" removes it), agents at once (1 to 8), the allowed tools per phase (read only), the deny floor (read only), and "Edit project SOURCES.md" (opens it in `$EDITOR`, default nvim, in a pane below).
 - The CLI owns these files: `forge settings [--main]` prints the effective values marked default or project; `forge config model <role>=<model|default>...`, `forge config cap <n>`, and `forge config sources-file` write only `<main>/.forge/models.md`, `config.json`, and `SOURCES.md`.
 - Q46: models and tools apply from the next agent (read at each spawn). The cap applies from the next cycle: `forge init` and each new cycle read `<main>/.forge/config.json` (`FORGE_CAP` still overrides at init). 100 tests pass.
+
+## 18. Workspace mode (2026-11-15)
+
+Decisions Q47 to Q52: a root folder that is not a git repo but holds repos (like `~/work` with one folder per repo) runs forge as a workspace; a folder with no repos is offered "Make this a git repo" (`git init`, add, first commit). Each repo keeps its own git; the root needs none.
+
+- `forge init` in such a root starts a workspace run at `<root>/.forge/tickets/<ticket>/` (`run.json` `mode: "workspace"`, `repos: []`). forge finds it from the root (no git) by walking up to `.forge/tickets`.
+- `forge repo add <name>[@<base>]` (from `repos:` in the context, the dialog's Repos field, or grill as an `agent-decision`): the base comes from `origin/HEAD` (develop or main) unless given; forge fetches `origin/<base>` and makes a detached worktree `<root>/worktrees/<ticket>/<repo>` at it. All fetches run before any worktree is made. The user's own checkouts are never touched.
+- `forge repo branch` (exec start): fetch each base again, then `git switch -c <type>/<ticket> origin/<base>` in each worktree, so exec starts from the newest base.
+- Nodes carry `data.repo`; a unit, gate, or commit node in a workspace run must have one, and forge starts it in that repo's worktree (plain git works there). Files are `<repo>/<path>`, so two repos can change the same relative path in one wave.
+- One commit node per repo per wave, the 4 gates per repo, and one `exec/PR-<repo>.md` per repo linking the others. The forge panel pushes every branched repo and opens one draft PR per repo. The prs pane shows one row per repo ("<title> · <repo>").
+- `forge status` and `forge runs` show `mode` and `repos`. 107 tests pass (7 workspace tests on real git repos with bare origins, including a base that moves after grill and an untouched user checkout).

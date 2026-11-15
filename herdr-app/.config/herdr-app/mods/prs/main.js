@@ -61,8 +61,10 @@ export default class Prs extends View {
         const items = mode === "forge" ? await this.forgeItems() : await this.allItems();
         if (mode !== this.mode) return; // switched while loading
         this.items = items;
-        if (this.wanted && items.some((i) => i.key === this.wanted)) {
-          this.open = this.wanted;
+        // The selection is a run folder; a workspace run's rows are "<run>#<repo>": open its first row.
+        const hit = this.wanted && items.find((i) => i.key === this.wanted || i.fr?.runDir === this.wanted);
+        if (hit) {
+          this.open = hit.key;
           this.wanted = null;
         }
         this.error = null;
@@ -82,7 +84,10 @@ export default class Prs extends View {
   async forgeItems() {
     const r = await exec(forgeBin(), ["runs"], { timeout: 30_000 });
     if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || "forge runs failed");
-    const runs = JSON.parse(r.stdout);
+    // A workspace run shows one row per repo in it; a repo run (or a workspace run with no repo yet) one row.
+    const runs = JSON.parse(r.stdout).flatMap((fr) => fr.mode === "workspace" && fr.repos?.length
+      ? fr.repos.map((rp) => ({ ...fr, dir: `${fr.dir}#${rp.name}`, runDir: fr.dir, repo: rp.remote, branch: rp.branch, worktree: rp.worktree, repoName: rp.name, title: `${fr.title || fr.ticket} · ${rp.name}` }))
+      : [{ ...fr, runDir: fr.dir }]);
     const prs = await twice(() => fetchRunPrs(runs));
     const items = runs.map((fr) => ({ key: fr.dir, fr, pr: prs.get(fr.dir) ?? null }));
     const withPr = sortPrs(items.filter((i) => i.pr).map((i) => i.pr)).map((pr) => items.find((i) => i.pr === pr));
@@ -105,7 +110,7 @@ export default class Prs extends View {
       const pane = inside.find((p) => p.status) ?? inside[0] ?? null;
       const ahead = await exec("git", ["rev-list", "--count", "@{upstream}..HEAD"], { cwd }).catch(() => null);
       const l = { cwd, pane, ahead: ahead?.code === 0 ? Number(ahead.stdout.trim()) : null };
-      if (item.fr) l.forge = { dir: item.fr.dir, main: item.fr.main, ...(item.fr.head ?? {}) };
+      if (item.fr) l.forge = { dir: item.fr.runDir ?? item.fr.dir, main: item.fr.main, ...(item.fr.head ?? {}) };
       else if (item.pr.ticket) {
         const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd }).catch(() => null);
         const main = common?.code === 0 ? common.stdout.trim().replace(/\/\.git\/?$/, "") : null;
@@ -174,14 +179,17 @@ export default class Prs extends View {
   // A draft PR from the current cycle's exec/PR.md (the title from its first line).
   createPr(cx, item, l) {
     this.task(cx, "create PR", async () => {
-      const cycleDir = `${item.fr.dir}/cycles/${item.fr.head.dir}`;
-      const text = await readTextFile(`${cycleDir}/exec/PR.md`);
+      const runDir = item.fr.runDir ?? item.fr.dir;
+      const cycleDir = `${runDir}/cycles/${item.fr.head.dir}`;
+      const own = item.fr.repoName ? await readTextFile(`${cycleDir}/exec/PR-${item.fr.repoName}.md`) : null;
+      const text = own ?? (await readTextFile(`${cycleDir}/exec/PR.md`));
       if (!text) return { ok: false, body: "No exec/PR.md in the current cycle yet." };
       const [first, ...rest] = text.split("\n");
-      const bodyFile = `${cycleDir}/exec/PR.body.md`;
+      const bodyFile = `${cycleDir}/exec/PR.body-${item.fr.repoName ?? "run"}.md`;
       await writeTextFile(bodyFile, rest.join("\n").trim() + "\n", await readTextFile(bodyFile));
-      const meta = JSON.parse((await readTextFile(`${item.fr.dir}/run.json`)) ?? "{}");
-      const r = await exec("gh", ["pr", "create", "--draft", "--base", meta.base ?? "main", "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: l.cwd, timeout: 120_000 });
+      const meta = JSON.parse((await readTextFile(`${runDir}/run.json`)) ?? "{}");
+      const base = item.fr.repoName ? meta.repos?.find((x) => x.name === item.fr.repoName)?.base ?? "main" : meta.base ?? "main";
+      const r = await exec("gh", ["pr", "create", "--draft", "--base", base, "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: l.cwd, timeout: 120_000 });
       return { ok: r.code === 0, body: (r.code === 0 ? r.stdout : r.stderr || r.stdout).trim() };
     });
   }
@@ -221,7 +229,8 @@ export default class Prs extends View {
     const sel = shared("forge.selected");
     if (sel?.at && sel.at !== this.selAt) {
       this.selAt = sel.at;
-      if (this.items.some((i) => i.key === sel.dir) && this.mode === "forge") this.open = sel.dir;
+      const hit = this.mode === "forge" && this.items.find((i) => i.key === sel.dir || i.fr?.runDir === sel.dir);
+      if (hit) this.open = hit.key;
       else {
         Object.assign(this, { mode: "forge", wanted: sel.dir, open: null });
         this.refresh(cx);

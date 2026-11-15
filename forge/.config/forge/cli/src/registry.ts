@@ -54,11 +54,13 @@ export function entries(): Entry[] {
   return [...byDir.values()].filter((e) => existsSync(join(e.dir, "run.json"))).sort((a, b) => b.created.localeCompare(a.created));
 }
 
-/** The registered runs with their HEAD (cycle, phase, approved, paused). */
+/** The registered runs with their HEAD (cycle, phase, approved, paused) and, for workspaces, their repos. */
 export function runs() {
   return entries().map((e) => {
     const head = join(e.dir, "HEAD");
-    return { ...e, head: existsSync(head) ? JSON.parse(readFileSync(head, "utf8")) : null };
+    const meta = JSON.parse(readFileSync(join(e.dir, "run.json"), "utf8"));
+    const repos = meta.mode === "workspace" ? (meta.repos ?? []).map((r: any) => ({ name: r.name, remote: r.remote, branch: r.branch, worktree: r.worktree })) : undefined;
+    return { ...e, mode: meta.mode ?? "repo", ...(repos ? { repos } : {}), head: existsSync(head) ? JSON.parse(readFileSync(head, "utf8")) : null };
   });
 }
 
