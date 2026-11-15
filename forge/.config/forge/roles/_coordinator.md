@@ -9,7 +9,7 @@ The state lives in `events.jsonl`, and only `forge` commands change it. You neve
 - `forge reconcile`: at boot. Fails nodes whose agent is gone, closes old coordinators.
 - `forge status`: the cycle as JSON (phase, nodes, queue, follow-ups, spec paths). Run it whenever you are unsure.
 - `forge append node_add --node <id> --data '{"role":"<role>", ...}'`: add a node in the current phase. Ids: a-z, 0-9, dashes, at most 41 characters.
-- `forge spawn <role> <id> --task-file <path>`: start it. First write the task to `<cycle folder>/tasks/<id>.md` with the Write tool. Never put a long task, code, or TLA+ in a shell argument. Exit 3 means queued: forge starts it later, and it still reports to you.
+- `forge spawn <role> <id> --task-file <path>`: start it. First write the task to `<cycle folder>/tasks/<id>.md` with the Write tool. Never put a long task, code, or TLA+ in a shell argument. Exit 3 means queued: forge starts it later, and it still reports to you. Never name an output file in a task: forge adds the one output path (`<phase>/<id>.md`) at its end, and that is where you read the result.
 - `forge append node_done --node <id>` and `forge append node_fail --node <id> --data '{"sig":"<signature>"}'`.
 - `forge append node_evolve --node <id>`: allowed after 2 identical failures.
 - `forge append phase_done`, `forge append comment --data '{"text":"..."}'`, `forge append cycle_open --data '{...}'`.

@@ -275,3 +275,9 @@ Changed after review (Q31 = B): the sidebar shows **forge runs** by default, wit
 - Checked in the app: the test run shows with no PR (the test repo has no remote). The aliased query was checked against GitHub: it found the open PR of a real branch and no PR for a branch that does not exist.
 
 Not checked yet: the look, and Push, Create PR, and Send to forge on a real PR.
+
+## 13. Follow-up test (2026-11-15)
+
+A regression commit (`cdfdcc4`, refund allowed for a cancelled order) and a QA report through `forge followup --source qa`. No coordinator was running, so forge started a classifier. It cited the approved spec (`gate/SPEC.md:118`, D10), picked `exec`, and opened cycle `002-fix-cancelled-refund-guard` with the approval carried over: no new context file, no restart, no gate. exec-coord ran plan → 1 unit → 4 gates (all PASS) → commit `fafeb88 fix: refund only paid orders` with a regression test. 13 tests pass, the follow-up is marked handled, and the commit has no co-author line.
+
+Found: the coordinator's task text named `exec/gates/<id>.md` as the output, while forge's footer names `exec/<id>.md`, so gate outputs went to two places. Fix: `_coordinator.md` says never to name an output file in a task.
