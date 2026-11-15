@@ -321,3 +321,10 @@ Failures (Q40 to Q43, 2026-11-15): refs are fetched only when added, never durin
 - Retries: 2, after 2 s and 5 s (`FORGE_REF_RETRY_MS`), for HTTP 5xx, 429, timeouts, and lost connections. 401, 403, and 404 fail at once.
 - A login page is a failure: HTML with a password field, or a short page titled "Sign in" or "Log in".
 - A failed refresh changes nothing; the old copy stays.
+
+## 17. Settings and requirement changes (2026-11-15)
+
+- Q44 (A): a requirement change while the run's PR is open is a follow-up cycle on the same run. When the PR is merged, it is a new run. The + dialog marks such runs "PR merged" and offers "New run from this": the old run's approved spec goes into the refs, and the goal starts with "Continue from <ticket>".
+- Q45: the + dialog has a Settings section: models per role group (opus, sonnet, haiku; "project" marks an override, "reset" removes it), agents at once (1 to 8), the allowed tools per phase (read only), the deny floor (read only), and "Edit project SOURCES.md" (opens it in `$EDITOR`, default nvim, in a pane below).
+- The CLI owns these files: `forge settings [--main]` prints the effective values marked default or project; `forge config model <role>=<model|default>...`, `forge config cap <n>`, and `forge config sources-file` write only `<main>/.forge/models.md`, `config.json`, and `SOURCES.md`.
+- Q46: models and tools apply from the next agent (read at each spawn). The cap applies from the next cycle: `forge init` and each new cycle read `<main>/.forge/config.json` (`FORGE_CAP` still overrides at init). 100 tests pass.

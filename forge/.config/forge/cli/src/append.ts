@@ -5,6 +5,15 @@ import { apply, emptyState, hashLine, idx, Refused, replay, running, WORK, type 
 
 export { Refused };
 
+function projectCapOf(main: string): number | null {
+  try {
+    const cap = JSON.parse(readFileSync(join(main, ".forge", "config.json"), "utf8")).cap;
+    return Number.isInteger(cap) && cap >= 1 && cap <= 8 ? cap : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface Run {
   dir: string;        // <main>/.forge/tickets/<ticket>
   ticket: string;
@@ -158,7 +167,9 @@ function reopen(run: Run, data: Data) {
   const slug = slugify(typeof data.slug === "string" ? data.slug : "followup");
   const reason = typeof data.reason === "string" ? data.reason : "";
   const followup = typeof data.followup === "string" ? { followup: data.followup } : {};
-  return openCycle(run, state.cycle + 1, start, slug, start === "exec" && state.approved, state.cap, reason, followup);
+  // The project cap (forge config cap) applies from the next cycle.
+  const cap = projectCapOf(run.main) ?? state.cap;
+  return openCycle(run, state.cycle + 1, start, slug, start === "exec" && state.approved, cap, reason, followup);
 }
 
 function openCycle(run: Run, cycle: number, start: Phase, slug: string, approved: boolean, cap: number, reason: string, extra: Data = {}) {

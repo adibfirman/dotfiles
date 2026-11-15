@@ -7,6 +7,8 @@ import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
+import { ensureProjectSources, projectCap, setCap, setModels, settings } from "./config";
+import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
 import { dirname, resolve } from "node:path";
 import { status } from "./status";
@@ -25,6 +27,9 @@ const USAGE = `forge: guard and spawner for forge coordinators
                                               a QA bug, request, gate comment, or PR review, with references
   forge refs add <url|path|JIRA-KEY>...       fetch references into the run (GitHub, Confluence, Jira, https, files, images)
   forge refs list | forge refs refresh <n>
+  forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
+  forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
+  forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
   forge runs                                  every registered run on this machine, as JSON
   forge register                              add a run made before the registry existed
@@ -66,7 +71,8 @@ export async function main(argv: string[]): Promise<number> {
         // refs: in the front matter are fetched first, relative to the context file. A failed ref
         // stops the start before anything is written.
         const fetched = await fetchAll(frontMatterList(readFileSync(files[0], "utf8"), "refs"), dirname(resolve(files[0])));
-        const run = init(files[0], process.cwd(), Number(process.env.FORGE_CAP ?? 4), here);
+        const cap = Number(process.env.FORGE_CAP ?? projectCap(mainCheckout(process.cwd())) ?? 4);
+        const run = init(files[0], process.cwd(), cap, here);
         storeRefs(run, fetched);
         print(status(run));
         return 0;
@@ -157,6 +163,24 @@ export async function main(argv: string[]): Promise<number> {
         if (rest.length) throw new UsageError("forge register takes no arguments");
         registerExisting(findRun(runFlag));
         print({ ok: true });
+        return 0;
+      }
+      case "settings": {
+        const main = takeFlag(rest, "--main") ?? mainCheckout(process.cwd());
+        if (rest.length) throw new UsageError("forge settings [--main <dir>]");
+        print(settings(main));
+        return 0;
+      }
+      case "config": {
+        const main = takeFlag(rest, "--main") ?? mainCheckout(process.cwd());
+        const [what, ...vals] = rest;
+        if (what === "model" && vals.length) setModels(main, vals);
+        else if (what === "cap" && vals.length === 1) setCap(main, Number(vals[0]));
+        else if (what === "sources-file" && !vals.length) {
+          print({ file: ensureProjectSources(main) });
+          return 0;
+        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config sources-file");
+        print(settings(main));
         return 0;
       }
       case "status": {

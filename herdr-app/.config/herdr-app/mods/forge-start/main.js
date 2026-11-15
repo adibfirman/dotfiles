@@ -6,6 +6,20 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui
 import { props, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, panes, setShared } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
+
+// Model settings by role group (Q45). A group shows "mixed" when its roles differ.
+const GROUPS = [
+  ["Coordinators", ["grill-coord", "verify-coord", "exec-coord"]],
+  ["Asker, decider", ["asker", "decider"]],
+  ["Fact-finders", ["fact-finder"]],
+  ["TLA+ writers", ["tla-writer"]],
+  ["Planner", ["planner"]],
+  ["Units", ["unit"]],
+  ["Gates", ["gate-beh", "gate-spec", "gate-sec"]],
+  ["Review", ["gate-review"]],
+  ["Classifier, commit", ["classifier", "commit"]],
+];
+const short = (rule) => rule.replace(/^Bash\((.*?):\*\)$/, "$1").replace(/^mcp__/, "mcp:");
 const forge = async (args, cwd) => {
   const r = await exec(forgeBin(), args, { cwd, timeout: 120_000 }).catch((e) => ({ code: 1, stdout: "", stderr: String(e?.message ?? e) }));
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
@@ -25,7 +39,7 @@ function showRun(space, dir) {
 export default class ForgeStart extends View {
   init(_props, cx) {
     const p = props() ?? {};
-    Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, following: null });
+    Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, following: null, settings: null, settingsOpen: false, merged: new Set() });
     this.follow = TextareaState.new({ placeholder: "Follow-up: a QA bug, a change, or a review note", rows: 3 });
     this.ticket = InputState.new({ placeholder: "Ticket, like INTR-123 (empty: none)" });
     this.goal = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 5 });
@@ -42,6 +56,14 @@ export default class ForgeStart extends View {
         const r = await forge(["runs"], this.repo.main);
         if (!r.ok) throw new Error(r.err);
         this.runs = JSON.parse(r.out).filter((x) => x.main === this.repo.main);
+        const st = await forge(["settings", "--main", this.repo.main], this.repo.main);
+        if (st.ok) this.settings = JSON.parse(st.out);
+        cx.notify();
+        // A run whose PR is merged continues in a new run (Q44), not as a follow-up on a merged branch.
+        for (const x of this.runs.filter((y) => y.repo && y.branch)) {
+          const pr = await exec("gh", ["pr", "list", "--repo", x.repo, "--head", x.branch, "--state", "merged", "--json", "number", "--limit", "1"], { timeout: 30_000 }).catch(() => null);
+          if (pr?.code === 0 && JSON.parse(pr.stdout || "[]").length) this.merged.add(x.dir);
+        }
       } catch (e) {
         this.error = String(e?.message ?? e);
       }
@@ -51,6 +73,78 @@ export default class ForgeStart extends View {
 
   close() {
     closeOverlay(this.overlay);
+  }
+
+  // Change settings through the CLI; it writes only the project files in <main>/.forge/.
+  config(cx, args) {
+    if (this.busy || !this.repo) return;
+    this.busy = "saving settings";
+    cx.notify();
+    cx.spawn(async (cx) => {
+      const r = await forge(["config", ...args, "--main", this.repo.main], this.repo.main);
+      if (r.ok) this.settings = JSON.parse(r.out);
+      else this.error = r.err;
+      this.busy = null;
+      cx.notify();
+    });
+  }
+
+  editSources(cx) {
+    cx.spawn(async () => {
+      const r = await forge(["config", "sources-file", "--main", this.repo.main], this.repo.main);
+      if (!r.ok) return;
+      const file = JSON.parse(r.out).file;
+      run("pane.split", { direction: "down", argv: ["sh", "-c", '${EDITOR:-nvim} "$1"', "edit", file] });
+      this.close();
+    });
+  }
+
+  // A new run that starts from a finished run: its approved spec becomes a ref.
+  continueFrom(cx, r) {
+    cx.spawn(async (cx) => {
+      const st = await forge(["status", "--run", r.dir], r.main);
+      const spec = st.ok ? JSON.parse(st.out).spec : {};
+      const path = spec.approved ?? spec.gate ?? spec.draft;
+      if (path) this.refs.set_value([...this.refList().filter((x) => x !== path), path].join("\n"));
+      this.goal.set_value(`Continue from ${r.ticket} (${r.title}): `);
+      this.following = null;
+      cx.notify();
+    });
+  }
+
+  settingsView(t, button) {
+    const s = this.settings;
+    if (!s) return div().text_size(11.5).text_color(t.dim).child("Loading settings…");
+    const chip = (id, label, on, f) => div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5).cursor_pointer()
+      .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted).hover((x) => x.bg(t.hover)).when(!this.busy, (e) => e.on_click((_e, cx) => f(cx))).child(label);
+    const rows = GROUPS.map(([label, rs], i) => {
+      const known = rs.filter((r) => s.models[r]);
+      const values = [...new Set(known.map((r) => s.models[r].value))];
+      const value = values.length === 1 ? values[0] : "mixed";
+      const project = known.some((r) => s.models[r].from === "project");
+      return h_flex().id(`fs-model-${i}`).gap(6).items_center()
+        .child(div().w(130).text_size(12).truncate().child(label))
+        .children(["opus", "sonnet", "haiku"].map((m) => chip(`fs-m-${i}-${m}`, m, value === m, (cx) => this.config(cx, ["model", ...known.map((r) => `${r}=${m}`)]))))
+        .child(div().text_size(11).text_color(project ? t.accent : t.dim).child(project ? "project" : value === "mixed" ? "mixed" : "default"))
+        .when(project, (e) => e.child(div().id(`fs-reset-${i}`).text_size(11).text_color(t.muted).cursor_pointer().on_click((_e, cx) => this.config(cx, ["model", ...known.map((r) => `${r}=default`)])).child("reset")));
+    });
+    const phases = ["grill", "verify", "exec"].map((ph) => {
+      const src = s.sources[ph];
+      return div().text_size(11.5).text_color(t.muted).child(`${ph}: ${src.allow.map(short).join(", ")}${src.mcp.length ? ` · MCP: ${src.mcp.join(", ")}` : ""}`);
+    });
+    return v_flex().gap(6).p(10).rounded(8).bg(t.surface).border_1().border_color(t.border)
+      .child(div().text_size(11.5).text_color(t.dim).child("Models: from the next agent. Cap: from the next cycle. Saved in .forge/ of this repo."))
+      .children(rows)
+      .child(h_flex().gap(6).items_center().pt(4)
+        .child(div().w(130).text_size(12).child("Agents at once"))
+        .child(chip("fs-cap-dn", "−", false, (cx) => this.config(cx, ["cap", String(Math.max(1, s.cap.value - 1))])))
+        .child(div().w(20).text_size(12).child(String(s.cap.value)))
+        .child(chip("fs-cap-up", "+", false, (cx) => this.config(cx, ["cap", String(Math.min(8, s.cap.value + 1))])))
+        .child(div().text_size(11).text_color(s.cap.from === "project" ? t.accent : t.dim).child(s.cap.from)))
+      .child(div().pt(4).text_size(12).child("Allowed tools"))
+      .children(phases)
+      .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map(short).join("\n")).child(`Deny floor: ${s.deny.length} rules, always on (hover to see)`))
+      .child(h_flex().justify_end().child(button("fs-edit-sources", "Edit project SOURCES.md", (cx) => this.editSources(cx))));
   }
 
   refList() {
@@ -148,9 +242,12 @@ export default class ForgeStart extends View {
                 .child(div().font_semibold().truncate().child(r.title || r.ticket))
                 .child(div().text_size(11.5).text_color(t.dim).truncate().child(`${r.ticket} · cycle ${r.head?.cycle ?? "?"} · ${r.branch ?? "?"}`)))
               .child(div().flex_none().text_size(11.5).text_color(color).child(label)))
-            .child(h_flex().gap(8).justify_end()
+            .child(h_flex().gap(8).justify_end().items_center()
+              .when(this.merged.has(r.dir), (e) => e.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
               .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r.dir, r.worktree); this.close(); }))
-              .child(button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))
+              .child(this.merged.has(r.dir)
+                ? button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r))
+                : button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))
             .when(open, (e) => e.child(field(Textarea.new(this.follow).text_size(12)))
               .child(field(Textarea.new(this.refs).text_size(12)))
               .child(h_flex().justify_end().child(button(`fs-send-${i}`, "Send follow-up", (cx) => this.sendFollow(cx, r), true))));
@@ -162,6 +259,10 @@ export default class ForgeStart extends View {
         .when(!this.following, (e) => e.child(field(Textarea.new(this.refs).text_size(12))))
         .child(h_flex().justify_between().items_center()
           .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
-          .child(button("fs-start", "Start", (cx) => this.start(cx), true))));
+          .child(button("fs-start", "Start", (cx) => this.start(cx), true)))
+        .child(div().id("fs-settings-toggle").pt(8).text_size(11.5).text_color(t.dim).cursor_pointer().hover((x) => x.text_color(t.foreground))
+          .on_click((_e, cx) => { this.settingsOpen = !this.settingsOpen; cx.notify(); })
+          .child(`${this.settingsOpen ? "▾" : "▸"} Settings`))
+        .when(this.settingsOpen, (e) => e.child(this.settingsView(t, button))));
   }
 }
