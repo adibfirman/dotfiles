@@ -91,6 +91,10 @@ This repository contains system configurations managed with [GNU Stow](https://w
 | Mermaid CLI | `pnpm add -g @mermaid-js/mermaid-cli` | Diagram generation |
 | ImageMagick | `brew install imagemagick` / `yay -S imagemagick` | Image processing |
 | xclip | `sudo apt install xclip` | Clipboard support (Linux) |
+| [Bun](https://bun.sh/) | `curl -fsSL https://bun.sh/install \| bash` | Runs the forge CLI |
+| OpenJDK | `brew install openjdk@17` / `yay -S jdk17-openjdk` | Runs TLC, the TLA+ model checker, for forge |
+| TLA+ Tools | downloaded by `check-prerequisites.sh` (v1.7.4, sha256 checked) to `~/.local/share/forge/` | The TLA+ model checker forge verifies specs with |
+| Forge CLI | `stow forge` | Agents grill, verify, and build a change; you approve the spec |
 
 ## Installation
 
@@ -212,6 +216,21 @@ The `my-main` layout (`layouts/my-main.json`, a clone of the shipped `main` layo
 The `omarchy` layout (`layouts/omarchy.json`) is the daily layout. It comes from [herdr-omarchy](https://github.com/shafiqimtiaz/herdr-omarchy) (commit `168840b`, the Omarchy desktop look, MIT). `omarchy/SOURCE.md` lists what changed. `cmd-shift-l` cycles through the layouts, `my-main` included. It uses the same `agent-notify` and `copy-toast` mods, and one more of our own:
 
 - `mods/claude-usage/` shows the Claude Code limits in the top bar: 5 hours, the weekly limit of one model, and the weekly limit of all models. It reads `~/.claude/.usage-cache.json`, which `claude/.claude/statusline.sh` writes once a minute while a Claude Code session runs, so the mod never reads a login token.
+
+### Forge
+
+Forge automates a change from request to commits. Claude agents grill the request until every decision has an answer, TLA+ checks the spec's invariants, you approve the spec at one gate, and agents implement it in waves with 4 gates (tests, spec, security, review) and local commits. You push and open the PR. The spec, the TLA+ model of forge itself, and the build notes are in `forge/.config/forge/SPEC.md`.
+
+```bash
+stow forge          # ~/.local/bin/forge and ~/.config/forge
+stow herdr-app      # the forge, prs, and forge-start mods
+```
+
+- In Herdr App, hover a space and press **+**: start a run in that folder, or open or follow up an existing run. Each run shows as a child row under its space; a click opens the forge graph and the PR view.
+- A folder that holds several repos (no git at its root) runs as a workspace: one run can change several repos, each in `<root>/worktrees/<ticket>/<repo>`.
+- References (Confluence, Jira, GitHub, URLs, files, images) are fetched once into the run. Confluence and Jira use `CONFLUENCE_*` and `JIRA_*` from your shell.
+- Run state lives in `.forge/` of the repo or workspace, which the global git ignore (`git/.config/git/ignore`) keeps out of commits.
+- `forge --help` lists the commands. Defaults: `~/.config/forge/SOURCES.md` (allowed tools), `models.md`, `deny-floor.json`; a repo can override them in its `.forge/`.
 
 ### OpenCode + RTK Integration
 

@@ -64,7 +64,18 @@ TOOLS=(
     "RTK|rtk|--version"
     "FFF MCP|fff-mcp|--version"
     "Playwright CLI|playwright-cli|--version"
+    "Bun|bun|--version"
+    "OpenJDK|java|-version"
+    "TLA+ Tools|tla2tools.jar|"
+    "Forge CLI|forge|"
 )
+
+# forge: TLA+ tools jar, pinned (v1.7.4) and checked by sha256
+TLA_JAR="$HOME/.local/share/forge/tla2tools.jar"
+TLA_SHA="936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+sha_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
 
 TOTAL_CHECKS=0
 PASSED=0
@@ -462,6 +473,42 @@ check_tool() {
         fi
     fi
 
+    # Special handling for OpenJDK on macOS: /usr/bin/java is only a placeholder.
+    # forge tlc looks for Homebrew's OpenJDK in these places.
+    if [ "$display_name" = "OpenJDK" ] && [ "$OS" = "macos" ]; then
+        for j in /opt/homebrew/opt/openjdk/bin/java /opt/homebrew/opt/openjdk@21/bin/java /opt/homebrew/opt/openjdk@17/bin/java; do
+            if [ -x "$j" ]; then
+                print_success "Found ($j)"
+                ((PASSED++))
+                return 0
+            fi
+        done
+        print_error "Missing"
+        return 1
+    fi
+
+    # Special handling for TLA+ Tools: forge tlc runs this jar (pinned v1.7.4, checked by sha256).
+    if [ "$display_name" = "TLA+ Tools" ]; then
+        if [ -f "$TLA_JAR" ] && [ "$(sha_of "$TLA_JAR")" = "$TLA_SHA" ]; then
+            print_success "Found (v1.7.4)"
+            ((PASSED++))
+            return 0
+        fi
+        print_error "Missing"
+        return 1
+    fi
+
+    # Special handling for Forge CLI: it comes from the forge package (stow forge).
+    if [ "$display_name" = "Forge CLI" ]; then
+        if command -v forge >/dev/null 2>&1; then
+            print_success "Found (stowed)"
+            ((PASSED++))
+            return 0
+        fi
+        print_error "Missing"
+        return 1
+    fi
+
     # Check if command exists
     if ! command -v "$command_name" >/dev/null 2>&1; then
         print_error "Missing"
@@ -691,6 +738,22 @@ get_install_command() {
                 arch|debian) echo "curl -fsSL https://releases.herdr.dev/app/install.sh | sh" ;;
             esac
             ;;
+        "Bun")
+            echo "curl -fsSL https://bun.sh/install | bash"
+            ;;
+        "OpenJDK")
+            case "$OS" in
+                macos) echo "brew install openjdk@17" ;;
+                arch) echo "yay -S --noconfirm jdk17-openjdk" ;;
+                debian) echo "sudo apt install -y openjdk-17-jre-headless" ;;
+            esac
+            ;;
+        "TLA+ Tools")
+            echo "mkdir -p \"$(dirname "$TLA_JAR")\" && curl -fsSL -o \"$TLA_JAR\" https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar && [ \"\$(sha_of \"$TLA_JAR\")\" = \"$TLA_SHA\" ]"
+            ;;
+        "Forge CLI")
+            echo "cd \"$SCRIPT_DIR\" && stow forge"
+            ;;
         "Herdr Notify")
             case "$OS" in
                 macos) echo "xcode-select --install" ;;
@@ -847,6 +910,10 @@ step_additional_tools() {
     run_check "RTK"
     run_check "FFF MCP"
     run_check "Playwright CLI"
+    run_check "Bun"
+    run_check "OpenJDK"
+    run_check "TLA+ Tools"
+    run_check "Forge CLI"
     run_check "Tectonic"
     run_check "Mermaid CLI"
     run_check "ImageMagick"
