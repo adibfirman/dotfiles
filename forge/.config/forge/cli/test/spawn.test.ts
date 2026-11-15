@@ -6,7 +6,7 @@ import { status } from "../src/status";
 import { add, hcCalls, setup, toExec } from "./helpers";
 
 describe("spawn", () => {
-  test("starts the node in hc and records node_start", () => {
+  test("starts the node in hc and records node_start", async () => {
     const env = setup();
     process.env.HC_TERMINAL_ID = "t1";
     add(env.run, "node_add", "facts-auth");
@@ -31,13 +31,13 @@ describe("spawn", () => {
     expect(loadState(env.run).state.nodes.get("facts-auth")!.status).toBe("running");
   });
 
-  test("a coordinator role cannot be spawned as a node", () => {
+  test("a coordinator role cannot be spawned as a node", async () => {
     const env = setup();
     add(env.run, "node_add", "coord");
     expect(() => spawnNode(env.run, "grill-coord", "coord", "BOOT")).toThrow(/use forge coord/);
   });
 
-  test("queues at the cap and starts the queued node when a slot frees", () => {
+  test("queues at the cap and starts the queued node when a slot frees", async () => {
     const env = setup({ cap: 1 });
     add(env.run, "node_add", "a");
     add(env.run, "node_add", "b");
@@ -52,7 +52,7 @@ describe("spawn", () => {
     expect(hcCalls(env).filter((c) => c[0] === "run")).toHaveLength(2);
   });
 
-  test("a later wave waits in the queue", () => {
+  test("a later wave waits in the queue", async () => {
     const env = setup();
     toExec(env.run);
     add(env.run, "node_add", "u1", { wave: 1, files: ["a"] });
@@ -63,7 +63,7 @@ describe("spawn", () => {
     expect(drainQueue(env.run).map((s) => s.node)).toEqual(["u2"]);
   });
 
-  test("other blocks are refusals, not queue entries", () => {
+  test("other blocks are refusals, not queue entries", async () => {
     const env = setup();
     add(env.run, "node_add", "a");
     add(env.run, "pause");
@@ -71,7 +71,7 @@ describe("spawn", () => {
     expect(() => spawnNode(env.run, "fact-finder", "zzz", "x")).toThrow(/unknown node zzz/);
   });
 
-  test("an unsent first message: read the screen, then send once", () => {
+  test("an unsent first message: read the screen, then send once", async () => {
     const env = setup();
     process.env.FAKE_HC_MODE = "unsent";
     add(env.run, "node_add", "a");
@@ -83,7 +83,7 @@ describe("spawn", () => {
     expect(calls).not.toContain("keys");
   });
 
-  test("the trust dialog is answered with yes, once", () => {
+  test("the trust dialog is answered with yes, once", async () => {
     const env = setup();
     process.env.FAKE_HC_MODE = "trust";
     add(env.run, "node_add", "a");
@@ -91,14 +91,14 @@ describe("spawn", () => {
     expect(hcCalls(env).find((c) => c[0] === "keys")).toEqual(["keys", "t-f-local-task-1-a-g0", "down", "enter"]);
   });
 
-  test("no trust dialog, no keys", () => {
+  test("no trust dialog, no keys", async () => {
     const env = setup();
     add(env.run, "node_add", "a");
     expect(spawnNode(env.run, "fact-finder", "a", "x").trusted).toBe(false);
     expect(hcCalls(env).map((c) => c[0])).toEqual(["run", "read"]);
   });
 
-  test("a retry ends the old terminal before it reuses the name", () => {
+  test("a retry ends the old terminal before it reuses the name", async () => {
     const env = setup();
     add(env.run, "node_add", "a");
     spawnNode(env.run, "fact-finder", "a", "x");
@@ -110,7 +110,7 @@ describe("spawn", () => {
     expect(calls.lastIndexOf("run")).toBeGreaterThan(calls.indexOf("kill"));
   });
 
-  test("a failed hc run records node_fail", () => {
+  test("a failed hc run records node_fail", async () => {
     const env = setup();
     process.env.FAKE_HC_MODE = "fail";
     add(env.run, "node_add", "a");
@@ -119,7 +119,7 @@ describe("spawn", () => {
     expect([n.status, n.lastSig]).toEqual(["failed", "spawn: hc run failed"]);
   });
 
-  test("terminal names fit hc's 32 characters", () => {
+  test("terminal names fit hc's 32 characters", async () => {
     expect(terminalName("INTR-123", 2, "facts", 0)).toBe("f-intr-123-2-facts-g0");
     const long = terminalName("INTR-12345", 12, "fact-finder-payment-retry-backoff", 3);
     expect(long.length).toBe(32);
@@ -128,44 +128,44 @@ describe("spawn", () => {
 });
 
 describe("CLI", () => {
-  const quiet = <T>(fn: () => T): T => {
+  const quiet = async <T>(fn: () => T | Promise<T>): Promise<T> => {
     const log = console.log, err = console.error;
     console.log = console.error = () => {};
     try {
-      return fn();
+      return await fn();
     } finally {
       console.log = log;
       console.error = err;
     }
   };
 
-  test("spawn reads the task from --task-file", () => {
+  test("spawn reads the task from --task-file", async () => {
     const env = setup();
     process.env.FORGE_RUN = env.run.dir;
     add(env.run, "node_add", "a");
     const f = require("node:path").join(env.root, "task-a.md");
     require("node:fs").writeFileSync(f, "Model /\\ this `safely`; with $vars\n");
-    expect(quiet(() => main(["spawn", "fact-finder", "a", "--task-file", f]))).toBe(0);
+    expect(await quiet(() => main(["spawn", "fact-finder", "a", "--task-file", f]))).toBe(0);
     const run = hcCalls(env).find((c) => c[0] === "run")!;
     expect(run[run.length - 1].startsWith("Model /\\ this `safely`; with $vars")).toBe(true);
-    expect(quiet(() => main(["spawn", "fact-finder", "a", "--task-file", "/nope"]))).toBe(2);
+    expect(await quiet(() => main(["spawn", "fact-finder", "a", "--task-file", "/nope"]))).toBe(2);
   });
 
-  test("exit codes: ok, refused, usage, queued", () => {
+  test("exit codes: ok, refused, usage, queued", async () => {
     const env = setup({ cap: 1 });
     process.env.FORGE_RUN = env.run.dir;
-    expect(quiet(() => main(["append", "node_add", "--node", "a"]))).toBe(0);
-    expect(quiet(() => main(["append", "node_add", "--node", "b"]))).toBe(0);
-    expect(quiet(() => main(["append", "approved"]))).toBe(1);
-    expect(quiet(() => main(["append", "nope"]))).toBe(2);
-    expect(quiet(() => main(["append", "comment", "--data", "{bad"]))).toBe(2);
-    expect(quiet(() => main(["spawn", "fact-finder", "a", "task a"]))).toBe(0);
-    expect(quiet(() => main(["spawn", "fact-finder", "b", "task b"]))).toBe(3);
-    expect(quiet(() => main(["append", "node_done", "--node", "a"]))).toBe(0);
+    expect(await quiet(() => main(["append", "node_add", "--node", "a"]))).toBe(0);
+    expect(await quiet(() => main(["append", "node_add", "--node", "b"]))).toBe(0);
+    expect(await quiet(() => main(["append", "approved"]))).toBe(1);
+    expect(await quiet(() => main(["append", "nope"]))).toBe(2);
+    expect(await quiet(() => main(["append", "comment", "--data", "{bad"]))).toBe(2);
+    expect(await quiet(() => main(["spawn", "fact-finder", "a", "task a"]))).toBe(0);
+    expect(await quiet(() => main(["spawn", "fact-finder", "b", "task b"]))).toBe(3);
+    expect(await quiet(() => main(["append", "node_done", "--node", "a"]))).toBe(0);
     expect(status(env.run).nodes.find((n) => n.id === "b")!.status).toBe("running");
   });
 
-  test("status is rebuilt from events alone", () => {
+  test("status is rebuilt from events alone", async () => {
     const env = setup();
     add(env.run, "node_add", "a", { role: "asker" });
     const s = status(env.run);

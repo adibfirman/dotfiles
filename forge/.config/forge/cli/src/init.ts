@@ -6,6 +6,21 @@ import { register } from "./registry";
 
 const herdrBin = () => process.env.FORGE_HERDR ?? "herdr";
 
+/** The `- item` lines under `key:` in the front matter (refs: one URL or path per line). */
+export function frontMatterList(text: string, key: string): string[] {
+  const m = /^---\n([\s\S]*?)\n---/.exec(text);
+  const lines = m?.[1].split("\n") ?? [];
+  const at = lines.findIndex((l) => new RegExp(`^${key}:\\s*$`).test(l.trim()));
+  if (at < 0) return [];
+  const out: string[] = [];
+  for (const l of lines.slice(at + 1)) {
+    const item = /^\s*-\s+(.+?)\s*$/.exec(l);
+    if (!item) break;
+    out.push(item[1]);
+  }
+  return out;
+}
+
 /** `key: value` lines between the first two `---` lines. */
 export function frontMatter(text: string): Record<string, string> {
   const m = /^---\n([\s\S]*?)\n---/.exec(text);

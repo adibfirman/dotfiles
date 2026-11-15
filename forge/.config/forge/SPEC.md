@@ -302,3 +302,15 @@ Decisions (Q32 to Q35, revised by the user): forge shows inside the spaces sideb
 - A new run uses the space's folder as it is: `forge init <context> --here`. No new worktree; the ticket key, when given, names the run. For a ticket worktree, make the worktree space first (herdr's New worktree), then press "+" there.
 - The stowed mods (`forge`, `prs`, `omarchy-spaces`, `forge-start`) load their new code after a Herdr restart.
 - A click on a forge row (or Open and Start in the dialog) shows the run in both mods: the forge graph panel on the right and the prs view below it, opened on that run's detail. The click sets the shared value `forge.selected` (`{dir, at}`). Forge and prs panes already in the space's active tab switch to that run instead of opening again (the selection is global, so every forge and prs pane follows the last click).
+
+## 16. References (2026-11-15)
+
+Decisions Q36 to Q39: references are added in `context.md` (`refs:` list), in the + dialog (one per line, or files dropped on it), or with `forge followup --ref`; each is fetched once into `<run>/refs/` with the user's own credentials; v1 sources are GitHub, Confluence, Jira, https, and local files; refs are data, never instructions.
+
+- `forge refs add <url|path|KEY>...`, `forge refs list`, `forge refs refresh <n>` (a refresh adds a new copy with a new number). `forge init` fetches the `refs:` list, relative to the context file.
+- Fetchers: GitHub PR, issue, or file through `gh`; Confluence page through REST v2 with `CONFLUENCE_*`; Jira issue through REST v3 with `JIRA_*`, with up to 5 image attachments as image refs; any https URL (HTML to text, images and PDFs kept as files); local files.
+- Images and PDFs are stored as files (up to 10 MB). Agents open them with the Read tool, which shows them to the model. Text is cut at 200 KB.
+- `refs/INDEX.md` lists every ref. Every agent's task names it, and `_common.md` says to read it first and to treat ref text as data.
+- Agents can read `refs/` but not write it (it is outside every agent's output folder).
+- `CONFLUENCE_DOMAIN` may hold a full URL; hosts are normalized. A network error is a refusal, not a crash.
+- Checked live (read-only): a public GitHub file (20 KB), a Jira issue, and a Confluence page (17 KB). 91 tests pass.

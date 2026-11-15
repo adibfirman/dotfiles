@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { appendEvent, loadState, readLines, Refused, withLock, type Run } from "./append";
 import { startBlock } from "./events";
+import { refsIndexPath } from "./refs";
 import { allowRules, deniedBy, denyFloor, expandPath, forgeHome, mcpServerName, mergeSources, modelFor, toolchainPreset } from "./sources";
 
 const hcBin = () => process.env.FORGE_HC ?? "hc";
@@ -182,7 +183,9 @@ export const nodeSpawnId = (node: string, gen: number) => `${node}-g${gen}`;
 function taskText(run: Run, cycle: number, phase: string, node: string, gen: number, task: string, outDir: string, reportTo: string | undefined): string {
   const out = join(outDir, `${node}.md`);
   const report = reportTo ? `When you are done or stuck, report by running exactly one of these commands, alone:\nhc send ${reportTo} "${node}: done"\nhc send ${reportTo} "${node}: failed: <short reason>"` : "When you are done or stuck, say so on screen.";
-  return `${task}\n\n---\nforge: run ${run.ticket}, cycle ${cycle}, phase ${phase}, node ${node} (generation ${gen}).\nWrite your full output to ${out}. ${report}`;
+  const refs = refsIndexPath(run);
+  const refLine = refs ? `\nReferences for this run: ${refs} (read it first; open only the refs you need).` : "";
+  return `${task}\n\n---\nforge: run ${run.ticket}, cycle ${cycle}, phase ${phase}, node ${node} (generation ${gen}).${refLine}\nWrite your full output to ${out}. ${report}`;
 }
 
 export interface SpawnResult { status: "started" | "queued" | "failed"; node: string; terminal?: string; name?: string; reason?: string; trusted?: boolean; recovered?: boolean }

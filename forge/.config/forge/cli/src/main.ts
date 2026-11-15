@@ -6,6 +6,9 @@ import { init } from "./init";
 import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, followup, reconcile, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
+import { addRef, listRefs, refreshRef } from "./refs";
+import { frontMatterList } from "./init";
+import { dirname, resolve } from "node:path";
 import { status } from "./status";
 import { tlc } from "./tlc";
 
@@ -18,7 +21,10 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge spawn <role> <node> --task-file <f>   the same, with the task read from a file
   forge coord [--role classifier]             start the coordinator of the current phase
   forge approve                               the gate: approve the spec and start exec
-  forge followup <text> [--source <s>]        a QA bug, request, gate comment, or PR review
+  forge followup <text> [--source <s>] [--ref <url|path>]...
+                                              a QA bug, request, gate comment, or PR review, with references
+  forge refs add <url|path|JIRA-KEY>...       fetch references into the run (GitHub, Confluence, Jira, https, files, images)
+  forge refs list | forge refs refresh <n>
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
   forge runs                                  every registered run on this machine, as JSON
   forge register                              add a run made before the registry existed
@@ -47,7 +53,7 @@ function print(v: unknown) {
   console.log(JSON.stringify(v, null, 2));
 }
 
-export function main(argv: string[]): number {
+export async function main(argv: string[]): Promise<number> {
   const args = [...argv];
   try {
     const runFlag = takeFlag(args, "--run");
@@ -57,7 +63,10 @@ export function main(argv: string[]): number {
         const here = rest.includes("--here");
         const files = rest.filter((a) => a !== "--here");
         if (files.length !== 1) throw new UsageError("forge init <context.md> [--here]");
-        print(status(init(files[0], process.cwd(), Number(process.env.FORGE_CAP ?? 4), here)));
+        const run = init(files[0], process.cwd(), Number(process.env.FORGE_CAP ?? 4), here);
+        // refs: in the front matter are fetched now, relative to the context file.
+        for (const ref of frontMatterList(readFileSync(files[0], "utf8"), "refs")) await addRef(run, ref, dirname(resolve(files[0])));
+        print(status(run));
         return 0;
       }
       case "append": {
@@ -106,9 +115,34 @@ export function main(argv: string[]): number {
       }
       case "followup": {
         const source = takeFlag(rest, "--source");
-        if (rest.length !== 1) throw new UsageError("forge followup <text> [--source qa|gate|pr|user]");
-        print(followup(findRun(runFlag), rest[0], source));
+        const refs: string[] = [];
+        for (let r = takeFlag(rest, "--ref"); r !== undefined; r = takeFlag(rest, "--ref")) refs.push(r);
+        if (rest.length !== 1) throw new UsageError("forge followup <text> [--source qa|gate|pr|user] [--ref <url|path>]...");
+        const run = findRun(runFlag);
+        const added = [];
+        for (const r of refs) added.push(...(await addRef(run, r)));
+        const text = added.length ? `${rest[0]}\n\nNew references: ${added.map((e) => `refs/${e.file}`).join(", ")}` : rest[0];
+        print(followup(run, text, source));
         return 0;
+      }
+      case "refs": {
+        const [sub, ...items] = rest;
+        const run = findRun(runFlag);
+        if (sub === "add" && items.length) {
+          const added = [];
+          for (const r of items) added.push(...(await addRef(run, r)));
+          print(added);
+          return 0;
+        }
+        if (sub === "list" && !items.length) {
+          print(listRefs(run));
+          return 0;
+        }
+        if (sub === "refresh" && items.length === 1 && /^\d+$/.test(items[0])) {
+          print(await refreshRef(run, Number(items[0])));
+          return 0;
+        }
+        throw new UsageError("forge refs add <url|path|KEY>... | forge refs list | forge refs refresh <n>");
       }
       case "reconcile": {
         if (rest.length) throw new UsageError("forge reconcile takes no arguments");
@@ -160,4 +194,4 @@ export function main(argv: string[]): number {
   }
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(await main(process.argv.slice(2)));

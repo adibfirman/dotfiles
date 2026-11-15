@@ -8,14 +8,14 @@ import { spawnNode } from "../src/spawn";
 import { status } from "../src/status";
 import { add, hcCalls, setup } from "./helpers";
 
-const quiet = <T>(fn: () => T): T => {
+const quiet = async <T>(fn: () => T | Promise<T>): Promise<T> => {
   const log = console.log, err = console.error;
   console.log = console.error = () => {};
-  try { return fn(); } finally { console.log = log; console.error = err; }
+  try { return await fn(); } finally { console.log = log; console.error = err; }
 };
 
 describe("coordinators", () => {
-  test("start outside the node model and outlive their parent", () => {
+  test("start outside the node model and outlive their parent", async () => {
     const env = setup({ cap: 1 });
     const c = startCoordinator(env.run);
     expect([c.role, c.id]).toEqual(["grill-coord", "grill-coord-1"]);
@@ -29,7 +29,7 @@ describe("coordinators", () => {
     expect(status(env.run).coordinators).toEqual([{ role: "grill-coord", id: "grill-coord-1" }]);
   });
 
-  test("the phase picks the coordinator, and the gate has none", () => {
+  test("the phase picks the coordinator, and the gate has none", async () => {
     const env = setup();
     expect(() => startCoordinator(env.run, "exec-coord")).toThrow(/does not run phase grill/);
     add(env.run, "phase_done");
@@ -37,7 +37,7 @@ describe("coordinators", () => {
     expect(() => startCoordinator(env.run)).toThrow(/at the gate use forge approve/);
   });
 
-  test("approve opens exec and starts exec-coord", () => {
+  test("approve opens exec and starts exec-coord", async () => {
     const env = setup();
     add(env.run, "phase_done");
     add(env.run, "phase_done");
@@ -48,14 +48,14 @@ describe("coordinators", () => {
 });
 
 describe("follow-ups", () => {
-  test("with no live coordinator a classifier starts", () => {
+  test("with no live coordinator a classifier starts", async () => {
     const env = setup();
     const r = followup(env.run, "QA: login fails after refresh", "qa");
     expect(r).toEqual({ id: "1-1", classifier: "classifier-1" });
     expect(followups(env.run)).toEqual([{ id: "1-1", source: "qa", text: "QA: login fails after refresh", handled: false }]);
   });
 
-  test("a live coordinator gets it with hc send", () => {
+  test("a live coordinator gets it with hc send", async () => {
     const env = setup();
     const c = startCoordinator(env.run);
     const r = followup(env.run, "also support refunds");
@@ -65,7 +65,7 @@ describe("follow-ups", () => {
     expect(send[2]).toContain("forge followup 1-1 (user): also support refunds");
   });
 
-  test("a coordinator whose phase ended does not get it: a classifier starts", () => {
+  test("a coordinator whose phase ended does not get it: a classifier starts", async () => {
     const env = setup();
     startCoordinator(env.run); // grill-coord, still live in the fake hc
     add(env.run, "phase_done"); // grill → verify: grill-coord's phase is over
@@ -73,7 +73,7 @@ describe("follow-ups", () => {
     expect(r).toEqual({ id: "1-1", classifier: "classifier-1" });
   });
 
-  test("an event with data.followup marks it handled", () => {
+  test("an event with data.followup marks it handled", async () => {
     const env = setup();
     followup(env.run, "x");
     add(env.run, "cycle_open", undefined, { start: "grill", slug: "x", followup: "1-1" });
@@ -82,7 +82,7 @@ describe("follow-ups", () => {
 });
 
 describe("reconcile", () => {
-  test("a running node whose agent is gone fails with agent lost", () => {
+  test("a running node whose agent is gone fails with agent lost", async () => {
     const env = setup();
     add(env.run, "node_add", "a");
     const s = spawnNode(env.run, "fact-finder", "a", "x");
@@ -92,7 +92,7 @@ describe("reconcile", () => {
     expect([n.status, n.lastSig]).toEqual(["failed", "agent lost"]);
   });
 
-  test("closes other coordinators, not the caller", () => {
+  test("closes other coordinators, not the caller", async () => {
     const env = setup();
     startCoordinator(env.run);
     const r = reconcile(env.run, "grill-coord-2");
@@ -101,16 +101,16 @@ describe("reconcile", () => {
   });
 });
 
-test("node_done through the CLI closes the agent's terminal", () => {
+test("node_done through the CLI closes the agent's terminal", async () => {
   const env = setup();
   process.env.FORGE_RUN = env.run.dir;
   add(env.run, "node_add", "a");
   spawnNode(env.run, "fact-finder", "a", "x");
-  expect(quiet(() => main(["append", "node_done", "--node", "a"]))).toBe(0);
+  expect(await quiet(() => main(["append", "node_done", "--node", "a"]))).toBe(0);
   expect(hcCalls(env).map((c) => c[0])).toContain("kill");
 });
 
-test("specs: draft, gate copy, and the approved one", () => {
+test("specs: draft, gate copy, and the approved one", async () => {
   const env = setup();
   const dir = currentCycleDir(env.run);
   mkdirSync(join(dir, "grill"), { recursive: true });

@@ -29,6 +29,9 @@ export default class ForgeStart extends View {
     this.follow = TextareaState.new({ placeholder: "Follow-up: a QA bug, a change, or a review note", rows: 3 });
     this.ticket = InputState.new({ placeholder: "Ticket, like INTR-123 (empty: none)" });
     this.goal = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 5 });
+    // References: one per line (a doc URL, a Confluence page, a Jira key, a GitHub link, a file or image path).
+    // Files dropped on the dialog are added here.
+    this.refs = TextareaState.new({ placeholder: "References, one per line: URL, Confluence page, JIRA-123, file or image path (or drop files here)", rows: 3 });
     cx.spawn(async (cx) => {
       try {
         if (!this.folder) throw new Error("This space has no folder.");
@@ -48,6 +51,17 @@ export default class ForgeStart extends View {
 
   close() {
     closeOverlay(this.overlay);
+  }
+
+  refList() {
+    return this.refs.value().split("\n").map((x) => x.trim()).filter(Boolean);
+  }
+
+  // Files dropped anywhere on the dialog become references (absolute paths).
+  dropped(paths, cx) {
+    const have = this.refList();
+    this.refs.set_value([...have, ...paths.filter((p) => !have.includes(p))].join("\n"));
+    cx.notify();
   }
 
   // The run's own space when one shows its worktree, else this space.
@@ -77,7 +91,8 @@ export default class ForgeStart extends View {
     const text = this.follow.value().trim();
     if (!text) return;
     this.task(cx, "follow-up", async () => {
-      const res = await forge(["followup", text, "--source", "user", "--run", r.dir], r.main);
+      const refs = this.refList().flatMap((x) => ["--ref", x]);
+      const res = await forge(["followup", text, "--source", "user", ...refs, "--run", r.dir], r.main);
       if (!res.ok) throw new Error(res.err);
       return `Sent to ${r.ticket}.`;
     });
@@ -91,7 +106,9 @@ export default class ForgeStart extends View {
       const inbox = `${this.repo.main}/.forge/inbox`;
       const file = `${inbox}/${Date.now()}.md`;
       await exec("mkdir", ["-p", inbox]);
-      await writeTextFile(file, `---\nticket: ${ticket || "none"}\n---\n${goal}\n`, null);
+      const refs = this.refList();
+      const refLines = refs.length ? `refs:\n${refs.map((x) => `  - ${x}`).join("\n")}\n` : "";
+      await writeTextFile(file, `---\nticket: ${ticket || "none"}\n${refLines}---\n${goal}\n`, null);
       const init = await forge(["init", file, "--here"], this.repo.top);
       if (!init.ok) throw new Error(init.err);
       const st = JSON.parse(init.out);
@@ -114,6 +131,7 @@ export default class ForgeStart extends View {
       return h.phase === "gate" ? ["◆ waiting for you", t.accent] : h.phase === "done" ? ["✓ done", t.done] : [`● ${h.phase ?? "?"}`, t.working];
     };
     return v_flex().id("forge-start").size_full().min_h(0).bg(t.popover).text_color(t.foreground).text_size(13)
+      .on_drop((e, cx) => this.dropped(e.paths ?? [], cx))
       .child(h_flex().h(44).flex_none().px(16).items_center().justify_between().border_b(1).border_color(t.border)
         .child(div().font_semibold().child(`Forge · ${name}`))
         .child(div().id("fs-close").text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("×")))
@@ -134,12 +152,14 @@ export default class ForgeStart extends View {
               .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r.dir, r.worktree); this.close(); }))
               .child(button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))
             .when(open, (e) => e.child(field(Textarea.new(this.follow).text_size(12)))
+              .child(field(Textarea.new(this.refs).text_size(12)))
               .child(h_flex().justify_end().child(button(`fs-send-${i}`, "Send follow-up", (cx) => this.sendFollow(cx, r), true))));
         }))
         .when(!this.runs.length && !this.error, (e) => e.child(div().text_size(12).text_color(t.dim).child("No forge run in this repo yet.")))
         .child(div().pt(8).text_size(11.5).text_color(t.dim).child(`New run in ${this.repo?.top ?? this.folder ?? ""}`))
         .child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.ticket).h_full().text_size(12))))
         .child(field(Textarea.new(this.goal).text_size(12)))
+        .when(!this.following, (e) => e.child(field(Textarea.new(this.refs).text_size(12))))
         .child(h_flex().justify_between().items_center()
           .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
           .child(button("fs-start", "Start", (cx) => this.start(cx), true))));
