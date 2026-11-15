@@ -16,8 +16,15 @@ export function coordinators(run: Run) {
   return events(cycleDir).filter((e) => e.kind === "coord_start").map((e) => ({ role: String(e.data!.role), id: String(e.data!.id), cycleDir }));
 }
 
+/**
+ * The coordinator still running the current phase. One whose phase has ended (its terminal can stay
+ * open and idle after it stops) does not count, so at the gate or after done a classifier starts.
+ */
 export function liveCoordinator(run: Run, exceptId = process.env.FORGE_NODE) {
-  return coordinators(run).reverse().find((c) => c.id !== exceptId && c.role !== "classifier" && isLive(spawnInfo(c.cycleDir, c.id)?.terminal ?? ""));
+  const { state } = loadState(run);
+  const role = PHASE_COORD[state.phase];
+  if (!role) return undefined;
+  return coordinators(run).reverse().find((c) => c.id !== exceptId && c.role === role && isLive(spawnInfo(c.cycleDir, c.id)?.terminal ?? ""));
 }
 
 const BOOT = "BOOT. Run `forge reconcile`, then `forge status`, then follow your protocol from the step that matches the state.";

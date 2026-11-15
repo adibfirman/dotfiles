@@ -65,6 +65,14 @@ describe("follow-ups", () => {
     expect(send[2]).toContain("forge followup 1-1 (user): also support refunds");
   });
 
+  test("a coordinator whose phase ended does not get it: a classifier starts", () => {
+    const env = setup();
+    startCoordinator(env.run); // grill-coord, still live in the fake hc
+    add(env.run, "phase_done"); // grill → verify: grill-coord's phase is over
+    const r = followup(env.run, "late input");
+    expect(r).toEqual({ id: "1-1", classifier: "classifier-1" });
+  });
+
   test("an event with data.followup marks it handled", () => {
     const env = setup();
     followup(env.run, "x");
