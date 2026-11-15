@@ -96,7 +96,7 @@ export default class Spaces extends View {
 
   // A space's forge runs as child rows: click opens the forge panel pinned to that run.
   forgeRows({ w, tree }, t) {
-    const here = where(w, panes());
+    const here = place(w, panes()); // the folder; where() is a [machine, folder] cache key
     return this.forge.filter((f) => f.worktree === here || f.worktree === w.folder).map((f) => {
       const h = f.head ?? {};
       const [mark, color] = h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
@@ -119,7 +119,7 @@ export default class Spaces extends View {
       .tooltip("Forge: start a run here, or follow up an existing one")
       .on_click((_e, cx) => {
         cx.stop_propagation();
-        openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: where(w, panes()) } });
+        openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: place(w, panes()) } });
       })
       .child("+");
   }

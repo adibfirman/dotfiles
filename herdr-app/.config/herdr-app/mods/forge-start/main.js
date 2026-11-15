@@ -47,10 +47,19 @@ export default class ForgeStart extends View {
     // Files dropped on the dialog are added here.
     this.refs = TextareaState.new({ placeholder: "References, one per line: URL, Confluence page, JIRA-123, file or image path (or drop files here)", rows: 3 });
     cx.spawn(async (cx) => {
+      // Settings load on their own, so the defaults show even outside a git repo.
+      if (this.folder) {
+        const st = await forge(["settings", "--main", this.folder], this.folder);
+        if (st.ok && !this.settings) this.settings = JSON.parse(st.out);
+        cx.notify();
+      }
       try {
         if (!this.folder) throw new Error("This space has no folder.");
-        const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: this.folder });
-        if (common.code !== 0) throw new Error(`Not a git repo: ${this.folder}`);
+        const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: this.folder }).catch(() => ({ code: 1 }));
+        if (common.code !== 0) {
+          this.notRepo = true;
+          throw new Error(`${this.folder} is not a git repo. Forge needs git for its commits, worktrees, and PRs: run git init there, or press + on a space inside a repo.`);
+        }
         const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: this.folder });
         this.repo = { main: common.stdout.trim().replace(/\/\.git\/?$/, ""), top: top.stdout.trim() };
         const r = await forge(["runs"], this.repo.main);
@@ -58,6 +67,7 @@ export default class ForgeStart extends View {
         this.runs = JSON.parse(r.out).filter((x) => x.main === this.repo.main);
         const st = await forge(["settings", "--main", this.repo.main], this.repo.main);
         if (st.ok) this.settings = JSON.parse(st.out);
+        else this.settingsError = st.err;
         cx.notify();
         // A run whose PR is merged continues in a new run (Q44), not as a follow-up on a merged branch.
         for (const x of this.runs.filter((y) => y.repo && y.branch)) {
@@ -114,9 +124,11 @@ export default class ForgeStart extends View {
 
   settingsView(t, button) {
     const s = this.settings;
-    if (!s) return div().text_size(11.5).text_color(t.dim).child("Loading settings…");
-    const chip = (id, label, on, f) => div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5).cursor_pointer()
-      .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted).hover((x) => x.bg(t.hover)).when(!this.busy, (e) => e.on_click((_e, cx) => f(cx))).child(label);
+    if (!s) return div().text_size(11.5).text_color(this.settingsError ? t.blocked : t.dim).child(this.settingsError ? `Settings: ${this.settingsError}` : "Loading settings…");
+    const editable = Boolean(this.repo); // project settings live in a repo's .forge/
+    const chip = (id, label, on, f) => div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5)
+      .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted)
+      .when(editable && !this.busy, (e) => e.cursor_pointer().hover((x) => x.bg(t.hover)).on_click((_e, cx) => f(cx))).child(label);
     const rows = GROUPS.map(([label, rs], i) => {
       const known = rs.filter((r) => s.models[r]);
       const values = [...new Set(known.map((r) => s.models[r].value))];
@@ -133,7 +145,7 @@ export default class ForgeStart extends View {
       return div().text_size(11.5).text_color(t.muted).child(`${ph}: ${src.allow.map(short).join(", ")}${src.mcp.length ? ` · MCP: ${src.mcp.join(", ")}` : ""}`);
     });
     return v_flex().gap(6).p(10).rounded(8).bg(t.surface).border_1().border_color(t.border)
-      .child(div().text_size(11.5).text_color(t.dim).child("Models: from the next agent. Cap: from the next cycle. Saved in .forge/ of this repo."))
+      .child(div().text_size(11.5).text_color(t.dim).child(editable ? "Models: from the next agent. Cap: from the next cycle. Saved in .forge/ of this repo." : "The defaults. They can be changed per repo, from a space inside a git repo."))
       .children(rows)
       .child(h_flex().gap(6).items_center().pt(4)
         .child(div().w(130).text_size(12).child("Agents at once"))
@@ -144,7 +156,7 @@ export default class ForgeStart extends View {
       .child(div().pt(4).text_size(12).child("Allowed tools"))
       .children(phases)
       .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map(short).join("\n")).child(`Deny floor: ${s.deny.length} rules, always on (hover to see)`))
-      .child(h_flex().justify_end().child(button("fs-edit-sources", "Edit project SOURCES.md", (cx) => this.editSources(cx))));
+      .when(editable, (e) => e.child(h_flex().justify_end().child(button("fs-edit-sources", "Edit project SOURCES.md", (cx) => this.editSources(cx)))));
   }
 
   refList() {
@@ -215,7 +227,7 @@ export default class ForgeStart extends View {
 
   render(cx) {
     const t = theme();
-    const name = this.repo ? this.repo.top.split("/").pop() : this.folder?.split("/").pop() ?? "";
+    const name = this.repo ? this.repo.top.split("/").pop() : String(this.folder ?? "").split("/").pop();
     const field = (child) => div().rounded(6).border_1().border_color(t.input).bg(t.background).child(child);
     const button = (id, label, f, primary = false) => div().id(id).h(28).px(12).flex().items_center().rounded(6).text_size(12).cursor_pointer()
       .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground).hover((s) => s.bg(primary ? t.solid : t.hover))
@@ -232,7 +244,7 @@ export default class ForgeStart extends View {
       .child(v_flex().id("fs-body").flex_1().min_h(0).overflow_y_scrollbar().p(16).gap(10)
         .when(Boolean(this.error), (e) => e.child(div().text_size(12).text_color(t.blocked).child(this.error)))
         .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
-        .child(div().text_size(11.5).text_color(t.dim).child(`Runs in this repo ${this.runs.length}`))
+        .when(!this.notRepo, (e) => e.child(div().text_size(11.5).text_color(t.dim).child(`Runs in this repo ${this.runs.length}`)))
         .children(this.runs.map((r, i) => {
           const [label, color] = phase(r);
           const open = this.following === r.dir;
@@ -252,14 +264,15 @@ export default class ForgeStart extends View {
               .child(field(Textarea.new(this.refs).text_size(12)))
               .child(h_flex().justify_end().child(button(`fs-send-${i}`, "Send follow-up", (cx) => this.sendFollow(cx, r), true))));
         }))
-        .when(!this.runs.length && !this.error, (e) => e.child(div().text_size(12).text_color(t.dim).child("No forge run in this repo yet.")))
-        .child(div().pt(8).text_size(11.5).text_color(t.dim).child(`New run in ${this.repo?.top ?? this.folder ?? ""}`))
-        .child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.ticket).h_full().text_size(12))))
-        .child(field(Textarea.new(this.goal).text_size(12)))
-        .when(!this.following, (e) => e.child(field(Textarea.new(this.refs).text_size(12))))
-        .child(h_flex().justify_between().items_center()
-          .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
-          .child(button("fs-start", "Start", (cx) => this.start(cx), true)))
+        .when(!this.runs.length && !this.error && !this.notRepo, (e) => e.child(div().text_size(12).text_color(t.dim).child("No forge run in this repo yet.")))
+        .when(!this.notRepo, (e) => e
+          .child(div().pt(8).text_size(11.5).text_color(t.dim).child(`New run in ${this.repo?.top ?? this.folder ?? ""}`))
+          .child(field(div().h(30).px(8).flex().items_center().child(Input.new(this.ticket).h_full().text_size(12))))
+          .child(field(Textarea.new(this.goal).text_size(12)))
+          .when(!this.following, (e2) => e2.child(field(Textarea.new(this.refs).text_size(12))))
+          .child(h_flex().justify_between().items_center()
+            .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
+            .child(button("fs-start", "Start", (cx) => this.start(cx), true))))
         .child(div().id("fs-settings-toggle").pt(8).text_size(11.5).text_color(t.dim).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => { this.settingsOpen = !this.settingsOpen; cx.notify(); })
           .child(`${this.settingsOpen ? "▾" : "▸"} Settings`))
