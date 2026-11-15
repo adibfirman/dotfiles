@@ -54,13 +54,25 @@ export function entries(): Entry[] {
   return [...byDir.values()].filter((e) => existsSync(join(e.dir, "run.json"))).sort((a, b) => b.created.localeCompare(a.created));
 }
 
-/** The registered runs with their HEAD (cycle, phase, approved, paused) and, for workspaces, their repos. */
+/** The newest coordinator of the current cycle and its terminal (from its .spawn file), or null. */
+export function coordinatorOf(dir: string, head: any): { id: string; terminal: string } | null {
+  if (!head?.dir) return null;
+  const cycle = join(dir, "cycles", head.dir);
+  const starts = readLines(join(cycle, "events.jsonl")).map((l) => JSON.parse(l)).filter((e) => e.kind === "coord_start");
+  const last = starts[starts.length - 1];
+  if (!last) return null;
+  const spawn = join(cycle, ".spawn", `${last.data.id}.json`);
+  return existsSync(spawn) ? { id: last.data.id, terminal: JSON.parse(readFileSync(spawn, "utf8")).terminal } : null;
+}
+
+/** The registered runs with their HEAD (cycle, phase, approved, paused), their newest coordinator, and, for workspaces, their repos. */
 export function runs() {
   return entries().map((e) => {
-    const head = join(e.dir, "HEAD");
+    const headFile = join(e.dir, "HEAD");
+    const head = existsSync(headFile) ? JSON.parse(readFileSync(headFile, "utf8")) : null;
     const meta = JSON.parse(readFileSync(join(e.dir, "run.json"), "utf8"));
     const repos = meta.mode === "workspace" ? (meta.repos ?? []).map((r: any) => ({ name: r.name, remote: r.remote, branch: r.branch, worktree: r.worktree })) : undefined;
-    return { ...e, mode: meta.mode ?? "repo", ...(repos ? { repos } : {}), head: existsSync(head) ? JSON.parse(readFileSync(head, "utf8")) : null };
+    return { ...e, mode: meta.mode ?? "repo", ...(repos ? { repos } : {}), head, coordinator: coordinatorOf(e.dir, head) };
   });
 }
 

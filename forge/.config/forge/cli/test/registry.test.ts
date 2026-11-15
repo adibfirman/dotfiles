@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { entries, registerExisting, runs, titleOf } from "../src/registry";
 import { init } from "../src/init";
+import { startCoordinator } from "../src/agents";
 import { setup } from "./helpers";
 
 test("init registers the run with its title and current branch", () => {
@@ -12,6 +13,9 @@ test("init registers the run with its title and current branch", () => {
   const [e] = entries();
   expect(e).toMatchObject({ ticket: env.run.ticket, dir: env.run.dir, worktree: env.repo, branch: "main", title: "Build the thing." });
   expect(runs()[0].head).toMatchObject({ cycle: 1, phase: "grill" });
+  expect(runs()[0].coordinator).toBeNull();
+  startCoordinator(env.run);
+  expect(runs()[0].coordinator).toEqual({ id: "grill-coord-1", terminal: "t-f-local-task-1-grillc-g1" });
 });
 
 test("repo comes from the origin remote", () => {

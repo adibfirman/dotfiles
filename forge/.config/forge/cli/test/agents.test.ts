@@ -27,6 +27,7 @@ describe("coordinators", () => {
     add(env.run, "node_add", "a");
     expect(spawnNode(env.run, "fact-finder", "a", "x").status).toBe("started");
     expect(status(env.run).coordinators).toEqual([{ role: "grill-coord", id: "grill-coord-1" }]);
+    expect(status(env.run).coordinator).toEqual({ id: "grill-coord-1", terminal: c.terminal });
   });
 
   test("the phase picks the coordinator, and the gate has none", async () => {
@@ -71,6 +72,13 @@ describe("follow-ups", () => {
     add(env.run, "phase_done"); // grill → verify: grill-coord's phase is over
     const r = followup(env.run, "late input");
     expect(r).toEqual({ id: "1-1", classifier: "classifier-1" });
+  });
+
+  test("status says why the cycle exists", async () => {
+    const env = setup();
+    followup(env.run, "QA: crash on refresh", "qa");
+    add(env.run, "cycle_open", undefined, { start: "grill", slug: "qa crash", reason: "a QA bug", followup: "1-1" });
+    expect(status(env.run).cycleOpen).toEqual({ start: "grill", slug: "qa-crash", reason: "a QA bug", followup: { id: "1-1", source: "qa", text: "QA: crash on refresh" } });
   });
 
   test("an event with data.followup marks it handled", async () => {
