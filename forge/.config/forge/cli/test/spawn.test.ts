@@ -1,0 +1,148 @@
+import { describe, expect, test } from "bun:test";
+import { loadState } from "../src/append";
+import { main } from "../src/main";
+import { drainQueue, spawnNode, terminalName } from "../src/spawn";
+import { status } from "../src/status";
+import { add, hcCalls, setup, toExec } from "./helpers";
+
+describe("spawn", () => {
+  test("starts the node in hc and records node_start", () => {
+    const env = setup();
+    process.env.HC_TERMINAL_ID = "t1";
+    add(env.run, "node_add", "facts-auth");
+    const r = spawnNode(env.run, "fact-finder", "facts-auth", "Find where tokens are refreshed.");
+    expect(r.status).toBe("started");
+    const [call] = hcCalls(env);
+    expect(call.slice(0, 3)).toEqual(["run", "--bg", "--json"]);
+    expect(call[call.indexOf("--cwd") + 1]).toBe(env.repo);
+    expect(call[call.indexOf("--label") + 1]).toBe(`forge=${env.run.ticket}/1/facts-auth`);
+    expect(call).not.toContain("--outlive-parent");
+    expect(call[call.indexOf("--label") + 2]).toBe("claude");
+    const settings = JSON.parse(require("node:fs").readFileSync(call[call.indexOf("--settings") + 1], "utf8"));
+    expect(settings.env).toEqual({ FORGE_RUN: env.run.dir, FORGE_NODE: "facts-auth" });
+    expect(settings.permissions.deny).toContain("Bash(git push:*)");
+    const task = call[call.length - 1];
+    expect(task.startsWith("Find where tokens are refreshed.")).toBe(true);
+    expect(task).toContain("hc send t1");
+    expect(loadState(env.run).state.nodes.get("facts-auth")!.status).toBe("running");
+  });
+
+  test("a coordinator outlives its parent", () => {
+    const env = setup();
+    add(env.run, "node_add", "coord");
+    spawnNode(env.run, "grill-coord", "coord", "BOOT");
+    expect(hcCalls(env)[0]).toContain("--outlive-parent");
+  });
+
+  test("queues at the cap and starts the queued node when a slot frees", () => {
+    const env = setup({ cap: 1 });
+    add(env.run, "node_add", "a");
+    add(env.run, "node_add", "b");
+    expect(spawnNode(env.run, "fact-finder", "a", "task a").status).toBe("started");
+    const q = spawnNode(env.run, "fact-finder", "b", "task b");
+    expect(q).toMatchObject({ status: "queued", reason: "cap reached: 1 agents running" });
+    expect(status(env.run).queue).toEqual([{ node: "b", role: "fact-finder" }]);
+    add(env.run, "node_done", "a");
+    const started = drainQueue(env.run);
+    expect(started.map((s) => [s.node, s.status])).toEqual([["b", "started"]]);
+    expect(status(env.run).queue).toEqual([]);
+    expect(hcCalls(env).filter((c) => c[0] === "run")).toHaveLength(2);
+  });
+
+  test("a later wave waits in the queue", () => {
+    const env = setup();
+    toExec(env.run);
+    add(env.run, "node_add", "u1", { wave: 1, files: ["a"] });
+    add(env.run, "node_add", "u2", { wave: 2, files: ["a"] });
+    expect(spawnNode(env.run, "unit", "u2", "task 2").status).toBe("queued");
+    spawnNode(env.run, "unit", "u1", "task 1");
+    add(env.run, "node_done", "u1");
+    expect(drainQueue(env.run).map((s) => s.node)).toEqual(["u2"]);
+  });
+
+  test("other blocks are refusals, not queue entries", () => {
+    const env = setup();
+    add(env.run, "node_add", "a");
+    add(env.run, "pause");
+    expect(() => spawnNode(env.run, "fact-finder", "a", "x")).toThrow(/paused/);
+    expect(() => spawnNode(env.run, "fact-finder", "zzz", "x")).toThrow(/unknown node zzz/);
+  });
+
+  test("an unsent first message: read the screen, then send once", () => {
+    const env = setup();
+    process.env.FAKE_HC_MODE = "unsent";
+    add(env.run, "node_add", "a");
+    const r = spawnNode(env.run, "fact-finder", "a", "Find the retry logic in payments.");
+    expect(r.recovered).toBe(true);
+    const calls = hcCalls(env).map((c) => c[0]);
+    expect(calls[0]).toBe("run");
+    expect(calls.slice(-2)).toEqual(["read", "send"]);
+    expect(calls).not.toContain("keys");
+  });
+
+  test("the trust dialog is answered with yes, once", () => {
+    const env = setup();
+    process.env.FAKE_HC_MODE = "trust";
+    add(env.run, "node_add", "a");
+    expect(spawnNode(env.run, "fact-finder", "a", "x").trusted).toBe(true);
+    expect(hcCalls(env).find((c) => c[0] === "keys")).toEqual(["keys", "t-f-local-task-1-a-g0", "down", "enter"]);
+  });
+
+  test("no trust dialog, no keys", () => {
+    const env = setup();
+    add(env.run, "node_add", "a");
+    expect(spawnNode(env.run, "fact-finder", "a", "x").trusted).toBe(false);
+    expect(hcCalls(env).map((c) => c[0])).toEqual(["run", "read"]);
+  });
+
+  test("a failed hc run records node_fail", () => {
+    const env = setup();
+    process.env.FAKE_HC_MODE = "fail";
+    add(env.run, "node_add", "a");
+    expect(() => spawnNode(env.run, "fact-finder", "a", "x")).toThrow(/hc run failed/);
+    const n = loadState(env.run).state.nodes.get("a")!;
+    expect([n.status, n.lastSig]).toEqual(["failed", "spawn: hc run failed"]);
+  });
+
+  test("terminal names fit hc's 32 characters", () => {
+    expect(terminalName("INTR-123", 2, "facts", 0)).toBe("f-intr-123-2-facts-g0");
+    const long = terminalName("INTR-12345", 12, "fact-finder-payment-retry-backoff", 3);
+    expect(long.length).toBe(32);
+    expect(long).toMatch(/^[a-z0-9_-]+$/);
+  });
+});
+
+describe("CLI", () => {
+  const quiet = <T>(fn: () => T): T => {
+    const log = console.log, err = console.error;
+    console.log = console.error = () => {};
+    try {
+      return fn();
+    } finally {
+      console.log = log;
+      console.error = err;
+    }
+  };
+
+  test("exit codes: ok, refused, usage, queued", () => {
+    const env = setup({ cap: 1 });
+    process.env.FORGE_RUN = env.run.dir;
+    expect(quiet(() => main(["append", "node_add", "--node", "a"]))).toBe(0);
+    expect(quiet(() => main(["append", "node_add", "--node", "b"]))).toBe(0);
+    expect(quiet(() => main(["append", "approved"]))).toBe(1);
+    expect(quiet(() => main(["append", "nope"]))).toBe(2);
+    expect(quiet(() => main(["append", "comment", "--data", "{bad"]))).toBe(2);
+    expect(quiet(() => main(["spawn", "fact-finder", "a", "task a"]))).toBe(0);
+    expect(quiet(() => main(["spawn", "fact-finder", "b", "task b"]))).toBe(3);
+    expect(quiet(() => main(["append", "node_done", "--node", "a"]))).toBe(0);
+    expect(status(env.run).nodes.find((n) => n.id === "b")!.status).toBe("running");
+  });
+
+  test("status is rebuilt from events alone", () => {
+    const env = setup();
+    add(env.run, "node_add", "a", { role: "asker" });
+    const s = status(env.run);
+    expect(s).toMatchObject({ cycle: 1, cycleDir: "001-initial", phase: "grill", approved: false, cap: 4, running: 0 });
+    expect(s.nodes).toEqual([{ id: "a", phase: "grill", gen: 0, status: "pending", sameErr: 0, role: "asker" }]);
+  });
+});

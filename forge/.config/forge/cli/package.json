@@ -1,0 +1,12 @@
+{
+  "name": "forge-cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.4"
+  }
+}

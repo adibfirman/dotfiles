@@ -1,0 +1,5 @@
+{
+  "name": "forge-skills",
+  "version": "0.1.0",
+  "description": "User skills that forge child agents load with --plugin-dir"
+}

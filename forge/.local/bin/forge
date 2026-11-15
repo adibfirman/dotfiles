@@ -1,0 +1,3 @@
+#!/bin/sh
+# forge CLI: the guard and spawner for forge coordinators.
+exec bun "$HOME/.config/forge/cli/src/main.ts" "$@"

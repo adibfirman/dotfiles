@@ -24,3 +24,6 @@ herdr-app/.config/herdr-app/mods/**/jsconfig.json
 herdr-app/.config/herdr-app/mods/**/gpui-kit.d.ts
 # Herdr app: the omarchy-bar desktop wallpaper cache
 herdr-app/.config/herdr-app/backgrounds/desktop/
+
+# forge CLI: dev dependencies (type definitions only)
+forge/.config/forge/cli/node_modules/
