@@ -38,10 +38,3 @@ export async function forge(args, { run, cwd, timeout } = {}) {
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
 }
 
-/** Push the worktree's branch: plain push, or set the upstream on the first push. */
-export async function push(worktree) {
-  const up = await exec("git", ["rev-parse", "--abbrev-ref", "@{upstream}"], { cwd: worktree });
-  const args = up.code === 0 ? ["push"] : ["push", "-u", "origin", "HEAD"];
-  const r = await exec("git", args, { cwd: worktree, timeout: 120_000 });
-  return { ok: r.code === 0, out: (r.stderr || r.stdout).trim() };
-}

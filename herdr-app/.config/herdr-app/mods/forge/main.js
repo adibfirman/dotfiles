@@ -1,17 +1,17 @@
 // forge: the run graph, the spec graphs, the gate, and the buttons for a forge run.
 // The forge CLI owns the state; this mod reads `forge status` and calls forge commands.
 import { View, div, PathBuilder } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView } from "gpui-base";
+import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView, Popover } from "gpui-base";
 import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, setShared, closeOverlay, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
 import { agentDecisions, boxSize, parseTsGraph, runGraph, tsBlocks } from "./graph.js";
-import { forge, listRuns, push, readJson, repoOf } from "./data.js";
+import { forge, listRuns, readJson, repoOf } from "./data.js";
 
 // Herdr's zoom scales the px we give and paint_path geometry, not on_size_change sizes (see Blueprint).
 const zoomOf = (s) => (Number(s?.zoom) > 0 ? Number(s.zoom) : 1);
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
-const HEADER_H = 40, TABS_H = 34;
+const HEADER_H = 40;
 
 export default class Forge extends View {
   init(props, cx) {
@@ -177,56 +177,6 @@ export default class Forge extends View {
     });
   }
 
-  pushBranch(cx) {
-    if (this.busy || !this.st) return;
-    this.busy = "pushing";
-    cx.notify();
-    cx.spawn(async (cx) => {
-      // A workspace run pushes every repo it branched; a repo run pushes its worktree.
-      const targets = this.st.mode === "workspace" ? this.st.repos.filter((r) => r.branch).map((r) => [r.name, r.worktree]) : [[this.st.ticket, this.st.worktree]];
-      const results = [];
-      for (const [name, dir] of targets) results.push([name, await push(dir)]);
-      this.busy = null;
-      const ok = results.every(([, r]) => r.ok);
-      notify({ title: "Forge: push", body: results.map(([n, r]) => `${n}: ${r.ok ? "pushed" : r.out.slice(0, 150)}`).join("\n") || "Nothing to push.", level: ok ? "success" : "error" });
-      cx.notify();
-    });
-  }
-
-  createPr(cx) {
-    if (this.busy || !this.st) return;
-    this.busy = "creating the PR";
-    cx.notify();
-    cx.spawn(async (cx) => {
-      let body = null, ok = false;
-      try {
-        const meta = await readJson(`${this.dir}/run.json`);
-        // One draft PR per repo: PR-<repo>.md when the run is a workspace, else PR.md.
-        const targets = this.st.mode === "workspace"
-          ? this.st.repos.filter((r) => r.branch).map((r) => ({ name: r.name, dir: r.worktree, base: r.base, file: `PR-${r.name}.md` }))
-          : [{ name: this.st.ticket, dir: this.st.worktree, base: meta?.base ?? "main", file: "PR.md" }];
-        const lines = [];
-        ok = true;
-        for (const tg of targets) {
-          const pr = (await readTextFile(`${this.st.cyclePath}/exec/${tg.file}`)) ?? (await readTextFile(`${this.st.cyclePath}/exec/PR.md`)) ?? "";
-          const [first, ...rest] = pr.split("\n");
-          const bodyFile = `${this.st.cyclePath}/exec/PR.body-${tg.name}.md`;
-          await writeTextFile(bodyFile, rest.join("\n").trim() + "\n", await readTextFile(bodyFile));
-          const r = await exec("gh", ["pr", "create", "--draft", "--base", tg.base, "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: tg.dir, timeout: 120_000 });
-          ok = ok && r.code === 0;
-          lines.push(`${tg.name}: ${(r.code === 0 ? r.stdout : r.stderr || r.stdout).trim()}`);
-        }
-        body = lines.join("\n");
-      } catch (e) {
-        ok = false;
-        body = String(e?.message ?? e);
-      }
-      this.busy = null;
-      notify({ title: "Forge: draft PR", body: body.slice(0, 400), level: ok ? "success" : "error" });
-      cx.notify();
-    });
-  }
-
   // A running node: show its agent's terminal beside this pane. A finished one: show its output here.
   open(n, cx) {
     if (!n.node || !this.st) return;
@@ -268,8 +218,7 @@ export default class Forge extends View {
       // pans it and the window stays where it is. (Inner handlers, like the graph's pan, run first.)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .child(this.header(t, cx))
-      .when(Boolean(this.cycleText()), (el) => el.child(this.cycleLine(t)))
-      .when(Boolean(this.st), (el) => el.child(this.tabs(t)))
+      .when(Boolean(this.st), (el) => el.child(this.viewRow(t)))
       .child(div().id("forge-body").flex_1().min_h(0).relative()
         .on_size_change((s, cx) => {
           const n = { width: s.width / this.zoom, height: s.height / this.zoom };
@@ -331,25 +280,47 @@ export default class Forge extends View {
     return o.reason || `started at ${o.start ?? "?"}`;
   }
 
-  cycleLine(t) {
+  // One row under the header: why this cycle exists on the left (a click shows all of it), and on the right
+  // a dropdown that picks the view (the run graph, the gate, each spec graph, the spec).
+  viewRow(t) {
     const text = this.cycleText();
-    return h_flex().id("f-cycle-line").h(26).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5).tooltip(text)
+    const open = this.cycleOpen && Boolean(text);
+    const items = this.viewItems();
+    const cur = items.find(([k]) => k === this.tab) ?? items[0];
+    const gateWaiting = this.st.phase === "gate" && this.tab !== "gate";
+    const left = h_flex().id("f-cycle-line").flex_1().min_w(0).gap(6).items_start()
+      .when(Boolean(text), (e) => e.cursor_pointer().on_click((_e, cx) => { this.cycleOpen = !this.cycleOpen; cx.notify(); }))
+      .child(div().flex_none().text_color(t.dim).child(text ? (open ? "▾" : "▸") : " "))
       .child(div().flex_none().font_semibold().text_color(t.accent).child(`Cycle ${this.st.cycle}`))
-      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(text));
+      .when(Boolean(text), (e) => e.child(open
+        ? div().id("f-cycle-full").flex_1().min_w(0).max_h(160).overflow_y_scrollbar().text_color(t.foreground).child(text)
+        : div().flex_1().min_w(0).truncate().text_color(t.muted).child(text)));
+    const trigger = h_flex().id("f-view-btn").h(24).max_w(300).px(9).gap(6).items_center().rounded(6).border_1().border_color(t.input).bg(t.raised)
+      .cursor_pointer().hover((x) => x.bg(t.hover)).tooltip(cur[2] ?? cur[1])
+      .when(gateWaiting, (e) => e.child(div().w(7).h(7).flex_none().rounded_full().bg(t.blocked)))
+      .child(div().min_w(0).truncate().text_color(t.foreground).child(cur[1]))
+      .child(div().flex_none().text_color(t.dim).child("▾"));
+    const menu = v_flex().id("f-view-menu").w(340).max_h(360).overflow_y_scrollbar().p(4).gap(2).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_md()
+      .children(items.map(([k, label, full]) => div().id(`f-view-${k}`).h(26).px(8).flex().items_center().rounded(5).text_size(12).truncate().cursor_pointer()
+        .bg(this.tab === k ? t.selected : t.popover).text_color(this.tab === k ? t.foreground : t.muted).hover((x) => x.bg(t.hover).text_color(t.foreground))
+        .tooltip(full ?? label)
+        .on_click((_e, cx) => { this.tab = k; this.selected = null; this.viewOpen = false; cx.notify(); })
+        .child(k === "gate" ? `● ${label}` : label)));
+    return h_flex().flex_none().px(12).py(5).gap(10).items_start().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
+      .child(left)
+      .child(Popover.new("f-view").anchor("top_right").open(Boolean(this.viewOpen))
+        .on_open_change((o, cx) => { this.viewOpen = o; cx.notify(); })
+        .trigger(trigger).content(menu));
   }
 
   graphs() {
     return tsBlocks(this.specText);
   }
 
-  tabs(t) {
+  viewItems() {
     const items = [["run", "Run"], ...(this.st.phase === "gate" ? [["gate", "Gate"]] : []), ...this.graphs().map((b, i) => [`g${i}`, b.title, b.full]), ...(this.specText ? [["spec", "Spec"]] : [])];
     if (!items.some(([k]) => k === this.tab)) this.tab = "run";
-    return h_flex().h(TABS_H).flex_none().px(10).gap(6).items_center().border_b(1).border_color(t.border).overflow_hidden()
-      .children(items.map(([k, label, full]) => div().id(`f-tab-${k}`).tooltip(full ?? label).h(24).px(9).flex().items_center().rounded(6).text_size(12).max_w(200).truncate().cursor_pointer()
-        .bg(this.tab === k ? t.raised : t.background).border_1().border_color(this.tab === k ? t.input : t.border).text_color(this.tab === k ? t.foreground : t.muted)
-        .on_click((_e, cx) => { this.tab = k; this.selected = null; cx.notify(); })
-        .child(k === "gate" ? `● ${label}` : label)));
+    return items;
   }
 
   body(t, cx) {
@@ -410,10 +381,8 @@ export default class Forge extends View {
     if (!st) return row.child(div().text_size(11).text_color(t.dim).child(this.repo ? "No forge run in this repo yet." : ""));
     return row
       .child(div().flex_1().h(30).px(8).flex().items_center().rounded(6).border_1().border_color(t.input).child(Input.new(this.followup).h_full().text_size(12)))
-      .child(this.button(t, "f-followup", "Send", (cx) => this.sendFollowup(cx)))
-      .when(st.phase === "done", (e) => e
-        .child(this.button(t, "f-push", "Push", (cx) => this.pushBranch(cx)))
-        .child(this.button(t, "f-pr", "Create PR", (cx) => this.createPr(cx), { primary: true })));
+      .child(this.button(t, "f-followup", "Send", (cx) => this.sendFollowup(cx)));
+    // Push and Create PR live in the Pull request panel only (it knows what is pushed and what has a PR).
   }
 
   // The graph: Blueprint's layout, boxes as divs, edges as one stroke path and one arrow path.

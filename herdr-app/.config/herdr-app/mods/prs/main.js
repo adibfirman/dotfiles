@@ -111,7 +111,14 @@ export default class Prs extends View {
       const inside = item.fr ? [] : shown.filter((p) => p.cwd === cwd || p.cwd.startsWith(`${cwd}/`));
       const pane = inside.find((p) => p.status) ?? inside[0] ?? null;
       const ahead = await exec("git", ["rev-list", "--count", "@{upstream}..HEAD"], { cwd }).catch(() => null);
-      const l = { cwd, pane, ahead: ahead?.code === 0 ? Number(ahead.stdout.trim()) : null };
+      // The branch and the repo's default branch: a run on the default branch commits straight to it, so it has no PR.
+      const branch = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd }).catch(() => null);
+      const def = await exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd }).catch(() => null);
+      const l = {
+        cwd, pane, ahead: ahead?.code === 0 ? Number(ahead.stdout.trim()) : null,
+        branch: branch?.code === 0 ? branch.stdout.trim() : null,
+        base: def?.code === 0 ? def.stdout.trim().replace(/^origin\//, "") : "main",
+      };
       if (item.fr) l.forge = { dir: item.fr.runDir ?? item.fr.dir, main: item.fr.main, ticket: item.fr.ticket, ...(item.fr.head ?? {}) };
       else if (item.pr.ticket) {
         const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd }).catch(() => null);
@@ -340,13 +347,15 @@ export default class Prs extends View {
     const ticket = pr?.ticket ?? (fr && !fr.ticket.startsWith("local-") ? fr.ticket : null);
     const ticketUrl = ticket && this.config.ticketUrl ? this.config.ticketUrl.replace("{key}", ticket) : null;
     const canSend = Boolean(pr && l?.forge) && pr.state === "OPEN" && (pr.ci.status === "failed" || pr.unresolved > 0 || pr.reviewDecision === "CHANGES_REQUESTED");
-    const canCreate = !pr && Boolean(fr?.repo) && l?.forge?.phase === "done";
+    const onBase = Boolean(l?.branch) && l.branch === l.base;
+    const canCreate = !pr && Boolean(fr?.repo) && l?.forge?.phase === "done" && !onBase;
     const canPush = Boolean(l) && (pr ? pr.state === "OPEN" : Boolean(fr?.repo)) && l.ahead !== 0;
     const body = v_flex().id("prs-detail").flex_1().min_h(0).overflow_y_scrollbar().p(14).gap(6)
       .child(div().text_size(15).font_semibold().child(pr?.title ?? (fr.title || fr.ticket)))
       .child(div().text_size(11.5).text_color(t.dim).child(pr ? `${pr.repo} #${pr.number}` : `${fr.repo ?? "no GitHub remote"} · ${fr.ticket}`))
       .child(div().text_size(11.5).text_color(t.muted).child(pr ? `${pr.head} → ${pr.base}` : `${fr.branch ?? "?"} · ${fr.worktree}`))
       .when(Boolean(pr), (e) => e.child(div().text_size(12).text_color(this.color(t, prState(pr).kind)).child(prState(pr).label)))
+      .when(!pr && onBase, (e) => e.child(div().text_size(12).text_color(t.muted).child(l.ahead ? `On ${l.base}: commits go straight to ${l.base}, so there is no PR. ${l.ahead} not pushed yet.` : `On ${l.base}: commits go straight to ${l.base}, so there is no PR. Everything is pushed.`)))
       .when(Boolean(l?.pane), (e) => e.child(h_flex().mt(4).p(8).gap(8).items_center().rounded(8).bg(t.raised)
         .child(div().flex_1().min_w(0).child(this.agentRow(t, l)))
         .child(div().id("prs-go").text_size(12).text_color(t.accent).cursor_pointer().on_click(() => run("pane.focus", { pane: l.pane.pane })).child("Go ›"))))
