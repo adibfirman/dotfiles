@@ -100,7 +100,9 @@ export function branchRepos(run: Run): RepoEntry[] {
       if (r.branch) continue;
       fetchBase(r.path, r.base);
       const exists = git(r.path, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]).ok;
-      const sw = exists ? git(r.worktree, ["switch", branch]) : git(r.worktree, ["switch", "-c", branch, `origin/${r.base}`]);
+      // --no-track: otherwise git makes origin/<base> the branch's upstream, and a plain push of the
+      // branch would then aim at the base branch (git refuses, the names differ).
+      const sw = exists ? git(r.worktree, ["switch", branch]) : git(r.worktree, ["switch", "--no-track", "-c", branch, `origin/${r.base}`]);
       if (!sw.ok) throw new Refused(`git switch failed in ${r.worktree}: ${sw.err.slice(0, 200)}`);
       r.branch = branch;
     }

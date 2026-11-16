@@ -95,6 +95,8 @@ describe("workspace mode", () => {
     expect(r.branch).toBe("fix/ABC-42");
     expect(g(r.worktree, "rev-parse", "--abbrev-ref", "HEAD")).toBe("fix/ABC-42");
     expect(existsSync(join(r.worktree, "NEW.md"))).toBe(true);
+    // No upstream: tracking origin/develop would make a plain push aim at the base branch.
+    expect(spawnSync("git", ["rev-parse", "--abbrev-ref", "@{upstream}"], { cwd: r.worktree }).status).not.toBe(0);
   });
 
   test("a unit runs in its repo's worktree; one without a repo is refused", () => {

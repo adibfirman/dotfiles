@@ -19,6 +19,10 @@ const twice = async (f) => {
   }
 };
 
+// Push the current branch to the same name on origin and make that its upstream. Always this form: a branch
+// made from origin/<base> can track the base, and a plain push would then aim at the base (git refuses).
+const pushHead = (cwd) => exec("git", ["push", "-u", "origin", "HEAD"], { cwd, timeout: 120_000 }).catch((e) => ({ code: 1, stderr: String(e?.message ?? e), stdout: "" }));
+
 export default class Prs extends View {
   init(_props, cx) {
     let mode = "forge";
@@ -110,7 +114,8 @@ export default class Prs extends View {
       // (your own sessions) are not the run's agent.
       const inside = item.fr ? [] : shown.filter((p) => p.cwd === cwd || p.cwd.startsWith(`${cwd}/`));
       const pane = inside.find((p) => p.status) ?? inside[0] ?? null;
-      const ahead = await exec("git", ["rev-list", "--count", "@{upstream}..HEAD"], { cwd }).catch(() => null);
+      // Commits on no remote branch: right before the first push (no upstream yet) and after it.
+      const ahead = await exec("git", ["rev-list", "--count", "HEAD", "--not", "--remotes"], { cwd }).catch(() => null);
       // The branch and the repo's default branch: a run on the default branch commits straight to it, so it has no PR.
       const branch = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd }).catch(() => null);
       const def = await exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd }).catch(() => null);
@@ -179,8 +184,7 @@ export default class Prs extends View {
 
   push(cx, l) {
     this.task(cx, "push", async () => {
-      const up = await exec("git", ["rev-parse", "--abbrev-ref", "@{upstream}"], { cwd: l.cwd });
-      const r = await exec("git", up.code === 0 ? ["push"] : ["push", "-u", "origin", "HEAD"], { cwd: l.cwd, timeout: 120_000 });
+      const r = await pushHead(l.cwd);
       return { ok: r.code === 0, body: (r.stderr || r.stdout).trim() };
     });
   }
@@ -198,7 +202,11 @@ export default class Prs extends View {
       await writeTextFile(bodyFile, rest.join("\n").trim() + "\n", await readTextFile(bodyFile));
       const meta = JSON.parse((await readTextFile(`${runDir}/run.json`)) ?? "{}");
       const base = item.fr.repoName ? meta.repos?.find((x) => x.name === item.fr.repoName)?.base ?? "main" : meta.base ?? "main";
-      const r = await exec("gh", ["pr", "create", "--draft", "--base", base, "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: l.cwd, timeout: 120_000 });
+      // gh needs the branch on GitHub first: push it (a no-op when it is up to date), then name it as the head.
+      const pushed = await pushHead(l.cwd);
+      if (pushed.code !== 0) return { ok: false, body: `push failed: ${(pushed.stderr || pushed.stdout).trim()}` };
+      const head = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: l.cwd })).stdout.trim();
+      const r = await exec("gh", ["pr", "create", "--draft", "--base", base, "--head", head, "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: l.cwd, timeout: 120_000 });
       return { ok: r.code === 0, body: (r.code === 0 ? r.stdout : r.stderr || r.stdout).trim() };
     });
   }
@@ -343,6 +351,9 @@ export default class Prs extends View {
 
   detail(t, item) {
     const { pr, fr } = item, l = this.local.get(item.key);
+    // The other repos of the same workspace run (one item per repo), by repo name.
+    const runDir = fr?.runDir ?? item.key;
+    const siblings = fr ? this.items.filter((i) => (i.fr?.runDir ?? i.key) === runDir).sort((x, y) => String(x.fr?.repoName ?? "").localeCompare(String(y.fr?.repoName ?? ""))) : [item];
     const section = (title) => div().pt(8).text_size(11.5).text_color(t.dim).child(title);
     const ticket = pr?.ticket ?? (fr && !fr.ticket.startsWith("local-") ? fr.ticket : null);
     const ticketUrl = ticket && this.config.ticketUrl ? this.config.ticketUrl.replace("{key}", ticket) : null;
@@ -378,9 +389,21 @@ export default class Prs extends View {
       .text_color(ticketUrl ? t.accent : t.foreground).when(Boolean(ticketUrl), (d) => d.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)));
     return v_flex().size_full().min_h(0)
       .child(h_flex().h(44).flex_none().px(12).items_center().justify_between().border_b(1).border_color(t.border)
-        // Pinned to one run (in a run window): no list to go back to.
+        // Pinned to one run (in a run window): no list to go back to. A workspace run has one PR per repo:
+        // a chip per repo switches between them, each with its own Push and Create PR.
         .child(given()?.run
-          ? div().text_size(12).font_semibold().child("Pull request")
+          ? h_flex().gap(8).items_center().min_w(0)
+            .child(div().flex_none().text_size(12).font_semibold().child(siblings.length > 1 ? "Pull requests" : "Pull request"))
+            .when(siblings.length > 1, (e) => e.children(siblings.map((sib, i) => {
+              const on = sib.key === item.key;
+              const sl = this.local.get(sib.key);
+              const mark = sib.pr ? prState(sib.pr).label : sl?.ahead ? `↑${sl.ahead}` : "";
+              return div().id(`prs-repo-${i}`).h(24).px(9).flex().items_center().gap(6).rounded(6).text_size(11.5).cursor_pointer()
+                .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted).hover((x) => x.bg(t.hover).text_color(t.foreground))
+                .on_click((_e, cx) => { this.open = sib.key; cx.notify(); })
+                .child(sib.fr?.repoName ?? sib.key)
+                .when(Boolean(mark), (c) => c.child(div().text_size(10.5).text_color(t.dim).child(mark)));
+            })))
           : div().id("prs-back").text_size(12).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.open = null; cx.notify(); }).child("‹ List"))
         .when(Boolean(pr), (e) => e.child(div().id("prs-gh").text_size(12).text_color(t.muted).cursor_pointer().on_click(() => this.openUrl(pr.url)).child("GitHub ↗"))))
       .child(body)
