@@ -37,18 +37,27 @@ async function wantsPrPanel(f) {
   return (await git(["rev-list", "--count", "@{upstream}..HEAD"])) !== "0";
 }
 
-// A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open.
+// The run's live coordinator terminal, or null (at the gate, or when the run is done).
+function liveCoord(f) {
+  const a = f.coordinator?.terminal;
+  return a && terminals().some((t) => t.address === a && t.state === "live") ? a : null;
+}
+
+// A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open
+// and which coordinator terminal it shows.
 async function openRunWindow(f) {
   const title = f.title || f.ticket;
   const prs = await wantsPrPanel(f);
-  // Left: a read-only view of the run's current coordinator (no terminal, so no input box and no typing into
-  // the agent; it follows phase handoffs). Right: the forge graph above the PR view.
+  const term = liveCoord(f);
+  // Left: the coordinator's own Claude terminal, to type into as usual. Herdr closes a window when its terminal
+  // ends, so at a phase handoff the sidebar reopens it with the next coordinator. With none running (the gate,
+  // or done), a panel says so. Right: the forge graph above the PR view.
   // Each part is a framed panel with a gap around it.
   const panel = { background: "background", border: { width: 1, color: "border" }, radius: 8 };
   const layout = { type: "column", background: "chrome", children: [
     { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title } } },
     { type: "row", padding: 8, gap: 8, children: [
-      { type: "block", size: { weight: 1 }, min: 260, ...panel, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
+      { type: "block", size: { weight: 1 }, min: 260, ...panel, content: term ? { terminal: term } : { mod: "forge-window", props: { part: "agent", run: f.dir } } },
       { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
         { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
         ...(prs ? [{ type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } }] : []),
@@ -56,7 +65,7 @@ async function openRunWindow(f) {
     ] },
   ] };
   const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout });
-  setShared("forge.window", { run: f.dir, id });
+  setShared("forge.window", { run: f.dir, id, terminal: term });
 }
 
 // Where a space is now: its first terminal's live folder, else where it was made.
@@ -106,6 +115,26 @@ export default class Spaces extends View {
     this.forge = [];
     this.loadForge(cx);
     cx.timer.every(8000, (cx) => this.loadForge(cx));
+    cx.timer.every(2000, (cx) => this.followWindow(cx));
+  }
+
+  // The open run window follows its run: when its live coordinator changes (a phase handoff, the gate, the end),
+  // reopen it in place with the new terminal. Herdr closes a window whose terminal ends, so this also brings it
+  // back after a handoff. Only the window's × (it clears forge.window) stops this.
+  followWindow(cx) {
+    const win = shared("forge.window");
+    if (!win?.run || this.following) return;
+    this.following = true;
+    cx.spawn(async () => {
+      try {
+        const r = await exec(`${home()}/.local/bin/forge`, ["runs"], { timeout: 20000 }).catch(() => null);
+        if (r?.code !== 0) return;
+        const f = JSON.parse(r.stdout).find((x) => x.dir === win.run);
+        if (f && liveCoord(f) !== (win.terminal ?? null) && shared("forge.window")?.run === win.run) await openRunWindow(f);
+      } finally {
+        this.following = false;
+      }
+    });
   }
 
   loadForge(cx) {

@@ -233,7 +233,8 @@ export default class Forge extends View {
 
   // The run window went away (closed, or its coordinator ended): the sidebar no longer marks the run as open.
   async close() {
-    if (given()?.overlay && shared("forge.window")?.run === this.propsRun) setShared("forge.window", null);
+    // Nothing to clear: Herdr also closes the window when its coordinator terminal ends (a handoff), and the
+    // sidebar reopens it then. Only the window's × clears shared "forge.window".
   }
 
   // ---------------------------------------------------------------- view
