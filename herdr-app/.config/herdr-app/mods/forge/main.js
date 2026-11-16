@@ -5,11 +5,13 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView, P
 import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, setShared, closeOverlay, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
-import { agentDecisions, boxSize, historyGraph, parseTsGraph, tsBlocks } from "./graph.js";
+import { agentDecisions, boxSize, parseTsGraph, stageDetail, stageGraph, tsBlocks, verdictCounts } from "./graph.js";
 import { forge, listRuns, readJson, repoOf } from "./data.js";
 
-// The size of a back-arc label, in graph units (the layout keeps it off boxes and other labels).
+// The size of an arrow label, in graph units (the layout keeps it off boxes and other labels).
 const arcLabelSize = (label) => ({ w: label.length * 6.4 + 18, h: 20 });
+// The border of a stage the run went through ("Path so far" in the legend): the theme's blue.
+const pathColor = (t) => t.ansi4 ?? t.accent;
 
 // Herdr's zoom scales the px we give and paint_path geometry, not on_size_change sizes (see Blueprint).
 const zoomOf = (s) => (Number(s?.zoom) > 0 ? Number(s.zoom) : 1);
@@ -21,7 +23,7 @@ export default class Forge extends View {
     Object.assign(this, {
       cwd: null, repo: null, runs: [], dir: null, pinned: null, st: null, error: null,
       specText: "", tab: "run", lastPhase: null, selected: null, detail: null,
-      size: { width: 640, height: 420 }, zoom: 1, busy: null, loading: false, gen: 0, layouts: new Map(), views: {}, drag: null, dragged: false,
+      size: { width: 640, height: 420 }, zoom: 1, busy: null, loading: false, gen: 0, layouts: new Map(), views: {}, drag: null, dragged: false, stage: null, verdicts: {},
     });
     this.ticketIn = InputState.new({ placeholder: "Ticket, like ABC-123 (empty: no ticket, run here)" });
     this.goalIn = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 6 });
@@ -42,7 +44,7 @@ export default class Forge extends View {
     const sel = shared("forge.selected");
     if (sel?.at && sel.at !== this.selAt && !this.propsRun) {
       this.selAt = sel.at;
-      Object.assign(this, { propsRun: sel.dir, pinned: sel.dir, cwd: null, tab: "run", selected: null, detail: null });
+      Object.assign(this, { propsRun: sel.dir, pinned: sel.dir, cwd: null, tab: "run", selected: null, detail: null, stage: null });
     }
     const f = focused();
     if (f?.cwd && !this.pinnedByProps()) this.cwd = f.cwd;
@@ -58,7 +60,7 @@ export default class Forge extends View {
         const found = await repoOf(this.cwd);
         this.repoError = found?.error ?? null;
         const repo = found?.error ? null : found;
-        if (repo?.main !== this.repo?.main) Object.assign(this, { dir: null, pinned: this.propsRun, st: null, selected: null, detail: null });
+        if (repo?.main !== this.repo?.main) Object.assign(this, { dir: null, pinned: this.propsRun, st: null, selected: null, detail: null, stage: null });
         this.repo = repo;
         this.runs = repo ? await listRuns(repo.main) : [];
         const dir = (this.pinned && this.runs.find((r) => r.dir === this.pinned)?.dir) ?? this.runs.find((r) => r.worktree === repo?.top)?.dir ?? this.runs[0]?.dir ?? null;
@@ -99,6 +101,19 @@ export default class Forge extends View {
       const h = await forge(["history"], { run: this.dir, cwd: this.repo.main });
       this.hist = h.ok ? JSON.parse(h.out) : null;
     } else this.hist = null;
+    // Verify verdicts per cycle, from each cycle's verify/summary.md: `forge history` does not carry them.
+    const dirs = this.hist?.length ? this.hist.map((c) => [c.cycle, `${this.dir}/cycles/${c.dir}`]) : this.st ? [[this.st.cycle, this.st.cyclePath]] : [];
+    const verdicts = {};
+    for (const [cycle, path] of dirs) {
+      let text = null;
+      try {
+        text = path ? await readTextFile(`${path}/verify/summary.md`) : null;
+      } catch {
+        text = null;
+      }
+      if (text) verdicts[cycle] = verdictCounts(text);
+    }
+    this.verdicts = verdicts;
     const spec = this.st && (this.st.phase === "gate" ? this.st.spec.gate : this.st.spec.approved ?? this.st.spec.gate ?? this.st.spec.draft);
     this.specText = spec ? (await readTextFile(spec)) ?? "" : "";
     if (this.st?.phase === "gate" && this.lastPhase !== "gate") this.tab = "gate";
@@ -261,6 +276,11 @@ export default class Forge extends View {
     return s === "done" ? t.done : s === "running" ? t.working : s === "failed" || s === "blocked" ? t.blocked : s === "waiting" ? t.accent : t.input;
   }
 
+  // A stage box's fill: its status colour, faint, so the text stays readable.
+  statusFill(t, s) {
+    return alpha(this.statusColor(t, s), s === "pending" ? 0.06 : 0.2);
+  }
+
   header(t, cx) {
     const st = this.st;
     const row = h_flex().h(HEADER_H).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border).child(div().font_semibold().child("Forge"));
@@ -270,7 +290,7 @@ export default class Forge extends View {
       .children(this.runs.length > 1
         ? this.runs.slice(0, 4).map((r) => div().id(`f-run-${r.ticket}`).px(7).py(1).rounded(6).text_size(11).cursor_pointer()
           .bg(r.dir === this.dir ? t.selected : t.raised).text_color(r.dir === this.dir ? t.foreground : t.muted)
-          .on_click((_e, cx) => { this.pinned = r.dir; this.refresh(cx); }).child(r.ticket))
+          .on_click((_e, cx) => { this.pinned = r.dir; this.stage = null; this.refresh(cx); }).child(r.ticket))
         : [div().text_size(12).text_color(t.muted).child(st.ticket)])
       .child(div().text_size(12).text_color(t.dim).child(`cycle ${st.cycle}`))
       .child(this.pill(t, st.paused ? `${st.phase} · paused` : st.phase, st.paused ? t.blocked : phaseColor))
@@ -319,17 +339,23 @@ export default class Forge extends View {
       .children(items.map(([k, label, full]) => div().id(`f-view-${k}`).h(26).px(8).flex().items_center().rounded(5).text_size(12).truncate().cursor_pointer()
         .bg(this.tab === k ? t.selected : t.popover).text_color(this.tab === k ? t.foreground : t.muted).hover((x) => x.bg(t.hover).text_color(t.foreground))
         .tooltip(full ?? label)
-        .on_click((_e, cx) => { this.tab = k; this.selected = null; this.viewOpen = false; cx.notify(); })
+        .on_click((_e, cx) => { this.tab = k; this.selected = null; this.stage = null; this.viewOpen = false; cx.notify(); })
         .child(k === "gate" ? `● ${label}` : label)));
-    // With more than one cycle, the Run view shows them all as one graph; this switch shows the current one only.
-    const many = this.tab === "run" && (this.hist?.length ?? 0) > 1;
+    // With more than one cycle, the stage summary shows them all; this switch shows the current one only.
+    const many = this.tab === "run" && !this.stage && (this.hist?.length ?? 0) > 1;
     const scope = div().id("f-scope").h(24).flex_none().px(9).flex().items_center().rounded(6).border_1().border_color(t.input)
       .bg(this.onlyCurrent ? t.raised : t.selected).text_color(t.foreground).cursor_pointer().hover((x) => x.bg(t.hover))
       .tooltip(this.onlyCurrent ? "Show every cycle as one graph" : "Show only the current cycle")
       .on_click((_e, cx) => { this.onlyCurrent = !this.onlyCurrent; cx.notify(); })
       .child(this.onlyCurrent ? `Cycle ${this.st.cycle} only` : `All ${this.hist?.length ?? 0} cycles`);
+    // In a stage's drill-down: back to the stage summary.
+    const back = div().id("f-stage-back").h(24).flex_none().px(9).flex().items_center().rounded(6).border_1().border_color(t.input).bg(t.raised)
+      .text_color(t.foreground).cursor_pointer().hover((x) => x.bg(t.hover)).tooltip("Back to the stage summary")
+      .on_click((_e, cx) => { this.stage = null; this.selected = null; this.detail = null; cx.notify(); })
+      .child("← All stages");
     return h_flex().flex_none().px(12).py(5).gap(10).items_start().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
       .child(left)
+      .when(this.tab === "run" && Boolean(this.stage), (e) => e.child(back))
       .when(many, (e) => e.child(scope))
       .child(Popover.new("f-view").anchor("top_right").open(Boolean(this.viewOpen))
         .on_open_change((o, cx) => { this.viewOpen = o; cx.notify(); })
@@ -355,7 +381,9 @@ export default class Forge extends View {
       const b = this.graphs()[Number(this.tab.slice(1))];
       return b ? this.canvas(t, parseTsGraph(b.code), `spec:${this.tab}:${b.code.length}`) : this.note(t, "No graph.");
     }
-    return this.canvas(t, historyGraph(this.st, this.hist, { onlyCurrent: this.onlyCurrent }), "run");
+    // The Run view: the stage summary, top to bottom; a click on a stage shows its agents, left to right.
+    if (this.stage) return this.canvas(t, stageDetail(this.st, this.hist, this.stage), `stage:${this.stage}`, "LR");
+    return this.canvas(t, stageGraph(this.st, this.hist, { onlyCurrent: this.onlyCurrent, verdicts: this.verdicts }), "run", "TB");
   }
 
   note(t, text) {
@@ -408,22 +436,22 @@ export default class Forge extends View {
   }
 
   // The graph: Blueprint's layout, boxes as divs, edges as one stroke path and one arrow path.
-  canvas(t, g, key) {
+  // dir: "LR" (agents and spec graphs: each step's nodes stack in one column) or "TB" (the stage summary).
+  canvas(t, g, key, dir = "LR") {
     const W = this.size.width, H = this.size.height;
     if (!g.nodes.size) return this.note(t, "Nothing to draw yet.");
-    // Always left to right: each step's nodes stack in one vertical column, whatever the pane's shape.
-    const dir = "LR";
     const sig = `${key}|${dir}|${[...g.nodes.values()].map((n) => `${n.id}:${n.label}:${n.sub}`).join(",")}|${g.edges.map((e) => `${e.from}>${e.to}`).join(",")}`;
     let L = this.layouts.get(key);
     if (!L || L.sig !== sig) {
       L = { sig, ...layout(g, dir, (n) => boxSize(n), (e) => (e.label ? arcLabelSize(e.label) : { w: 0, h: 0 })) };
       this.layouts.set(key, L);
     }
-    const b = L.bounds, pad = 24;
+    // The stage summary keeps room at the top for its legend.
+    const b = L.bounds, pad = 24, topPad = key === "run" ? 64 : pad;
     const bw = b.maxX - b.minX || 1, bh = b.maxY - b.minY || 1;
     const fit = () => {
-      const z = Math.max(0.2, Math.min(1.2, (W - 2 * pad) / bw, (H - 2 * pad) / bh));
-      return { z, ox: (W - bw * z) / 2 - b.minX * z, oy: Math.max(pad, (H - bh * z) / 2) - b.minY * z };
+      const z = Math.max(0.2, Math.min(1.2, (W - 2 * pad) / bw, (H - topPad - pad) / bh));
+      return { z, ox: (W - bw * z) / 2 - b.minX * z, oy: Math.max(topPad, (H - bh * z) / 2) - b.minY * z };
     };
     const v = this.views[key] ?? fit();
     this.cur = { key, v, fit };
@@ -432,7 +460,7 @@ export default class Forge extends View {
 
     let lines = PathBuilder.stroke(1.25), arrows = PathBuilder.fill();
     const head = Math.max(4, 7 * Math.sqrt(z)), tips = new Set();
-    // Back-arcs (a later cycle looping back to its cause) get their own colour, thicker, with a label.
+    // Labelled arrows (a step in the stage summary, or a later cycle and why it opened) get their own colour, thicker, with a label.
     const arcs = new Map();
     for (const ed of L.edges) {
       if (ed.e.arc) {
@@ -477,26 +505,49 @@ export default class Forge extends View {
       const color = n.status ? alpha(this.statusColor(t, n.status), n.old ? 0.5 : 1) : t.input;
       const picked = this.selected === n.id;
       const mark = n.status === "done" ? "✓ " : n.status === "failed" ? "✕ " : n.status === "running" ? "● " : n.status === "waiting" || n.status === "blocked" ? "◆ " : "";
+      // A stage box is filled with its status colour; a stage the run went through gets the blue path border.
+      const stage = n.kind === "stage";
+      const fill = stage ? this.statusFill(t, n.status) : n.kind === "phase" ? t.surface : t.background;
+      const edge = picked ? t.accent : stage && n.visited ? pathColor(t) : color;
       els.push(v_flex().id(`f-n-${key}-${n.id}`).absolute().left(left).top(top).w(w).h(h).justify_center().px(8 * z).rounded(8 * z)
-        .bg(n.kind === "phase" ? t.surface : t.background).border(picked ? 2 : n.status === "running" || n.status === "waiting" ? 2 : 1)
-        .border_color(picked ? t.accent : color).cursor_pointer().hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => { if (this.dragged) return; this.selected = n.id; if (n.node) this.open(n, cx); else if (n.details.length || n.path) this.detail = { title: n.label, text: [n.sub, ...n.details].filter(Boolean).join("\n\n") }; cx.notify(); })
+        .bg(fill).border(picked || (stage && n.visited) ? 2 : n.status === "running" || n.status === "waiting" ? 2 : 1)
+        .border_color(edge).cursor_pointer().hover((s) => s.bg(t.hover)).tooltip(stage ? "Show this stage's agents" : n.label)
+        .on_click((_e, cx) => {
+          if (this.dragged) return;
+          if (stage) {
+            Object.assign(this, { stage: n.id, selected: null, detail: null });
+            cx.notify();
+            return;
+          }
+          this.selected = n.id;
+          if (n.node) this.open(n, cx);
+          else if (n.details.length || n.path) this.detail = { title: n.label, text: [n.sub, ...n.details].filter(Boolean).join("\n\n") };
+          cx.notify();
+        })
         .child(h_flex().min_w(0).text_size(12.5 * z).font_semibold()
           .when(Boolean(mark), (e) => e.child(div().flex_none().text_color(color).child(mark)))
           .child(div().min_w(0).truncate().text_color(n.old ? t.dim : n.status === "pending" ? t.muted : t.foreground).child(n.label)))
         .when(Boolean(n.sub), (e) => e.child(div().text_size(10.5 * z).truncate().text_color(n.old ? t.dim : t.muted).child(n.sub))));
     }
-    // Each back-arc's label: why that cycle opened. A click shows the whole reason.
+    // Each labelled arrow's label. A click shows the whole reason.
     for (const [k, a] of arcs) {
-      for (const ed of a.eds) {
+      for (const [i, ed] of a.eds.entries()) {
         if (!ed.label) continue;
         const sz = arcLabelSize(ed.e.label), w = sz.w * z, h = sz.h * z;
-        els.push(div().id(`f-arc-${key}-${ed.e.cycle}`).absolute().left(X(ed.label.x) - w / 2).top(Y(ed.label.y) - h / 2).w(w).h(h)
+        els.push(div().id(`f-arc-${key}-${k}-${i}`).absolute().left(X(ed.label.x) - w / 2).top(Y(ed.label.y) - h / 2).w(w).h(h)
           .flex().items_center().justify_center().rounded(h / 2).bg(t.popover).border_1().border_color(arcColor(k))
           .text_size(10.5 * z).text_color(arcColor(k)).cursor_pointer().hover((x) => x.bg(t.hover)).tooltip(ed.e.reason || ed.e.label)
           .on_click((_e, cx) => { if (this.dragged) return; this.detail = { title: ed.e.label, text: ed.e.reason || "No reason recorded." }; cx.notify(); })
           .child(ed.e.label));
       }
+    }
+    // The stage summary's legend: what each fill means, and the path border.
+    if (key === "run") {
+      const chip = (label, bg, border, width = 1) => div().px(7).py(2).rounded(5).bg(bg).border(width).border_color(border).text_color(t.foreground).child(label);
+      els.push(h_flex().id("f-legend").absolute().left(10).top(10).gap(6).p(6).rounded(7).bg(t.popover).border_1().border_color(t.border).text_size(11)
+        .children([["done", "Done"], ["running", "Running"], ["waiting", "Waiting for you"], ["failed", "Failed"], ["pending", "Pending"]]
+          .map(([s, label]) => chip(label, this.statusFill(t, s), alpha(this.statusColor(t, s), 0.6))))
+        .child(chip("Path so far", t.popover, pathColor(t), 2)));
     }
     const ctl = (id, label, f, tip) => div().id(id).h(24).min_w(24).px(6).flex().items_center().justify_center().rounded(5).text_size(12).cursor_pointer()
       .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)

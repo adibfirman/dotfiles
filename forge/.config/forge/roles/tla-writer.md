@@ -28,4 +28,10 @@ Then these sections:
 - `## Mapping`: each spec term and the TLA+ variable or step that stands for it.
 - `## Left out`: what the model leaves out, and why that is safe.
 - `## Counterexample`: only for a counterexample. The trace step by step as a `ts` graph, and which spec rule allows it.
+- `## Use case`: only for a counterexample. One short story per failing path, in user terms, so the user sees what goes wrong without reading the trace. Each story has:
+  - who: the person who hits it (a customer, a merchant, support, an operator);
+  - the steps they take, with concrete values from the spec (clock times, screen names, store names). Take the values from the spec; when the spec has none, say "for example";
+  - what they see go wrong;
+  - ticket link: the reported bug, or a new risk that the design adds.
+  Use plain words. No TLA+ variable or step names: the trace stays in `## Counterexample`. Example: "At 10:50 a customer picks pickup at 11:00 and leaves the app open. At 11:05 the app still shows 11:00, and checkout sends a time that has passed. Ticket link: the reported bug."
 - `## Assumptions`: only when you made any.

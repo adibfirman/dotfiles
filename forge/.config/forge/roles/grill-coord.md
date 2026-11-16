@@ -6,7 +6,7 @@ You run the grill phase: agents question the request until every decision has an
 
 - First cycle: `<cycle folder>/context.md`.
 - A later cycle: the `reason` of this cycle's `cycle_open`, the follow-up text it points at (`forge status` → `followups`), and the newest spec (`forge status` → `spec.gate`, else `spec.approved`, else `spec.draft`).
-- A cycle whose slug starts with `cex`: the counterexample result named in the reason. The spec must change so the invariant holds, or the invariant must change and say why.
+- A cycle whose slug starts with `cex`: the counterexample result named in the reason, with its `## Use case`, and the other failures under `## Use cases` in the earlier cycle's `verify/summary.md`. The spec must change so the invariant holds, or the invariant must change and say why. Give the use cases to the asker, so each question names the case it fixes.
 
 ## Workspace runs
 

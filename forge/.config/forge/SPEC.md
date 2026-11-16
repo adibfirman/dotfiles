@@ -136,7 +136,7 @@ forge spawn <role> <task>
   cycles/<NNN>-<slug>/
     events.jsonl                         written only by forge append
     grill/   tree.md decisions.md SPEC.draft.md <node>.md
-    verify/  models/<invariant>/{Spec.tla, Spec.cfg, result.md}
+    verify/  summary.md models/<invariant>/{Spec.tla, Spec.cfg, result.md}
     gate/    SPEC.md
     exec/    waves/<NN>-<slug>.md gates/ review-notes.md PR.md
 ```
@@ -460,3 +460,23 @@ Every block so far came from the allow list (pnpm, `npx vitest`, a logs CLI), ne
 - **Needs blocks.** `needs.floor` is `lift` (the floor denies it: "Lift for this repo"), `project` (this repo's own `- deny:`: "Remove this repo's deny"), `never` (`NEVER_LIFT`), or `env` (no rule denies it: a missing program, a login, or a note; fix it, then restart). `deniedBy` names the rule.
 - **UI.** Settings → "Denied commands" per phase: the default denies, this repo's entries (× removes), lifted floor rules (red ⚠, × puts them back), and an input with Deny and Lift. The MCP picker is gone.
 - **Risks accepted.** A prefix rule misses `kubectl -n x delete` and `bash -c "…"`; text in a ref can make an agent run what no rule names; connectors with write tools other than the 4 denied ones can run; every agent loads about 45 MCP servers (slower start, more context).
+
+## 31. Counterexample use cases (2026-11-16)
+
+In TECHSUPP-591 cycle 1, 4 invariants failed. The result files showed only TLC traces. So the user had to ask the grill chat what each failure means for a customer. Now each failure comes with that story.
+
+- **tla-writer.** `result.md` gets a `## Use case` section, only for a counterexample. It holds one short story per failing path, in user terms: who hits it, the steps with clock times and screens from the spec, what goes wrong, and whether it is the reported bug or a new risk. No TLA+ names: the trace stays in `## Counterexample`.
+- **verify-coord.** A counterexample result is done only with a `## Use case`. `summary.md` gets a `## Use cases` section, with one or two lines per failed invariant.
+- **Grill.** On a `cex` cycle, both grill coordinators read the use cases. `grill-me-coord` shows each story above its fix question. `grill-coord` gives them to the asker.
+- No code reads these sections, so the CLI does not change.
+
+## 32. A readable run graph (2026-11-16)
+
+The Run view drew every agent of every cycle: about 110 boxes, fit at 20% zoom, so the text was about 3 px. Raw wave numbers (`wave 101`, `wave 199`) meant nothing to a reader. The new default view follows TLA+ state diagrams: few boxes, labelled arrows, and a legend.
+
+- **Stage summary, top to bottom.** One box per cycle phase (`Cycle 2 · Grill`). Exec splits into `Plan`, one box per plan wave, and `End check`. A second line holds counts: rounds and agents, models and failed models, units, fix rounds, committed. `stageGraph` in `mods/forge/graph.js` builds it from `forge status` and `forge history`.
+- **Labelled arrows.** Inside a cycle: "spec written", "all models pass", "you approved", "plan ready", "committed", "done". Into the next cycle: "N counterexamples (first: <slug>)", "gate comment", or the follow-up kind, coloured by kind. A new cycle is a new box under the old one, not a back-arc.
+- **Legend and colours.** Boxes are filled by status (done, running, waiting for you, failed, pending). Stages the run went through get a blue border ("Path so far").
+- **Failed models.** `forge history` has no verdicts, so the mod reads each cycle's `verify/summary.md` and counts the `COUNTEREXAMPLE` rows (`verdictCounts`). Without the file, the box says "<m> models".
+- **Drill-down.** A click on a stage box shows its agents, left to right (`stageDetail`). In exec, agents sit under named wave steps: `waveName` turns `101` into "Wave 1 · gates", `102` into "Wave 1 · fix 1", and `199` into "Wave 1 · commit". "← All stages" goes back.
+- `layout.js` does not change. `historyGraph` and `runGraph` no longer back a view.
