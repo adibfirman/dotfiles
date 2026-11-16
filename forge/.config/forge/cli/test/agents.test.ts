@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { currentCycleDir, loadState } from "../src/append";
-import { approve, followup, followups, reconcile, specs, startCoordinator } from "../src/agents";
+import { approve, decide, followup, followups, reconcile, specs, startCoordinator } from "../src/agents";
 import { main } from "../src/main";
 import { spawnNode } from "../src/spawn";
 import { status } from "../src/status";
@@ -144,4 +144,38 @@ test("specs: draft, gate copy, and the approved one", async () => {
   add(env.run, "phase_done");
   add(env.run, "approved");
   expect(specs(env.run).approved).toBe(join(dir, "gate/SPEC.md"));
+});
+
+test("retry, skip, and approve are the user's: an agent shell (FORGE_NODE) is refused", async () => {
+  const env = setup();
+  process.env.FORGE_NODE = "grill-coord-1";
+  try {
+    expect(await main(["append", "approved", "--run", env.run.dir])).toBe(1);
+    expect(await main(["retry", "a", "--run", env.run.dir])).toBe(1);
+    expect(await main(["approve", "--run", env.run.dir])).toBe(1);
+  } finally {
+    delete process.env.FORGE_NODE;
+  }
+});
+
+test("decide: retry tells the live coordinator, or starts one with the note", () => {
+  const env = setup();
+  add(env.run, "node_add", "a");
+  for (const s of ["E1", "E2", "E3", "E4"]) {
+    add(env.run, "node_start", "a");
+    add(env.run, "node_fail", "a", { sig: s });
+  }
+  const r = decide(env.run, "a", "retry");
+  expect(r).toMatchObject({ node: "a", how: "retry", coordinator: "grill-coord-1" });
+  startCoordinator(env.run);
+  add(env.run, "node_start", "a");
+  for (const s of ["E1", "E2", "E3"]) {
+    add(env.run, "node_fail", "a", { sig: s });
+    add(env.run, "node_start", "a");
+  }
+  add(env.run, "node_fail", "a", { sig: "E4" });
+  const s = decide(env.run, "a", "skip");
+  expect(s.how).toBe("skip");
+  expect(s.sentTo ?? s.coordinator).toBeTruthy();
+  expect(hcCalls(env).some((c) => c[0] === "send" && /skipped a/.test(c.slice(1).join(" ")))).toBe(s.sentTo !== undefined);
 });

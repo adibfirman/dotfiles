@@ -113,7 +113,7 @@ export default class Spaces extends View {
       const r = await exec(`${home()}/.local/bin/forge`, ["runs"], { timeout: 20000 }).catch(() => null);
       if (r?.code !== 0) return;
       const next = JSON.parse(r.stdout);
-      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused, f.coordinator?.terminal]));
+      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused, f.head?.blocked, f.coordinator?.terminal]));
       if (key === this.forgeKey) return;
       this.forgeKey = key;
       this.forge = next;
@@ -142,12 +142,15 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes();
     return this.forge.filter((f) => this.forgeOwner(f, sp, ps) === w.id).map((f) => {
       const h = f.head ?? {};
-      const [mark, color] = h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
+      // Waiting for you: the gate, or a node blocked by the retry cap (Retry or Skip in the run window).
+      const blocked = h.blocked?.length ?? 0;
+      const you = h.phase === "gate" || blocked > 0;
+      const [mark, color] = blocked ? ["◆", t.blocked] : h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
       const open = shared("forge.window")?.run === f.dir;
       return h_flex().id(`forge-${f.dir}`).h(22).flex_none().pl(tree ? 48 : 30).pr(8).gap(6).items_center().text_size(11.5)
         .text_color(open ? t.foreground : t.muted).when(open, (e) => e.bg(t.accent + "26").border_l(2).border_color(t.accent))
         .cursor_pointer().hover((s) => s.bg(t.foreground + "14").text_color(t.foreground))
-        .tooltip(`${f.ticket} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}`)
+        .tooltip(`${f.ticket} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blocked ? ` · ${blocked} blocked: Retry or Skip in the run window` : ""}`)
         .on_click((_e, cx) => {
           cx.stop_propagation();
           openRunWindow(f);
@@ -165,7 +168,7 @@ export default class Spaces extends View {
           : this.forgeHover === f.dir
             ? [div().id(`forge-rm-${f.dir}`).flex_none().px(4).text_size(12).text_color(t.dim).hover((s) => s.text_color(t.blocked)).tooltip("Remove this run")
                 .on_click((_e, cx) => { cx.stop_propagation(); this.forgeConfirm = f.dir; cx.notify(); }).child("×")]
-            : [div().flex_none().text_size(10.5).text_color(h.phase === "gate" ? t.accent : t.dim).child(h.phase === "gate" ? "you" : h.phase ?? "")]);
+            : [div().flex_none().text_size(10.5).text_color(blocked ? t.blocked : you ? t.accent : t.dim).child(you ? "you" : h.phase ?? "")]);
     });
   }
 

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { apply, emptyState, hashLine, idx, Refused, replay, running, WORK, type Data, type Event, type Kind, type Phase, type State } from "./events";
+import { apply, DEFAULT_RETRY_CAP, emptyState, hashLine, idx, Refused, replay, running, WORK, type Data, type Event, type Kind, type Phase, type State } from "./events";
 
 export { Refused };
 
@@ -123,7 +123,7 @@ export function withLock<T>(run: Run, fn: () => T): T {
 }
 
 function writeHead(run: Run, state: State, cycleDir: string) {
-  writeFileSync(join(run.dir, "HEAD"), JSON.stringify({ cycle: state.cycle, dir: basename(cycleDir), phase: state.phase, approved: state.approved, paused: state.paused, events: state.count, last: state.lastHash }) + "\n");
+  writeFileSync(join(run.dir, "HEAD"), JSON.stringify({ cycle: state.cycle, dir: basename(cycleDir), phase: state.phase, approved: state.approved, paused: state.paused, blocked: [...state.nodes.values()].filter((n) => n.blocked).map((n) => n.id), events: state.count, last: state.lastHash }) + "\n");
 }
 
 function write(file: string, state: State, e: Event) {
@@ -194,7 +194,7 @@ function openCycle(run: Run, cycle: number, start: Phase, slug: string, approved
   const state = emptyState();
   const event: Event = {
     ts: new Date().toISOString(), cycle, phase: start, kind: "cycle_open",
-    data: { start, slug, approved, cap, reason, ...extra }, prev: state.lastHash,
+    data: { start, slug, approved, cap, retryCap: Number(process.env.FORGE_RETRY_CAP ?? DEFAULT_RETRY_CAP), reason, ...extra }, prev: state.lastHash,
   };
   write(join(cycleDir, "events.jsonl"), state, event);
   writeHead(run, state, cycleDir);

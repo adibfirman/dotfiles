@@ -54,12 +54,13 @@ A node that ends with `failed: needs <tool>` hit a permission. Read the newest `
 - It was a compound command, or a tool the role does not need (for example `mkdir` instead of the Write tool): retry, and add the plain way to the task.
 - The role really needs that tool: run `forge append comment --data '{"text":"blocked: <role> needs <tool>: <command>"}'`, print `BLOCKED: <role> needs <tool>; add it to SOURCES.md`, and stop retrying that node. Only the user can change SOURCES.
 
-## Retry and evolve: never give up
+## Retry and evolve, up to the retry cap
 
-- After a failure, check `sameErr` in `forge status`.
+- After a failure, check the node's `sameErr` and `fails` in `forge status`.
 - `sameErr` below 2: retry with the same task, plus one line: `The last try failed: <reason>`.
 - `sameErr` 2: run `forge append node_evolve --node <id>`, then spawn again with a changed approach: another angle, a smaller scope, or another method. Include both errors.
-- There is no limit and no halt. Change the approach each time it evolves.
+- When `fails` reaches `retryCap` (4 by default), forge marks the node `blocked` and refuses to start it. Only the user decides now. Run `forge append comment --data '{"text":"blocked: <id> failed <n> times: <last reason>"}'`, print `BLOCKED: <id> needs you: Retry or Skip in the run window`, and stop working on that node. Go on with other nodes that do not need it. When nothing else is left, stop.
+- You cannot unblock a node: `node_retry`, `node_skip`, and `approved` are the user's. A message `forge: the user unblocked <id>` means spawn it again with a changed approach. `forge: the user skipped <id>` means it counts as done: go on without its output, and say so in your log and in the phase result.
 
 ## Follow-ups
 

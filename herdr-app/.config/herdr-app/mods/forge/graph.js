@@ -76,6 +76,7 @@ export function parseTsGraph(code) {
 export const PHASES = ["grill", "verify", "gate", "exec", "done"];
 
 function groupStatus(list) {
+  if (list.some((n) => n.blocked)) return "blocked";
   if (list.some((n) => n.status === "running")) return "running";
   if (list.some((n) => n.status === "failed")) return "failed";
   if (list.length && list.every((n) => n.status === "done")) return "done";
@@ -113,7 +114,10 @@ export function runGraph(st) {
   for (const n of st.nodes ?? []) {
     const id = `node:${n.id}`;
     nodes.set(id, {
-      id, label: n.gen > 0 ? `${n.id} · g${n.gen}` : n.id, sub: n.role ?? "", status: n.status,
+      // A node blocked by the retry cap waits for the user (Retry or Skip); a skipped one says so.
+      id, label: n.gen > 0 ? `${n.id} · g${n.gen}` : n.id,
+      sub: n.blocked ? `blocked after ${n.fails} failures` : n.skipped ? `${n.role ?? ""} · skipped` : n.role ?? "",
+      status: n.blocked ? "blocked" : n.status,
       details: n.files?.length ? [`files: ${n.files.join(", ")}`] : [], path: null, kind: "node", node: n,
     });
     const parent = n.phase === "exec" && n.wave !== undefined ? `wave:${n.wave}` : `phase:${n.phase}`;

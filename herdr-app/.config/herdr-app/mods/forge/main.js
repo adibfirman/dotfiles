@@ -177,6 +177,21 @@ export default class Forge extends View {
     });
   }
 
+  // The user's decision on a blocked node: forge retry (fresh count) or forge skip (counts as done).
+  decide(cx, node, how) {
+    if (this.busy || !this.dir) return;
+    this.busy = how === "retry" ? "retrying" : "skipping";
+    cx.notify();
+    cx.spawn(async (cx) => {
+      const r = await forge([how, node], { run: this.dir, cwd: this.repo?.main });
+      this.busy = null;
+      if (r.ok) this.detail = null;
+      notify({ title: `Forge: ${how} ${node}`, body: r.ok ? (how === "retry" ? "The coordinator tries it again." : "Skipped: it counts as done.") : r.err.slice(0, 300), level: r.ok ? "success" : "error" });
+      this.refresh(cx);
+      cx.notify();
+    });
+  }
+
   // A running node: show its agent's terminal beside this pane. A finished one: show its output here.
   open(n, cx) {
     if (!n.node || !this.st) return;
@@ -197,7 +212,11 @@ export default class Forge extends View {
         }
       }
       const text = await readTextFile(`${this.st.cyclePath}/${phase}/${id}.md`);
-      this.detail = { title: `${id} · ${status}`, text: text ?? "No output file yet." };
+      const blocked = Boolean(n.node.blocked);
+      this.detail = {
+        title: blocked ? `${id} · blocked after ${n.node.fails} failures` : `${id} · ${status}${n.node.skipped ? " (skipped)" : ""}`,
+        text: text ?? "No output file yet.", node: id, blocked,
+      };
       cx.notify();
     });
   }
@@ -245,7 +264,7 @@ export default class Forge extends View {
   }
 
   statusColor(t, s) {
-    return s === "done" ? t.done : s === "running" ? t.working : s === "failed" ? t.blocked : s === "waiting" ? t.accent : t.input;
+    return s === "done" ? t.done : s === "running" ? t.working : s === "failed" || s === "blocked" ? t.blocked : s === "waiting" ? t.accent : t.input;
   }
 
   header(t, cx) {
@@ -262,6 +281,8 @@ export default class Forge extends View {
       .child(div().text_size(12).text_color(t.dim).child(`cycle ${st.cycle}`))
       .child(this.pill(t, st.paused ? `${st.phase} · paused` : st.phase, st.paused ? t.blocked : phaseColor))
       .child(div().text_size(12).text_color(t.dim).child(`${st.running}/${st.cap} running`))
+      .when(Boolean(st.blocked?.length), (e) => e.child(div().text_size(12).text_color(t.blocked).tooltip("Stopped after too many failures: click the node, then Retry or Skip")
+        .child(`◆ ${st.blocked.length} blocked: needs you`)))
       .when(st.queue.length > 0, (e) => e.child(div().text_size(12).text_color(t.dim).child(`${st.queue.length} queued`)))
       .child(div().flex_1())
       .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
@@ -368,9 +389,14 @@ export default class Forge extends View {
   }
 
   detailView(t) {
+    const d = this.detail;
     return v_flex().h(220).flex_none().border_t(1).border_color(t.border)
-      .child(h_flex().h(30).flex_none().px(12).items_center().justify_between().bg(t.surface)
-        .child(div().text_size(12).font_semibold().child(this.detail.title))
+      .child(h_flex().h(30).flex_none().px(12).gap(8).items_center().bg(t.surface)
+        .child(div().flex_1().min_w(0).truncate().text_size(12).font_semibold().text_color(d.blocked ? t.blocked : t.foreground).child(d.title))
+        // A blocked node waits for the user: try again (fresh count) or skip it (counts as done).
+        .when(Boolean(d.blocked), (e) => e
+          .child(this.button(t, "f-node-retry", "Retry", (cx) => this.decide(cx, d.node, "retry"), { primary: true }))
+          .child(this.button(t, "f-node-skip", "Skip", (cx) => this.decide(cx, d.node, "skip"))))
         .child(div().id("f-detail-close").text_size(12).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.detail = null; cx.notify(); }).child("Close")))
       .child(div().id("f-detail").flex_1().min_h(0).overflow_y_scrollbar().p(12).child(TextView.markdown("f-detail-md", this.detail.text)));
   }
@@ -433,7 +459,7 @@ export default class Forge extends View {
       const w = item.w * z, h = item.h * z, left = X(item.x) - w / 2, top = Y(item.y) - h / 2;
       const color = n.status ? this.statusColor(t, n.status) : t.input;
       const picked = this.selected === n.id;
-      const mark = n.status === "done" ? "✓ " : n.status === "failed" ? "✕ " : n.status === "running" ? "● " : n.status === "waiting" ? "◆ " : "";
+      const mark = n.status === "done" ? "✓ " : n.status === "failed" ? "✕ " : n.status === "running" ? "● " : n.status === "waiting" || n.status === "blocked" ? "◆ " : "";
       els.push(v_flex().id(`f-n-${key}-${n.id}`).absolute().left(left).top(top).w(w).h(h).justify_center().px(8 * z).rounded(8 * z)
         .bg(n.kind === "phase" ? t.surface : t.background).border(picked ? 2 : n.status === "running" || n.status === "waiting" ? 2 : 1)
         .border_color(picked ? t.accent : color).cursor_pointer().hover((s) => s.bg(t.hover))

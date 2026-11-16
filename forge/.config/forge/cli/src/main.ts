@@ -3,10 +3,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join as pathJoin } from "node:path";
 import { appendEvent, findRun, Refused } from "./append";
-import { KINDS, type Data, type Kind } from "./events";
+import { HUMAN_KINDS, KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
 import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
-import { approve, coordinators, followup, reconcile, removeRun, startCoordinator } from "./agents";
+import { approve, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { knownServers } from "./mcp";
@@ -33,6 +33,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge refs list | forge refs refresh <n>
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
+  forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
   forge remove --run <dir>                    end its agents, take it off the list, delete its .forge/tickets folder (code stays)
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
   forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
@@ -52,7 +53,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   Exit:    0 ok, 1 refused, 2 usage, 3 queued`;
 
 // Events after which a queued node may be able to start.
-const FREES_SLOT: Kind[] = ["node_done", "node_fail", "node_evolve", "phase_done", "approved", "resume"];
+const FREES_SLOT: Kind[] = ["node_done", "node_fail", "node_evolve", "phase_done", "approved", "resume", "node_retry", "node_skip"];
 
 function takeFlag(args: string[], name: string): string | undefined {
   const i = args.indexOf(name);
@@ -117,6 +118,8 @@ export async function main(argv: string[]): Promise<number> {
           if (typeof data !== "object" || data === null || Array.isArray(data)) throw new UsageError("--data must be a JSON object");
         }
         const kind = rest[0] as Kind;
+        // The gate and the retry-cap decisions are the user's: an agent's shell has FORGE_NODE set.
+        if (HUMAN_KINDS.includes(kind) && process.env.FORGE_NODE) throw new Refused(`${kind} is the user's decision; an agent cannot append it`);
         const run = findRun(runFlag);
         const { event, cycleDir, state } = appendEvent(run, { kind, node, data });
         // A finished agent's terminal is closed (screen saved), so idle agents do not pile up.
@@ -153,6 +156,7 @@ export async function main(argv: string[]): Promise<number> {
       }
       case "approve": {
         if (rest.length) throw new UsageError("forge approve takes no arguments");
+        if (process.env.FORGE_NODE) throw new Refused("forge approve is the user's decision; an agent cannot run it");
         print(approve(findRun(runFlag)));
         return 0;
       }
@@ -183,6 +187,13 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         }
         throw new UsageError("forge refs add <url|path|KEY>... | forge refs list | forge refs refresh <n>");
+      }
+      case "retry":
+      case "skip": {
+        if (process.env.FORGE_NODE) throw new Refused(`forge ${cmd} is the user's decision; an agent cannot run it`);
+        if (rest.length !== 1) throw new UsageError(`forge ${cmd} <node> --run <dir>`);
+        print(decide(findRun(runFlag), rest[0], cmd));
+        return 0;
       }
       case "remove": {
         if (rest.length) throw new UsageError("forge remove --run <dir>");

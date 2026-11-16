@@ -52,6 +52,24 @@ export function approve(run: Run) {
 }
 
 /**
+ * The user's decision on a blocked node: retry it (a fresh generation, a new count) or skip it (counts as done).
+ * The live coordinator is told; with none running the phase, one starts and finds the node from the state.
+ */
+export function decide(run: Run, node: string, how: "retry" | "skip") {
+  appendEvent(run, { kind: how === "retry" ? "node_retry" : "node_skip", node });
+  const live = liveCoordinator(run, undefined);
+  const note = how === "retry"
+    ? `forge: the user unblocked ${node}. Spawn it again with a changed approach; its failure count starts over.`
+    : `forge: the user skipped ${node}. It counts as done. Go on without its output; say so in your log and in the phase result.`;
+  if (live) {
+    hc(["send", spawnInfo(live.cycleDir, live.id)!.terminal, note]);
+    return { node, how, sentTo: live.id };
+  }
+  const c = startCoordinator(run, undefined, `${BOOT}\n\n${note}`);
+  return { node, how, coordinator: c.id };
+}
+
+/**
  * A follow-up: QA bug, request, gate comment, PR review. A live coordinator gets it with hc send and
  * handles it at its next phase boundary. With no live coordinator, a classifier starts.
  */

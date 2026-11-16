@@ -171,6 +171,6 @@ describe("CLI", () => {
     add(env.run, "node_add", "a", { role: "asker" });
     const s = status(env.run);
     expect(s).toMatchObject({ cycle: 1, cycleDir: "001-initial", phase: "grill", approved: false, cap: 4, running: 0 });
-    expect(s.nodes).toEqual([{ id: "a", phase: "grill", gen: 0, status: "pending", sameErr: 0, role: "asker" }]);
+    expect(s.nodes).toEqual([{ id: "a", phase: "grill", gen: 0, status: "pending", sameErr: 0, fails: 0, role: "asker" }]);
   });
 });

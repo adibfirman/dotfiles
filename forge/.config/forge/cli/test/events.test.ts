@@ -194,3 +194,52 @@ test("Refused is the error type for rules", () => {
   const { run } = setup();
   expect(() => add(run, "approved")).toThrow(Refused);
 });
+
+describe("retry cap", () => {
+  const failOnce = (run: any, sig: string) => {
+    add(run, "node_start", "a");
+    add(run, "node_fail", "a", { sig });
+  };
+
+  test("4 failures block the node across evolves; only the user's retry or skip moves it", () => {
+    const { run } = setup();
+    add(run, "node_add", "a");
+    failOnce(run, "E1");
+    failOnce(run, "E1");
+    add(run, "node_evolve", "a");
+    failOnce(run, "E2");
+    failOnce(run, "E3");
+    let n = loadState(run).state.nodes.get("a")!;
+    expect([n.fails, n.blocked]).toEqual([4, true]);
+    refused(() => add(run, "node_start", "a"), /blocked after 4 failures/);
+    refused(() => add(run, "node_evolve", "a"), /blocked/);
+    expect(JSON.parse(readFileSync(join(run.dir, "HEAD"), "utf8")).blocked).toEqual(["a"]);
+
+    add(run, "node_retry", "a");
+    n = loadState(run).state.nodes.get("a")!;
+    expect([n.gen, n.status, n.fails, n.blocked]).toEqual([2, "pending", 0, false]);
+    refused(() => add(run, "node_retry", "a"), /not blocked/);
+    add(run, "node_start", "a");
+  });
+
+  test("skip counts as done, so the phase can end", () => {
+    const { run } = setup();
+    add(run, "node_add", "a");
+    for (const s of ["E1", "E2", "E3", "E4"]) failOnce(run, s);
+    refused(() => add(run, "phase_done"), /not done: a/);
+    add(run, "node_skip", "a");
+    const n = loadState(run).state.nodes.get("a")!;
+    expect([n.status, n.skipped, n.blocked]).toEqual(["done", true, false]);
+    add(run, "phase_done");
+  });
+
+  test("FORGE_RETRY_CAP sets the cap for new cycles", () => {
+    process.env.FORGE_RETRY_CAP = "2";
+    const { run } = setup();
+    delete process.env.FORGE_RETRY_CAP;
+    add(run, "node_add", "a");
+    failOnce(run, "E1");
+    failOnce(run, "E2");
+    expect(loadState(run).state.nodes.get("a")!.blocked).toBe(true);
+  });
+});

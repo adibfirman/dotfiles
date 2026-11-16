@@ -6,8 +6,13 @@ export const WORK: readonly Phase[] = ["grill", "verify", "exec"];
 
 export const KINDS = [
   "cycle_open", "node_add", "node_start", "node_done", "node_fail", "node_evolve",
-  "phase_done", "approved", "comment", "followup", "pause", "resume", "coord_start",
+  "phase_done", "approved", "comment", "followup", "pause", "resume", "coord_start", "node_retry", "node_skip",
 ] as const;
+
+/** Kinds only the user sends (the gate and the retry-cap decisions). An agent (FORGE_NODE set) is refused. */
+export const HUMAN_KINDS: readonly string[] = ["approved", "node_retry", "node_skip"];
+/** Failures of one node, since the user last decided, after which forge stops starting it. */
+export const DEFAULT_RETRY_CAP = 4;
 export type Kind = (typeof KINDS)[number];
 
 export type Data = Record<string, unknown>;
@@ -35,6 +40,9 @@ export interface NodeState {
   status: NodeStatus;
   sameErr: number;
   lastSig?: string;
+  fails: number; // failures since the user last decided (any signature, across evolves)
+  blocked: boolean; // fails reached the retry cap: only node_retry or node_skip moves it
+  skipped?: boolean;
   wave?: number;
   files: string[];
   role?: string;
@@ -49,6 +57,7 @@ export interface State {
   approved: boolean;
   paused: boolean;
   cap: number;
+  retryCap: number;
   nodes: Map<string, NodeState>;
   lastHash: string;
   count: number;
@@ -61,7 +70,7 @@ export const idx = (p: Phase) => PHASES.indexOf(p);
 export const hashLine = (line: string) => createHash("sha256").update(line).digest("hex");
 
 export function emptyState(): State {
-  return { cycle: 0, slug: "", phase: "grill", approved: false, paused: false, cap: 4, nodes: new Map(), lastHash: GENESIS, count: 0 };
+  return { cycle: 0, slug: "", phase: "grill", approved: false, paused: false, cap: 4, retryCap: DEFAULT_RETRY_CAP, nodes: new Map(), lastHash: GENESIS, count: 0 };
 }
 
 export const running = (s: State) => [...s.nodes.values()].filter((n) => n.status === "running");
@@ -77,6 +86,7 @@ function text(data: Data | undefined, key: string): string | null {
 export function startBlock(s: State, n: NodeState): string | null {
   if (n.phase !== s.phase) return `node ${n.id} belongs to phase ${n.phase}, the cycle is in ${s.phase}`;
   if (n.status === "running" || n.status === "done") return `node ${n.id} is ${n.status}`;
+  if (n.blocked) return `node ${n.id} is blocked after ${n.fails} failures: the user retries or skips it`;
   if (n.status === "failed" && n.sameErr >= 2) return `node ${n.id} failed twice with the same error: evolve it`;
   if (s.paused) return "the run is paused";
   if (running(s).length >= s.cap) return `cap reached: ${s.cap} agents running`;
@@ -105,9 +115,11 @@ export function apply(s: State, e: Event): string | null {
       const approved = e.data?.approved === true;
       if (start === "exec" && !approved) return "a cycle can start at exec only with an approved spec";
       const cap = e.data?.cap;
+      const retryCap = e.data?.retryCap;
       Object.assign(s, {
         cycle: e.cycle, phase: start, approved, slug: text(e.data, "slug") ?? "",
         cap: typeof cap === "number" && cap > 0 ? cap : 4,
+        retryCap: typeof retryCap === "number" && retryCap > 0 ? retryCap : DEFAULT_RETRY_CAP,
       });
       if (e.phase !== start) return `cycle_open phase ${e.phase} differs from data.start ${start}`;
       break;
@@ -130,7 +142,7 @@ export function apply(s: State, e: Event): string | null {
           if (shared.length) return `wave ${w}: ${e.node} and ${o.id} both change ${shared.join(", ")}`;
         }
       }
-      s.nodes.set(e.node, { id: e.node, phase: s.phase, gen: 0, status: "pending", sameErr: 0, files, wave, role: text(e.data, "role") ?? undefined, repo: text(e.data, "repo") ?? undefined });
+      s.nodes.set(e.node, { id: e.node, phase: s.phase, gen: 0, status: "pending", sameErr: 0, fails: 0, blocked: false, files, wave, role: text(e.data, "role") ?? undefined, repo: text(e.data, "repo") ?? undefined });
       break;
     }
     case "node_start": {
@@ -159,13 +171,32 @@ export function apply(s: State, e: Event): string | null {
       node!.sameErr = node!.lastSig === sig ? node!.sameErr + 1 : 1;
       node!.lastSig = sig;
       node!.status = "failed";
+      node!.fails += 1;
+      if (node!.fails >= s.retryCap) node!.blocked = true;
       break;
     }
     case "node_evolve": {
       const err = needNode();
       if (err) return err;
+      if (node!.blocked) return `node ${node!.id} is blocked: the user retries or skips it`;
       if (node!.status !== "failed" || node!.sameErr < 2) return `node ${node!.id} can evolve only after 2 identical failures`;
       Object.assign(node!, { gen: node!.gen + 1, status: "pending", sameErr: 0, lastSig: undefined, terminal: undefined });
+      break;
+    }
+    case "node_retry": {
+      // The user: try a blocked node again, as a fresh generation with a new count.
+      const err = needNode();
+      if (err) return err;
+      if (!node!.blocked) return `node ${node!.id} is not blocked`;
+      Object.assign(node!, { gen: node!.gen + 1, status: "pending", sameErr: 0, fails: 0, blocked: false, lastSig: undefined, terminal: undefined });
+      break;
+    }
+    case "node_skip": {
+      // The user: give up on a blocked node; it counts as done, so the phase can end without it.
+      const err = needNode();
+      if (err) return err;
+      if (!node!.blocked) return `node ${node!.id} is not blocked`;
+      Object.assign(node!, { status: "done", blocked: false, skipped: true, terminal: undefined });
       break;
     }
     case "phase_done": {
