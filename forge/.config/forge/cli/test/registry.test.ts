@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { appendFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { entries, registerExisting, runs, titleOf } from "../src/registry";
 import { init } from "../src/init";
-import { startCoordinator } from "../src/agents";
-import { setup } from "./helpers";
+import { removeRun, startCoordinator } from "../src/agents";
+import { hcCalls, setup } from "./helpers";
 
 test("init registers the run with its title and current branch", () => {
   const env = setup();
@@ -50,4 +50,15 @@ test("init --here uses this checkout and its branch, with the ticket as the run 
 
 test("titleOf skips front matter and heading marks", () => {
   expect(titleOf("---\nticket: none\n---\n\n# Refunds\n\nAdd refunds.")).toBe("Refunds");
+});
+
+test("removeRun: ends live agents, takes the run off the list, deletes its forge folder", () => {
+  const env = setup();
+  startCoordinator(env.run);
+  const r = removeRun(env.run);
+  expect(r.killed).toEqual(["t-f-local-task-1-grillc-g1"]);
+  expect(hcCalls(env).some((c) => c[0] === "kill" && c[1] === "t-f-local-task-1-grillc-g1")).toBe(true);
+  expect(entries()).toHaveLength(0);
+  expect(existsSync(env.run.dir)).toBe(false);
+  expect(existsSync(env.repo)).toBe(true);
 });

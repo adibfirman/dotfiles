@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { appendEvent, cycleDirs, loadState, readLines, Refused, type Run } from "./append";
 import { running, type Event } from "./events";
+import { unregister } from "./registry";
 import { closeTerminal, hc, isLive, launch, nodeSpawnId, spawnInfo, terminalName, type Launched } from "./spawn";
 
 const PHASE_COORD: Record<string, string> = { grill: "grill-coord", verify: "verify-coord", exec: "exec-coord" };
@@ -65,6 +66,36 @@ export function followup(run: Run, text: string, source = "user") {
   }
   const c = startCoordinator(run, "classifier", `Classify forge follow-up ${id} (${source}): ${text}\n\nRun \`forge reconcile\` and \`forge status\` first.`);
   return { id, classifier: c.id };
+}
+
+/**
+ * Remove a run: end its live agents, take it off the list, and delete its forge folder (.forge/tickets/<ticket>:
+ * events, specs, refs, logs). Code is never touched: a workspace run's worktrees and every branch stay.
+ */
+export function removeRun(run: Run) {
+  const killed: string[] = [];
+  for (const dir of cycleDirs(run)) {
+    const spawnDir = join(dir, ".spawn");
+    if (!existsSync(spawnDir)) continue;
+    for (const f of readdirSync(spawnDir).filter((n) => n.endsWith(".json") && !/-(settings|mcp)\.json$/.test(n))) {
+      let terminal: unknown;
+      try {
+        terminal = JSON.parse(readFileSync(join(spawnDir, f), "utf8")).terminal;
+      } catch {
+        continue;
+      }
+      if (typeof terminal === "string" && !killed.includes(terminal) && isLive(terminal) && hc(["kill", terminal]).code === 0) killed.push(terminal);
+    }
+  }
+  let kept: string[] = [];
+  try {
+    kept = (JSON.parse(readFileSync(join(run.dir, "run.json"), "utf8")).repos ?? []).map((r: { worktree: string }) => r.worktree).filter((w: string) => existsSync(w));
+  } catch {
+    // no run.json: nothing to keep
+  }
+  unregister(run.dir);
+  rmSync(run.dir, { recursive: true, force: true });
+  return { removed: run.dir, killed, kept };
 }
 
 /**

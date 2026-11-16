@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, terminals, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
+import { spaces, machines, panes, terminals, run, openOverlay, closeOverlay, notify, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -21,9 +21,26 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // About how many characters a row's text gets at the sidebar's width (12px mono is ~7px; badge, gaps and status take ~84px).
 const room = () => Math.floor(((find(layout(), "sidebar")?.size?.px ?? 243) - 84) / 7);
 
+// The Pull request panel shows only when there is something to do with a PR: the run is done, and it is a
+// workspace run, or on its own branch, or has commits not pushed yet. A run on the default branch with
+// everything pushed has nothing to do (its commits went straight there).
+async function wantsPrPanel(f) {
+  if (f.head?.phase !== "done") return false;
+  if (f.mode === "workspace") return true;
+  const git = async (args) => {
+    const r = await exec("git", args, { cwd: f.worktree }).catch(() => null);
+    return r?.code === 0 ? r.stdout.trim() : null;
+  };
+  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const def = (await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]))?.replace(/^origin\//, "") ?? "main";
+  if (branch !== def) return true;
+  return (await git(["rev-list", "--count", "@{upstream}..HEAD"])) !== "0";
+}
+
 // A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open.
-function openRunWindow(f) {
+async function openRunWindow(f) {
   const title = f.title || f.ticket;
+  const prs = await wantsPrPanel(f);
   // Left: a read-only view of the run's current coordinator (no terminal, so no input box and no typing into
   // the agent; it follows phase handoffs). Right: the forge graph above the PR view.
   // Each part is a framed panel with a gap around it.
@@ -34,7 +51,7 @@ function openRunWindow(f) {
       { type: "block", size: { weight: 1 }, min: 260, ...panel, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
       { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
         { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
-        { type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } },
+        ...(prs ? [{ type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } }] : []),
       ] },
     ] },
   ] };
@@ -135,9 +152,44 @@ export default class Spaces extends View {
           cx.stop_propagation();
           openRunWindow(f);
         })
+        .on_hover((on, cx) => { const was = this.forgeHover; this.forgeHover = on ? f.dir : this.forgeHover === f.dir ? null : this.forgeHover; if (was !== this.forgeHover) cx.notify(); })
         .child(div().flex_none().text_color(color).child(h.paused ? "Ⅱ" : mark))
         .child(div().flex_1().min_w(0).truncate().child(f.title || f.ticket))
-        .child(div().flex_none().text_size(10.5).text_color(h.phase === "gate" ? t.accent : t.dim).child(h.phase === "gate" ? "you" : h.phase ?? ""));
+        .children(this.forgeConfirm === f.dir
+          // A second click confirms: removing ends its agents and deletes its .forge/tickets folder (code stays).
+          ? [div().id(`forge-rm-yes-${f.dir}`).flex_none().px(4).rounded(4).text_size(10.5).text_color(t.blocked).hover((s) => s.bg(t.blocked + "26"))
+              .tooltip("Ends its agents and deletes its forge folder. Code, worktrees, and branches stay.")
+              .on_click((_e, cx) => { cx.stop_propagation(); this.removeRun(f, cx); }).child("remove"),
+            div().id(`forge-rm-no-${f.dir}`).flex_none().px(4).rounded(4).text_size(10.5).text_color(t.dim).hover((s) => s.text_color(t.foreground))
+              .on_click((_e, cx) => { cx.stop_propagation(); this.forgeConfirm = null; cx.notify(); }).child("keep")]
+          : this.forgeHover === f.dir
+            ? [div().id(`forge-rm-${f.dir}`).flex_none().px(4).text_size(12).text_color(t.dim).hover((s) => s.text_color(t.blocked)).tooltip("Remove this run")
+                .on_click((_e, cx) => { cx.stop_propagation(); this.forgeConfirm = f.dir; cx.notify(); }).child("×")]
+            : [div().flex_none().text_size(10.5).text_color(h.phase === "gate" ? t.accent : t.dim).child(h.phase === "gate" ? "you" : h.phase ?? "")]);
+    });
+  }
+
+  // Remove a run: `forge remove` ends its agents, takes it off the list, and deletes its forge folder.
+  removeRun(f, cx) {
+    this.forgeConfirm = null;
+    cx.spawn(async (cx) => {
+      const r = await exec(`${home()}/.local/bin/forge`, ["remove", "--run", f.dir], { timeout: 60000 }).catch((e) => ({ code: 1, stderr: String(e?.message ?? e) }));
+      if (r.code !== 0) {
+        notify({ title: "Forge: remove failed", body: String(r.stderr || r.stdout || "").trim().slice(0, 300), level: "error" });
+        return;
+      }
+      const win = shared("forge.window");
+      if (win?.run === f.dir) {
+        closeOverlay(win.id);
+        setShared("forge.window", null);
+      }
+      const owners = { ...(shared("forge.spaces") ?? {}) };
+      delete owners[f.dir];
+      setShared("forge.spaces", owners);
+      const kept = JSON.parse(r.stdout || "{}").kept ?? [];
+      notify({ title: "Forge: run removed", body: `${f.ticket}${kept.length ? `. Worktrees kept: ${kept.join(", ")}` : ""}`, level: "success" });
+      this.forgeKey = null;
+      this.loadForge(cx);
     });
   }
 

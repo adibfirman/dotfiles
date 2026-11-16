@@ -6,7 +6,12 @@ const forgeBin = () => `${home()}/.local/bin/forge`;
 /** The main checkout and the top folder of the repo that holds cwd, or { error } outside git. */
 export async function repoOf(cwd) {
   const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd }).catch((e) => ({ code: -1, stderr: String(e?.message ?? e) }));
-  if (common.code !== 0) return { error: `${cwd}: ${(common.stderr || "").trim() || `git exit ${common.code}`}` };
+  if (common.code !== 0) {
+    // A workspace root (a folder of repos, not a repo itself) holds its runs in .forge/tickets: it is the run's root.
+    const ws = await exec("test", ["-d", `${cwd}/.forge/tickets`]).catch(() => null);
+    if (ws?.code === 0) return { main: cwd, top: cwd, workspace: true };
+    return { error: `${cwd}: ${(common.stderr || "").trim() || `git exit ${common.code}`}` };
+  }
   const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd });
   return { main: common.stdout.trim().replace(/\/\.git\/?$/, ""), top: top.stdout.trim() };
 }

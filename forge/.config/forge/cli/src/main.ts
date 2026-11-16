@@ -6,7 +6,7 @@ import { appendEvent, findRun, Refused } from "./append";
 import { KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
 import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
-import { approve, coordinators, followup, reconcile, startCoordinator } from "./agents";
+import { approve, coordinators, followup, reconcile, removeRun, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { knownServers } from "./mcp";
@@ -33,6 +33,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge refs list | forge refs refresh <n>
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
+  forge remove --run <dir>                    end its agents, take it off the list, delete its .forge/tickets folder (code stays)
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
   forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
   forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
@@ -89,10 +90,16 @@ export async function main(argv: string[]): Promise<number> {
         }
         const cap = Number(process.env.FORGE_CAP ?? projectCap(capRoot) ?? 4);
         const run = init(files[0], process.cwd(), cap, here);
-        storeRefs(run, fetched);
-        // repos: in the context join a workspace run now (fetch base, worktree at origin/<base>).
-        const repos = frontMatterList(readFileSync(files[0], "utf8"), "repos");
-        if (repos.length) addRepos(run, repos);
+        // After init the run exists: a failure from here removes it again, so no half-made run stays listed.
+        try {
+          storeRefs(run, fetched);
+          // repos: in the context join a workspace run now (fetch base, worktree at origin/<base>).
+          const repos = frontMatterList(readFileSync(files[0], "utf8"), "repos");
+          if (repos.length) addRepos(run, repos);
+        } catch (e) {
+          removeRun(run);
+          throw e;
+        }
         print(status(run));
         return 0;
       }
@@ -176,6 +183,11 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         }
         throw new UsageError("forge refs add <url|path|KEY>... | forge refs list | forge refs refresh <n>");
+      }
+      case "remove": {
+        if (rest.length) throw new UsageError("forge remove --run <dir>");
+        print(removeRun(findRun(runFlag)));
+        return 0;
       }
       case "close": {
         // Internal: close a coordinator of the current cycle (its screen is saved first).

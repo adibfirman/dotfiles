@@ -28,9 +28,26 @@ const forge = async (args, cwd) => {
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
 };
 
+// The Pull request panel shows only when there is something to do with a PR: the run is done, and it is a
+// workspace run, or on its own branch, or has commits not pushed yet. A run on the default branch with
+// everything pushed has nothing to do (its commits went straight there).
+async function wantsPrPanel(f) {
+  if (f.head?.phase !== "done") return false;
+  if (f.mode === "workspace") return true;
+  const git = async (args) => {
+    const r = await exec("git", args, { cwd: f.worktree }).catch(() => null);
+    return r?.code === 0 ? r.stdout.trim() : null;
+  };
+  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const def = (await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]))?.replace(/^origin\//, "") ?? "main";
+  if (branch !== def) return true;
+  return (await git(["rev-list", "--count", "@{upstream}..HEAD"])) !== "0";
+}
+
 // A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open.
-function openRunWindow(f) {
+async function openRunWindow(f) {
   const title = f.title || f.ticket;
+  const prs = await wantsPrPanel(f);
   // Left: a read-only view of the run's current coordinator (no terminal, so no input box and no typing into
   // the agent; it follows phase handoffs). Right: the forge graph above the PR view.
   // Each part is a framed panel with a gap around it.
@@ -41,7 +58,7 @@ function openRunWindow(f) {
       { type: "block", size: { weight: 1 }, min: 260, ...panel, content: { mod: "forge-window", props: { part: "agent", run: f.dir } } },
       { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
         { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
-        { type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } },
+        ...(prs ? [{ type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } }] : []),
       ] },
     ] },
   ] };
@@ -344,7 +361,11 @@ export default class ForgeStart extends View {
       if (!init.ok) throw new Error(init.err);
       const st = JSON.parse(init.out);
       const coord = await forge(["coord", "--run", st.run], this.repo.main);
-      if (!coord.ok) throw new Error(coord.err);
+      if (!coord.ok) {
+        // The run exists but nothing runs it: remove it, so no dead row stays in the sidebar.
+        await forge(["remove", "--run", st.run], this.repo.main);
+        throw new Error(coord.err);
+      }
       // Remember the space this run was started from: the spaces sidebar shows it there. The forge and prs
       // panes open only when you click the run's row (or Open), not on Start.
       if (this.space) setShared("forge.spaces", { ...(shared("forge.spaces") ?? {}), [st.run]: this.space });

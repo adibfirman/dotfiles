@@ -40,13 +40,21 @@ export function register(run: Run, contextText: string, branch?: string | null) 
   appendFileSync(file, JSON.stringify(e) + "\n");
 }
 
+/** Take a run off the list (a later line wins, so a removed line hides it). */
+export function unregister(dir: string) {
+  const file = registryFile();
+  mkdirSync(dirname(file), { recursive: true });
+  appendFileSync(file, JSON.stringify({ dir, removed: true, created: new Date().toISOString() }) + "\n");
+}
+
 /** Registered runs whose folder still exists, newest first, the last line per folder winning. */
 export function entries(): Entry[] {
   const byDir = new Map<string, Entry>();
   for (const l of readLines(registryFile())) {
     try {
-      const e = JSON.parse(l) as Entry;
-      byDir.set(e.dir, e);
+      const e = JSON.parse(l) as Entry & { removed?: boolean };
+      if (e.removed) byDir.delete(e.dir);
+      else byDir.set(e.dir, e);
     } catch {
       /* a broken line is skipped */
     }
