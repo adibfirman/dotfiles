@@ -205,10 +205,18 @@ export function lastPlanWave(nodes) {
   return ks.length ? Math.max(...ks) : Infinity;
 }
 
-/** Counts from a cycle's verify/summary.md table: { models, failed }. */
+/**
+ * Counts from a cycle's verify/summary.md table, and each model's verdict by slug (slug in column 2, verdict
+ * in column 3): { models, failed, bySlug: { "<slug>": "COUNTEREXAMPLE" | "PASS" | "<other text>" } }.
+ */
 export function verdictCounts(markdown) {
   const rows = markdown.split("\n").filter((l) => /^\|\s*\d+\s*\|/.test(l));
-  return { models: rows.length, failed: rows.filter((l) => /COUNTEREXAMPLE/.test(l)).length };
+  const bySlug = {};
+  for (const row of rows) {
+    const [, , slug = "", verdict = ""] = row.split("|").map((c) => c.trim().replace(/`/g, ""));
+    if (slug) bySlug[slug] = /COUNTEREXAMPLE/.test(verdict) ? "COUNTEREXAMPLE" : /PASS/.test(verdict) ? "PASS" : verdict;
+  }
+  return { models: rows.length, failed: rows.filter((l) => /COUNTEREXAMPLE/.test(l)).length, bySlug };
 }
 
 const STAGE_NAME = { grill: "Grill", verify: "Verify", gate: "Gate", exec: "Exec" };
@@ -349,7 +357,7 @@ export function stageGraph(st, hist, { onlyCurrent = false, verdicts = {} } = {}
  * exec stage the agents sit under their named wave step (Wave 1 · gates, Wave 1 · fix 1, …). An older
  * cycle's agent carries cycleDir, so a click reads its output from its own cycle folder.
  */
-export function stageDetail(st, hist, stageId) {
+export function stageDetail(st, hist, stageId, verdicts = {}) {
   const nodes = new Map();
   const edges = [];
   const m = /^c(\d+):(.+)$/.exec(stageId ?? "");
@@ -361,7 +369,9 @@ export function stageDetail(st, hist, stageId) {
   const s = stagesOf(c, isCurrent, st.phase).find((x) => x.key === key);
   if (!s) return { nodes, edges };
   const root = `stage:${stageId}`;
-  nodes.set(root, { id: root, label: s.label, sub: "", status: s.nodes.length ? groupStatus(s.nodes) : null, details: [], path: null, kind: "phase" });
+  // The stage box has the same status as in the stage summary (a verify with counterexamples is failed).
+  const status = stageGraph(st, hist, { verdicts }).nodes.get(stageId)?.status ?? (s.nodes.length ? groupStatus(s.nodes) : null);
+  nodes.set(root, { id: root, label: s.label, sub: "", status, details: [], path: null, kind: "phase" });
   const K = lastPlanWave(c.nodes.filter((n) => n.phase === "exec"));
   const steps = [...new Set(s.nodes.filter((n) => n.phase === "exec" && n.wave >= 100).map((n) => n.wave))].sort((a, b) => a - b);
   steps.forEach((w, i) => {
@@ -369,12 +379,16 @@ export function stageDetail(st, hist, stageId) {
     nodes.set(id, { id, label: waveName(w, K), sub: "", status: groupStatus(s.nodes.filter((n) => n.wave === w)), details: [], path: null, kind: "wave" });
     edges.push({ from: i ? `wave:${steps[i - 1]}` : root, to: id, arrow: true });
   });
+  // A TLA+ model's box shows its verdict from verify/summary.md: its agent is done either way.
+  const bySlug = verdicts[cycle]?.bySlug ?? {};
   for (const n of s.nodes) {
     const id = `node:${n.id}`;
+    const verdict = n.phase === "verify" && n.id.startsWith("tla-") ? bySlug[n.id.slice(4)] : undefined;
     nodes.set(id, {
       id, label: n.gen > 0 ? `${n.id} · g${n.gen}` : n.id,
-      sub: n.blocked ? `blocked after ${n.fails} failures` : n.skipped ? `${n.role ?? ""} · skipped` : n.role ?? "",
-      status: n.blocked ? "blocked" : n.status,
+      sub: n.blocked ? `blocked after ${n.fails} failures` : n.skipped ? `${n.role ?? ""} · skipped`
+        : verdict === "COUNTEREXAMPLE" ? "counterexample" : verdict === "PASS" ? "pass" : n.role ?? "",
+      status: n.blocked ? "blocked" : verdict === "COUNTEREXAMPLE" ? "failed" : n.status,
       details: n.files?.length ? [`files: ${n.files.join(", ")}`] : [], path: null, kind: "node",
       node: isCurrent ? n : { ...n, cycleDir: c.dir },
     });
@@ -397,5 +411,5 @@ export function agentDecisions(markdown) {
 /** Box size in layout px for a node: wide enough for its label, two lines when it has a second line. */
 export function boxSize(n) {
   const chars = Math.max(n.label.length, Math.min(n.sub?.length ?? 0, 40) * 0.85);
-  return { w: Math.max(110, Math.min(260, Math.round(chars * 7.2 + 30))), h: n.sub ? 50 : 36 };
+  return { w: Math.max(110, Math.min(340, Math.round(chars * 8.6 + 30))), h: n.sub ? 50 : 36 };
 }

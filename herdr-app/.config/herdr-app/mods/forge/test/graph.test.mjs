@@ -111,7 +111,7 @@ test("verdictCounts counts the models and the counterexamples in a verify summar
     "| # | Invariant | Verdict | Mutation | Result |", "|---|---|---|---|---|",
     "| 1 | a | COUNTEREXAMPLE | caught | x |", "| 2 | b | PASS | caught | y |", "| 3 | c | COUNTEREXAMPLE | caught | z |",
   ].join("\n");
-  assert.deepEqual(verdictCounts(md), { models: 3, failed: 2 });
+  assert.deepEqual(verdictCounts(md), { models: 3, failed: 2, bySlug: { a: "COUNTEREXAMPLE", b: "PASS", c: "COUNTEREXAMPLE" } });
 });
 
 test("stageGraph: one box per cycle stage, labelled arrows, the next cycle under its counterexample", () => {
@@ -163,4 +163,24 @@ test("stageGraph splits exec into plan, waves, and the end check; stageDetail na
     ["Wave 1", "Wave 1 · gates", "Wave 1 · fix 1", "Wave 1 · commit"]);
   assert.ok(d.edges.some((e) => e.from === "wave:101" && e.to === "node:g-beh-w1-r0"));
   assert.equal(stageDetail(st, null, "c9:grill").nodes.size, 0);
+});
+
+test("stageDetail shows each model's verdict, and the stage box matches the summary", () => {
+  const st = { cycle: 2, phase: "grill", nodes: [] };
+  const hist = [
+    { cycle: 1, dir: "001-initial", start: "grill", slug: "initial", reason: null, from: null, phase: "verify",
+      nodes: [
+        { id: "tla-a", phase: "verify", gen: 0, status: "done", role: "tla-writer" },
+        { id: "tla-b", phase: "verify", gen: 0, status: "done", role: "tla-writer" },
+      ] },
+    { cycle: 2, dir: "002-cex-a", start: "grill", slug: "cex-a", reason: "a fails", from: null, phase: "grill", nodes: [] },
+  ];
+  const verdicts = { 1: { models: 2, failed: 1, bySlug: { a: "COUNTEREXAMPLE", b: "PASS" } } };
+  const d = stageDetail(st, hist, "c1:verify", verdicts);
+  assert.deepEqual([d.nodes.get("node:tla-a").status, d.nodes.get("node:tla-a").sub], ["failed", "counterexample"]);
+  assert.deepEqual([d.nodes.get("node:tla-b").status, d.nodes.get("node:tla-b").sub], ["done", "pass"]);
+  assert.equal(d.nodes.get("stage:c1:verify").status, "failed");
+  assert.equal(d.nodes.get("node:tla-a").node.cycleDir, "001-initial");
+  // Without verdicts, the agents keep their own status.
+  assert.equal(stageDetail(st, hist, "c1:verify").nodes.get("node:tla-a").status, "done");
 });

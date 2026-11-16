@@ -219,10 +219,19 @@ export default class Forge extends View {
           return;
         }
       }
-      const text = await readTextFile(`${cyclePath}/${phase}/${id}.md`);
+      // A TLA+ model's own result (verdict, trace, use case) comes first: the agent's output file can hold only its status.
+      let model = null;
+      if (phase === "verify" && id.startsWith("tla-")) {
+        try {
+          model = await readTextFile(`${cyclePath}/verify/models/${id.slice(4)}/result.md`);
+        } catch {
+          model = null;
+        }
+      }
+      const text = model ?? (await readTextFile(`${cyclePath}/${phase}/${id}.md`));
       const blocked = Boolean(n.node.blocked);
       this.detail = {
-        title: blocked ? `${id} · blocked after ${n.node.fails} failures` : `${n.label} · ${status}${n.node.skipped ? " (skipped)" : ""}`,
+        title: blocked ? `${id} · blocked after ${n.node.fails} failures` : `${n.label} · ${n.status}${n.node.skipped ? " (skipped)" : ""}`,
         text: text ?? "No output file yet.", node: id, blocked: blocked && !n.node.cycleDir,
       };
       cx.notify();
@@ -382,7 +391,7 @@ export default class Forge extends View {
       return b ? this.canvas(t, parseTsGraph(b.code), `spec:${this.tab}:${b.code.length}`) : this.note(t, "No graph.");
     }
     // The Run view: the stage summary, top to bottom; a click on a stage shows its agents, left to right.
-    if (this.stage) return this.canvas(t, stageDetail(this.st, this.hist, this.stage), `stage:${this.stage}`, "LR");
+    if (this.stage) return this.canvas(t, stageDetail(this.st, this.hist, this.stage, this.verdicts), `stage:${this.stage}`, "LR");
     return this.canvas(t, stageGraph(this.st, this.hist, { onlyCurrent: this.onlyCurrent, verdicts: this.verdicts }), "run", "TB");
   }
 
