@@ -3,16 +3,16 @@ import { basename, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { mainCheckout, openFirstCycle, Refused, slugify, type Run } from "./append";
 import { register } from "./registry";
-import { childRepos } from "./repos";
+import { childRepos, updateMeta } from "./repos";
+import { CHECK_LEVELS, GRILL_MODES } from "./config";
 
 const herdrBin = () => process.env.FORGE_HERDR ?? "herdr";
 
-/** Set the run's home terminal (where its coordinators show in Herdr). An address like t7 or machine/t7. */
-export function setHome(run: Run, terminal: string) {
-  if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)?$/.test(terminal)) throw new Refused(`not a terminal address: ${terminal}`);
-  const f = join(run.dir, "run.json");
-  const meta = JSON.parse(readFileSync(f, "utf8"));
-  writeFileSync(f, JSON.stringify({ ...meta, home: terminal }, null, 2) + "\n");
+/** Record the run's grill mode ("auto" or "me") and exec check level ("full", "light", "off"). */
+export function setRunOptions(run: Run, grill: string, checks: string) {
+  if (!(GRILL_MODES as readonly string[]).includes(grill)) throw new Refused(`--grill must be ${GRILL_MODES.join(" or ")}, not "${grill}"`);
+  if (!(CHECK_LEVELS as readonly string[]).includes(checks)) throw new Refused(`--checks must be ${CHECK_LEVELS.join(", ")}, not "${checks}"`);
+  updateMeta(run, { grill, checks });
 }
 
 /** The `- item` lines under `key:` in the front matter (refs: one URL or path per line). */

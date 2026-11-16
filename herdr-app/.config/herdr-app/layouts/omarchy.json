@@ -75,9 +75,25 @@
                 "mod": "omarchy-spaces"
               },
               "size": {
-                "weight": 1
+                "weight": 2
               },
               "min": 90,
+              "background": "chrome",
+              "border": {
+                "width": 2,
+                "color": "border"
+              }
+            },
+            {
+              "id": "runs",
+              "type": "block",
+              "content": {
+                "mod": "forge-runs"
+              },
+              "size": {
+                "weight": 1
+              },
+              "min": 60,
               "background": "chrome",
               "border": {
                 "width": 2,
@@ -91,7 +107,7 @@
                 "mod": "omarchy-agents"
               },
               "size": {
-                "weight": 1
+                "weight": 2
               },
               "min": 90,
               "background": "chrome",

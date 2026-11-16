@@ -3,9 +3,38 @@ import { basename, join } from "node:path";
 import { appendEvent, cycleDirs, loadState, readLines, Refused, type Run } from "./append";
 import { running, type Event } from "./events";
 import { unregister } from "./registry";
+import { dirtyWorktrees, removeWorktrees, runMeta, runOptions } from "./repos";
 import { closeTerminal, hc, isLive, launch, nodeSpawnId, spawnInfo, terminalName, type Launched } from "./spawn";
 
 const PHASE_COORD: Record<string, string> = { grill: "grill-coord", verify: "verify-coord", exec: "exec-coord" };
+
+/** The coordinator role of a phase. A run started "with me" grills with the user (grill-me-coord). */
+export function phaseCoord(run: Run, phase: string): string | undefined {
+  if (phase === "grill" && grillMode(run) === "me") return "grill-me-coord";
+  return PHASE_COORD[phase];
+}
+
+/** The grill mode of the current cycle: the --grill of the follow-up that opened it, else the run's own. */
+export function grillMode(run: Run): "auto" | "me" {
+  const { cycleDir } = loadState(run);
+  const id = events(cycleDir)[0]?.data?.followup;
+  if (id !== undefined) {
+    const fu = cycleDirs(run).flatMap(events).find((e) => e.kind === "followup" && String(e.data?.id) === String(id));
+    const g = fu?.data?.grill;
+    if (g === "me" || g === "auto") return g;
+  }
+  return runOptions(run).grill;
+}
+
+/**
+ * A follow-up from the user (no FORGE_NODE) needs a clean tree: a new cycle's agents would build on top of
+ * edits made by hand in the chat. A coordinator's own follow-up runs mid-cycle, where changes are expected.
+ */
+export function assertClean(run: Run) {
+  if (process.env.FORGE_NODE) return;
+  const dirty = dirtyWorktrees(run);
+  if (dirty.length) throw new Refused(`commit or stash first, so the next cycle starts clean: ${dirty.map((d) => `${d.path} (${d.files.join(", ")}${d.files.length === 5 ? ", …" : ""})`).join("; ")}`);
+}
 
 function events(cycleDir: string): Event[] {
   return readLines(join(cycleDir, "events.jsonl")).map((l) => JSON.parse(l));
@@ -23,7 +52,7 @@ export function coordinators(run: Run) {
  */
 export function liveCoordinator(run: Run, exceptId = process.env.FORGE_NODE) {
   const { state } = loadState(run);
-  const role = PHASE_COORD[state.phase];
+  const role = phaseCoord(run, state.phase);
   if (!role) return undefined;
   return coordinators(run).reverse().find((c) => c.id !== exceptId && c.role === role && isLive(spawnInfo(c.cycleDir, c.id)?.terminal ?? ""));
 }
@@ -33,9 +62,9 @@ const BOOT = "BOOT. Run `forge reconcile`, then `forge status`, then follow your
 /** Start the coordinator for the current phase, or a classifier. Not a node: no cap, no barrier. */
 export function startCoordinator(run: Run, role?: string, task = BOOT): Launched & { role: string; id: string } {
   const { state, cycleDir } = loadState(run);
-  const r = role ?? PHASE_COORD[state.phase];
+  const r = role ?? phaseCoord(run, state.phase);
   if (!r) throw new Refused(`no coordinator for phase ${state.phase}: at the gate use forge approve or forge followup`);
-  if (r !== "classifier" && PHASE_COORD[state.phase] !== r) throw new Refused(`${r} does not run phase ${state.phase}`);
+  if (r !== "classifier" && phaseCoord(run, state.phase) !== r) throw new Refused(`${r} does not run phase ${state.phase}`);
   if (state.paused) throw new Refused("the run is paused");
   const n = coordinators(run).filter((c) => c.role === r).length;
   const id = `${r}-${n + 1}`;
@@ -73,8 +102,9 @@ export function decide(run: Run, node: string, how: "retry" | "skip") {
  * A follow-up: QA bug, request, gate comment, PR review. A live coordinator gets it with hc send and
  * handles it at its next phase boundary. With no live coordinator, a classifier starts.
  */
-export function followup(run: Run, text: string, source = "user") {
-  const { event } = appendEvent(run, { kind: "followup", data: { text, source } });
+export function followup(run: Run, text: string, source = "user", grill?: string) {
+  if (grill !== undefined && grill !== "me" && grill !== "auto") throw new Refused(`--grill must be auto or me, not "${grill}"`);
+  const { event } = appendEvent(run, { kind: "followup", data: { text, source, ...(grill ? { grill } : {}) } });
   const id = String(event.data!.id);
   const live = liveCoordinator(run, undefined);
   if (live) {
@@ -90,30 +120,38 @@ export function followup(run: Run, text: string, source = "user") {
  * Remove a run: end its live agents, take it off the list, and delete its forge folder (.forge/tickets/<ticket>:
  * events, specs, refs, logs). Code is never touched: a workspace run's worktrees and every branch stay.
  */
-export function removeRun(run: Run) {
+/**
+ * Remove a run: end its agents and its chat, and take it off the list. The .forge folder (context, specs,
+ * history, PR text) stays, and `forge register --run <dir>` lists it again. The worktrees forge made are
+ * removed; branches stay; a worktree with changes not committed is skipped. purge: a start that failed, so
+ * the half-made folder goes too.
+ */
+export function removeRun(run: Run, purge = false) {
   const killed: string[] = [];
+  const kill = (terminal: unknown) => {
+    if (typeof terminal === "string" && !killed.includes(terminal) && isLive(terminal) && hc(["kill", terminal]).code === 0) killed.push(terminal);
+  };
   for (const dir of cycleDirs(run)) {
     const spawnDir = join(dir, ".spawn");
     if (!existsSync(spawnDir)) continue;
     for (const f of readdirSync(spawnDir).filter((n) => n.endsWith(".json") && !/-(settings|mcp)\.json$/.test(n))) {
-      let terminal: unknown;
       try {
-        terminal = JSON.parse(readFileSync(join(spawnDir, f), "utf8")).terminal;
+        kill(JSON.parse(readFileSync(join(spawnDir, f), "utf8")).terminal);
       } catch {
         continue;
       }
-      if (typeof terminal === "string" && !killed.includes(terminal) && isLive(terminal) && hc(["kill", terminal]).code === 0) killed.push(terminal);
     }
   }
-  let kept: string[] = [];
+  let worktrees: ReturnType<typeof removeWorktrees> = { removed: [], skipped: [] };
   try {
-    kept = (JSON.parse(readFileSync(join(run.dir, "run.json"), "utf8")).repos ?? []).map((r: { worktree: string }) => r.worktree).filter((w: string) => existsSync(w));
+    kill(runMeta(run).chat?.terminal);
+    if (!purge) worktrees = removeWorktrees(run);
   } catch {
-    // no run.json: nothing to keep
+    // no run.json: nothing more to end or remove
   }
   unregister(run.dir);
-  rmSync(run.dir, { recursive: true, force: true });
-  return { removed: run.dir, killed, kept };
+  if (purge) rmSync(run.dir, { recursive: true, force: true });
+  return { removed: run.dir, kept: !purge, killed, worktrees };
 }
 
 /**

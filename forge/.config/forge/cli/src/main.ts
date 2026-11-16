@@ -4,13 +4,14 @@ import { spawn } from "node:child_process";
 import { join as pathJoin } from "node:path";
 import { appendEvent, findRun, Refused } from "./append";
 import { HUMAN_KINDS, KINDS, type Data, type Kind } from "./events";
-import { init, setHome } from "./init";
+import { init, setRunOptions } from "./init";
+import { chatHere, openChat } from "./chat";
 import { allowedFor, closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
-import { approve, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
-import { registerExisting, runs } from "./registry";
+import { approve, assertClean, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
+import { registerExisting, rename, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { knownServers } from "./mcp";
-import { allow, disallow, ensureProjectSources, force, projectCap, setCap, setModels, settings, unforce } from "./config";
+import { allow, disallow, ensureProjectSources, force, MODELS, projectCap, projectChecks, projectGrill, setCap, setModels, setRunDefault, settings, unforce } from "./config";
 import { addRepos, branchRepos, reposWithHead } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
@@ -20,26 +21,33 @@ import { tlc } from "./tlc";
 
 const USAGE = `forge: guard and spawner for forge coordinators
 
-  forge init <context.md> [--here]            start a run: ticket worktree (or this checkout with --here), cycle 001 at grill
+  forge init <context.md> [--here] [--grill auto|me] [--checks full|light|off]
+                                              start a run: ticket worktree (or this checkout with --here), cycle 001 at grill
+                                              (grill and checks default to the repo's last pick: forge config grill|checks)
   forge append <kind> [--node <id>] [--data '<json>']
                                               add one checked event to the current cycle
   forge spawn <role> <node> <task>            start a node in an hc terminal (queues at the cap)
   forge spawn <role> <node> --task-file <f>   the same, with the task read from a file
   forge coord [--role classifier]             start the coordinator of the current phase
   forge approve                               the gate: approve the spec and start exec
-  forge followup <text> [--source <s>] [--ref <url|path>]...
+  forge followup <text> [--source <s>] [--ref <url|path>]... [--grill auto|me]
                                               a QA bug, request, gate comment, or PR review, with references
   forge refs add <url|path|JIRA-KEY>...       fetch references into the run (GitHub, Confluence, Jira, https, files, images)
   forge refs list | forge refs refresh <n>
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
-  forge home <terminal> [--run <dir>]         the terminal whose space shows this run's coordinators and agents
   forge allowed <node> "<command>"           whether that node's agent may run the command now (allow list and deny floor)
+  forge chat [--open [--message <text>]] [--run <dir>]
+                                              your own claude in the run's worktree, with the run as context
+                                              (--open: in its own hc terminal, printed as JSON; --message: its next prompt)
+  forge rename <title> [--run <dir>]          the title the run shows in lists
   forge history [--run <dir>]                 every cycle: why it opened, where it came from, its nodes' final state
-  forge remove --run <dir>                    end its agents, take it off the list, delete its .forge/tickets folder (code stays)
+  forge remove --run <dir> [--purge]          end its agents and chat, take it off the list, remove the worktrees forge made
+                                              (branches and the .forge/tickets folder stay; --purge deletes the folder too)
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
-  forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
+  forge config model <role>=<${MODELS.join("|")}|default>... | forge config cap <1-8> [--main <dir>]
+  forge config grill auto|me | forge config checks full|light|off [--main <dir>]   the defaults for new runs
   forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
   forge config allow|disallow <phase> <tools|bash|mcp|read|write> <value> [--main <dir>]
   forge mcp list [--refresh]                  MCP servers Claude Code knows here, claude.ai connectors marked
@@ -80,10 +88,11 @@ export async function main(argv: string[]): Promise<number> {
     const [cmd, ...rest] = args;
     switch (cmd) {
       case "init": {
-        const home = takeFlag(rest, "--home");
+        const grillFlag = takeFlag(rest, "--grill");
+        const checksFlag = takeFlag(rest, "--checks");
         const here = rest.includes("--here");
         const files = rest.filter((a) => a !== "--here");
-        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here] [--home <terminal>]");
+        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here] [--grill auto|me] [--checks full|light|off]");
         // refs: in the front matter are fetched first, relative to the context file. A failed ref
         // stops the start before anything is written.
         const fetched = await fetchAll(frontMatterList(readFileSync(files[0], "utf8"), "refs"), dirname(resolve(files[0])));
@@ -97,13 +106,13 @@ export async function main(argv: string[]): Promise<number> {
         const run = init(files[0], process.cwd(), cap, here);
         // After init the run exists: a failure from here removes it again, so no half-made run stays listed.
         try {
-          if (home) setHome(run, home);
+          setRunOptions(run, grillFlag ?? projectGrill(capRoot), checksFlag ?? projectChecks(capRoot));
           storeRefs(run, fetched);
           // repos: in the context join a workspace run now (fetch base, worktree at origin/<base>).
           const repos = frontMatterList(readFileSync(files[0], "utf8"), "repos");
           if (repos.length) addRepos(run, repos);
         } catch (e) {
-          removeRun(run);
+          removeRun(run, true);
           throw e;
         }
         print(status(run));
@@ -167,13 +176,15 @@ export async function main(argv: string[]): Promise<number> {
       }
       case "followup": {
         const source = takeFlag(rest, "--source");
+        const grill = takeFlag(rest, "--grill");
         const refs: string[] = [];
         for (let r = takeFlag(rest, "--ref"); r !== undefined; r = takeFlag(rest, "--ref")) refs.push(r);
-        if (rest.length !== 1) throw new UsageError("forge followup <text> [--source qa|gate|pr|user] [--ref <url|path>]...");
+        if (rest.length !== 1) throw new UsageError("forge followup <text> [--source qa|gate|pr|user] [--ref <url|path>]... [--grill auto|me]");
         const run = findRun(runFlag);
+        assertClean(run); // before the refs: a refused follow-up adds nothing
         const added = await addRefs(run, refs); // all or nothing: a failed ref sends no follow-up
         const text = added.length ? `${rest[0]}\n\nNew references: ${added.map((e) => `refs/${e.file}`).join(", ")}` : rest[0];
-        print(followup(run, text, source));
+        print(followup(run, text, source, grill));
         return 0;
       }
       case "refs": {
@@ -201,8 +212,9 @@ export async function main(argv: string[]): Promise<number> {
         return 0;
       }
       case "remove": {
-        if (rest.length) throw new UsageError("forge remove --run <dir>");
-        print(removeRun(findRun(runFlag)));
+        const purge = rest.includes("--purge");
+        if (rest.some((a) => a !== "--purge")) throw new UsageError("forge remove --run <dir> [--purge]");
+        print(removeRun(findRun(runFlag), purge));
         return 0;
       }
       case "close": {
@@ -257,19 +269,30 @@ export async function main(argv: string[]): Promise<number> {
         const [what, ...vals] = rest;
         if (what === "model" && vals.length) setModels(main, vals);
         else if (what === "cap" && vals.length === 1) setCap(main, Number(vals[0]));
+        else if ((what === "grill" || what === "checks") && vals.length === 1) setRunDefault(main, what, vals[0]);
         else if ((what === "allow" || what === "disallow") && vals.length >= 3) (what === "allow" ? allow : disallow)(main, vals[0], vals[1], vals.slice(2).join(" "));
         else if ((what === "force" || what === "unforce") && vals.length >= 3) (what === "force" ? force : unforce)(main, vals[0], vals[1], vals.slice(2).join(" "));
         else if (what === "sources-file" && !vals.length) {
           print({ file: ensureProjectSources(main) });
           return 0;
-        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
+        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config grill auto|me | forge config checks full|light|off | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
         print(settings(main));
         return 0;
       }
-      case "home": {
-        if (rest.length !== 1) throw new UsageError("forge home <terminal> --run <dir>");
-        setHome(findRun(runFlag), rest[0]);
-        print({ ok: true, home: rest[0] });
+      case "chat": {
+        const message = takeFlag(rest, "--message");
+        const open = rest.includes("--open");
+        if (rest.some((a) => a !== "--open") || (message !== undefined && !open)) throw new UsageError("forge chat [--open [--message <text>]] [--run <dir>]");
+        const run = findRun(runFlag);
+        if (open) {
+          print(openChat(run, message));
+          return 0;
+        }
+        return chatHere(run);
+      }
+      case "rename": {
+        if (rest.length !== 1 || !rest[0].trim()) throw new UsageError("forge rename <title> --run <dir>");
+        print(rename(findRun(runFlag).dir, rest[0]));
         return 0;
       }
       case "allowed": {

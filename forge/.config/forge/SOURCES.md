@@ -25,7 +25,7 @@ Format:
 - tools: Read, Grep, Glob
 - bash: hc send, git status, git diff, git log, git show, git blame
 
-## coordinator (grill-coord, verify-coord, exec-coord, classifier: they delegate, never change code)
+## coordinator (grill-coord, grill-me-coord, verify-coord, exec-coord, classifier: they delegate, never change code)
 - bash: forge append, forge spawn, forge status, forge coord, forge reconcile, forge followup, forge repo, forge refs list, forge allowed, forge history
 - bash: hc read, hc wait, hc get, hc ls, hc interrupt
 - !tools: Edit, Write

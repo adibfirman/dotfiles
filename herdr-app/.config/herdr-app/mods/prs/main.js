@@ -2,7 +2,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as fs from "fs/promises";
-import { theme, panes, terminals, exec, readTextFile, writeTextFile, notify, run, appHome, home, shared, props as given, window as host } from "herdr";
+import { theme, panes, terminals, exec, readTextFile, writeTextFile, notify, run, appHome, home, shared, setShared, props as given, window as host } from "herdr";
 import { ago, prState, sortPrs, timeline } from "./model.js";
 import { failedLog, fetchPrs, fetchRunPrs, openThreads } from "./github.js";
 
@@ -32,6 +32,9 @@ export default class Prs extends View {
       /* no storage: default */
     }
     Object.assign(this, { mode, items: [], local: new Map(), error: null, loading: false, at: null, open: null, busy: null, remotes: new Map(), config: {} });
+    // The Push or Create PR the user clicked last, per item: { kind, status, cmd, out, result, at }. Shown as a
+    // Progress step until a refresh shows the new state (done), or until the next action (failed).
+    this.actions = new Map();
     // props.run (opened for one forge run) or a click on a forge row ("forge.selected") opens that run's detail.
     this.wanted = given()?.run ?? null;
     if (this.wanted) this.mode = "forge";
@@ -74,6 +77,12 @@ export default class Prs extends View {
         this.error = null;
         this.at = new Date().toISOString();
         this.local = await this.localInfo(items);
+        // A done action has served its purpose once the refreshed data shows it: nothing left to push, or a PR.
+        for (const [key, a] of this.actions) {
+          if (a.status !== "done") continue;
+          const it = items.find((i) => i.key === key);
+          if ((a.kind === "push" && this.local.get(key)?.ahead === 0) || (a.kind === "create" && it?.pr)) this.actions.delete(key);
+        }
       } catch (e) {
         this.error = String(e?.message ?? e);
       } finally {
@@ -182,16 +191,29 @@ export default class Prs extends View {
     });
   }
 
-  push(cx, l) {
-    this.task(cx, "push", async () => {
+  // Record the clicked action as a Progress step, run it, then mark it done or failed.
+  act(cx, item, kind, cmd, label, work) {
+    if (this.busy) return;
+    this.actions.set(item.key, { kind, status: "running", cmd, at: Date.now() });
+    this.task(cx, label, async () => {
+      const res = await work();
+      this.actions.set(item.key, { kind, status: res.ok ? "done" : "failed", cmd, out: res.body, result: res.result, at: Date.now() });
+      return res;
+    });
+  }
+
+  push(cx, item, l) {
+    const n = l.ahead;
+    this.act(cx, item, "push", "git push -u origin HEAD", "push", async () => {
       const r = await pushHead(l.cwd);
-      return { ok: r.code === 0, body: (r.stderr || r.stdout).trim() };
+      const result = n ? `pushed ${n} commit${n === 1 ? "" : "s"}` : "pushed";
+      return { ok: r.code === 0, body: (r.stderr || r.stdout).trim(), result };
     });
   }
 
   // A draft PR from the current cycle's exec/PR.md (the title from its first line).
   createPr(cx, item, l) {
-    this.task(cx, "create PR", async () => {
+    this.act(cx, item, "create", "git push -u origin HEAD, then gh pr create --draft", "create PR", async () => {
       const runDir = item.fr.runDir ?? item.fr.dir;
       const cycleDir = `${runDir}/cycles/${item.fr.head.dir}`;
       const own = item.fr.repoName ? await readTextFile(`${cycleDir}/exec/PR-${item.fr.repoName}.md`) : null;
@@ -207,13 +229,15 @@ export default class Prs extends View {
       if (pushed.code !== 0) return { ok: false, body: `push failed: ${(pushed.stderr || pushed.stdout).trim()}` };
       const head = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: l.cwd })).stdout.trim();
       const r = await exec("gh", ["pr", "create", "--draft", "--base", base, "--head", head, "--title", first.replace(/^#\s*/, "").trim(), "--body-file", bodyFile], { cwd: l.cwd, timeout: 120_000 });
-      return { ok: r.code === 0, body: (r.code === 0 ? r.stdout : r.stderr || r.stdout).trim() };
+      const num = /\/pull\/(\d+)/.exec(r.stdout ?? "")?.[1];
+      return { ok: r.code === 0, body: (r.code === 0 ? r.stdout : r.stderr || r.stdout).trim(), result: num ? `PR #${num} opened` : "draft PR opened" };
     });
   }
 
-  // A new forge cycle with the failing checks' logs and the open review threads as its input.
-  sendToForge(cx, pr, l) {
-    this.task(cx, "send to forge", async () => {
+  // The failing checks' logs and the open review threads, collected into a file and handed to the run chat
+  // (the one place for follow-ups): it reads them with the user, who decides what to fix.
+  sendToChat(cx, pr, l) {
+    this.task(cx, "send to chat", async () => {
       const parts = [`# ${pr.repo}#${pr.number}: ${pr.title}`, "", `Branch \`${pr.head}\` → \`${pr.base}\`. ${pr.url}`, ""];
       const what = [];
       const failed = pr.checks.filter((c) => c.status === "failed");
@@ -234,8 +258,12 @@ export default class Prs extends View {
       const file = `${inbox}/pr-${pr.number}-${Date.now()}.md`;
       await exec("mkdir", ["-p", inbox]);
       await writeTextFile(file, parts.join("\n") + "\n", null);
-      const r = await exec(forgeBin(), ["followup", `PR #${pr.number}: ${what.join("; ") || "review feedback"}. Fix it. Details: ${file}`, "--source", "pr", "--run", l.forge.dir], { cwd: l.forge.main, timeout: 120_000 });
-      return { ok: r.code === 0, body: r.code === 0 ? "A forge follow-up is on its way." : (r.stderr || r.stdout).trim() };
+      const message = `PR #${pr.number} has ${what.join(" and ") || "review feedback"}, collected in ${file}. Read it, summarize each item, and ask me which ones to fix. Send the follow-up with --source pr only after I say yes.`;
+      const r = await exec(forgeBin(), ["chat", "--open", "--run", l.forge.dir, "--message", message], { cwd: l.forge.main, timeout: 120_000 });
+      if (r.code !== 0) return { ok: false, body: (r.stderr || r.stdout).trim() };
+      // The sidebar's projects list opens the run window with the chat on the left.
+      setShared("forge.open", { dir: l.forge.dir, view: "chat", at: Date.now() });
+      return { ok: true, body: "The run chat has the PR findings. Answer it there." };
     });
   }
 
@@ -371,11 +399,16 @@ export default class Prs extends View {
         .child(div().flex_1().min_w(0).child(this.agentRow(t, l)))
         .child(div().id("prs-go").text_size(12).text_color(t.accent).cursor_pointer().on_click(() => run("pane.focus", { pane: l.pane.pane })).child("Go ›"))))
       .when(Boolean(l?.forge), (e) => e.child(section("Forge")).child(div().text_size(12).child(`cycle ${l.forge.cycle} · ${l.forge.phase}${l.forge.paused ? " · paused" : ""}`)));
+    // Progress: before a PR, the push and the draft PR to come; with one, its story. A clicked Push or Create PR
+    // shows as its step (◌ the command, ✓ the result, ✕ the error, the full output on hover).
+    const steps = pr || (fr?.repo && !onBase) ? timeline(pr, Date.now(), { ahead: l?.ahead ?? null, base: l?.base ?? "main", action: this.actions.get(item.key) ?? null }) : [];
+    body.when(steps.length > 0, (e) => e.child(section("Progress"))
+      .children(steps.map((st, i) => h_flex().id(`step-${i}`).gap(8).items_center().child(this.stepIcon(t, st.status))
+        .child(v_flex().id(`step-text-${i}`).min_w(0).when(Boolean(st.tip), (x) => x.tooltip(st.tip.slice(0, 2000)))
+          .child(div().text_size(12.5).child(st.label))
+          .when(Boolean(st.sub), (x) => x.child(div().text_size(11).truncate().text_color(st.status === "failed" ? t.blocked : t.dim).child(st.sub)))))));
     if (pr) {
       body
-        .child(section("Progress"))
-        .children(timeline(pr).map((st, i) => h_flex().id(`step-${i}`).gap(8).items_center().child(this.stepIcon(t, st.status))
-          .child(v_flex().min_w(0).child(div().text_size(12.5).child(st.label)).when(Boolean(st.sub), (e) => e.child(div().text_size(11).text_color(t.dim).child(st.sub))))))
         .when(pr.checks.length > 0, (e) => e.child(section(`Checks ${pr.checks.length}`))
           .children(pr.checks.map((c, i) => h_flex().id(`chk-${i}`).gap(8).items_center().when(Boolean(c.url), (r) => r.cursor_pointer().on_click(() => this.openUrl(c.url)))
             .child(this.stepIcon(t, c.status)).child(div().truncate().text_size(12).child(c.name)))))
@@ -409,8 +442,9 @@ export default class Prs extends View {
       .child(body)
       .child(h_flex().h(44).flex_none().px(12).gap(8).items_center().justify_end().border_t(1).border_color(t.border)
         .when(Boolean(this.busy), (e) => e.child(div().flex_1().text_size(11.5).text_color(t.working).child(`${this.busy}…`)))
-        .when(canPush, (e) => e.child(this.button(t, "prs-push", l.ahead === null ? "Push" : `Push ↑${l.ahead}`, (cx) => this.push(cx, l))))
+        .when(canPush, (e) => e.child(this.button(t, "prs-push", l.ahead === null ? "Push" : `Push ↑${l.ahead}`, (cx) => this.push(cx, item, l))))
         .when(canCreate, (e) => e.child(this.button(t, "prs-create", "Create PR", (cx) => this.createPr(cx, item, l), true)))
-        .when(canSend, (e) => e.child(this.button(t, "prs-forge", "Send to forge", (cx) => this.sendToForge(cx, pr, l), true))));
+        .when(canSend, (e) => e.child(div().id("prs-chat-tip").tooltip("Collects the failed checks and open review threads, and opens the run chat with them. You pick what to fix there.")
+          .child(this.button(t, "prs-chat", "Send to chat", (cx) => this.sendToChat(cx, pr, l), true)))));
   }
 }

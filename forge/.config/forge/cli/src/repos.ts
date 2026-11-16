@@ -45,6 +45,59 @@ function saveMeta(run: Run, m: any) {
   writeFileSync(join(run.dir, "run.json"), JSON.stringify(m, null, 2) + "\n");
 }
 
+/** Merge fields into run.json (home, grill, checks, chat). */
+export function updateMeta(run: Run, fields: Record<string, unknown>) {
+  saveMeta(run, { ...meta(run), ...fields });
+}
+
+export const runMeta = (run: Run): Record<string, any> => meta(run);
+
+/** The worktrees the run's code lives in: each repo's in a workspace run, else the run's own. */
+export function codeWorktrees(run: Run): string[] {
+  const m = meta(run);
+  return (m.mode === "workspace" ? (m.repos ?? []).map((r: RepoEntry) => r.worktree) : [m.worktree ?? run.worktree]).filter((w: string) => existsSync(w) && isRepo(w));
+}
+
+/** Worktrees with changes not committed (tracked or new files), each with its first changed paths. */
+export function dirtyWorktrees(run: Run): { path: string; files: string[] }[] {
+  return codeWorktrees(run).flatMap((w) => {
+    // Not git(): its trim would cut the first line's status column.
+    const r = spawnSync("git", ["status", "--porcelain"], { cwd: w, encoding: "utf8", env: process.env });
+    const files = r.status === 0 ? (r.stdout ?? "").split("\n").filter(Boolean).map((l) => l.slice(3)) : [];
+    return files.length ? [{ path: w, files: files.slice(0, 5) }] : [];
+  });
+}
+
+/**
+ * Remove the worktrees forge made for the run: the ticket worktree of a repo run (never a main checkout, so a
+ * --here run or a ticket-less run has none), each repo worktree of a workspace run. Branches stay. A worktree
+ * with changes not committed is skipped (git refuses it without --force, and forge never forces).
+ */
+export function removeWorktrees(run: Run): { removed: string[]; skipped: { path: string; reason: string }[] } {
+  const m = meta(run);
+  const made: { path: string; repo: string }[] = m.mode === "workspace"
+    ? (m.repos ?? []).map((r: RepoEntry) => ({ path: r.worktree, repo: r.path }))
+    : m.branch && m.worktree && m.worktree !== m.main ? [{ path: m.worktree, repo: m.main }] : [];
+  const removed: string[] = [];
+  const skipped: { path: string; reason: string }[] = [];
+  for (const w of made) {
+    if (!existsSync(w.path)) continue;
+    const r = git(w.repo, ["worktree", "remove", w.path]);
+    if (r.ok) removed.push(w.path);
+    else skipped.push({ path: w.path, reason: (r.err || r.out || "git worktree remove failed").split("\n")[0] });
+  }
+  return { removed, skipped };
+}
+
+/**
+ * The run's grill mode and check level, chosen at start. A run made before they existed has neither: it
+ * grills with agents and runs the full checks, as it did then.
+ */
+export function runOptions(run: Run): { grill: "auto" | "me"; checks: "full" | "light" | "off" } {
+  const m = meta(run);
+  return { grill: m.grill === "me" ? "me" : "auto", checks: ["full", "light", "off"].includes(m.checks) ? m.checks : "full" };
+}
+
 export const isWorkspace = (run: Run) => meta(run).mode === "workspace";
 export const listRepos = (run: Run): RepoEntry[] => meta(run).repos ?? [];
 

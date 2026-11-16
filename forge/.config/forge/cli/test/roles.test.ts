@@ -9,7 +9,7 @@ import { setup } from "./helpers";
 const HOME = join(import.meta.dir, "..", "..");
 const roles = readdirSync(join(HOME, "roles")).filter((f) => f.endsWith(".md") && !f.startsWith("_")).map((f) => f.replace(/\.md$/, ""));
 const PHASE: Record<string, string> = {
-  "grill-coord": "grill", asker: "grill", "fact-finder": "grill", decider: "grill",
+  "grill-coord": "grill", "grill-me-coord": "grill", asker: "grill", "fact-finder": "grill", decider: "grill",
   "verify-coord": "verify", "tla-writer": "verify",
   "exec-coord": "exec", planner: "exec", unit: "exec", "gate-beh": "exec", "gate-spec": "exec", "gate-sec": "exec", "gate-review": "exec", commit: "exec",
   classifier: "gate",

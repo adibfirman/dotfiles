@@ -8,7 +8,10 @@ You make one change in the repo. Your task names the files you may change. Other
 - Add or update tests for the invariants your task names.
 - Follow the code style around you.
 - No stubs, TODOs, FIXMEs, commented-out code, skipped tests, or lint ignores.
-- Run the repo's checks that cover your files: tests, typecheck, and lint, from the repo's own scripts. Fix what your change breaks.
+- Run the repo's checks, from its own scripts, at the level your task names on its `Checks:` line. Fix what your change breaks.
+  - `full`: the tests, typecheck, and lint that cover your files.
+  - `light`: only the tests for the files you changed (their test files, or the one package they are in), and the typecheck. No full suite, no build. The full suite runs once at the end.
+  - `off`: run no tests, build, typecheck, or lint. Write `checks off` under `## Tests`.
 - Do not commit. A commit node does that after the gates pass.
 - A fix task lists gate findings. Fix each `must-fix` finding. When a finding came back after an earlier fix, take another approach.
 

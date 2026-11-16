@@ -1,11 +1,12 @@
 # models (forge default)
 
-Model per role, as `- role: model`. `opus`, `sonnet`, and `haiku` are aliases
-for the latest model of each family. A project file `<main>/.forge/models.md`
+Model per role, as `- role: model`. `fable`, `opus`, `sonnet`, and `haiku` are
+aliases for the latest model of each family. A project file `<main>/.forge/models.md`
 overrides single roles. `default` covers any role not listed.
 
 - default: sonnet
 - grill-coord: opus
+- grill-me-coord: opus
 - verify-coord: opus
 - exec-coord: opus
 - asker: opus

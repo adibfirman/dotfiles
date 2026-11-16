@@ -23,9 +23,6 @@ export default class Forge extends View {
       specText: "", tab: "run", lastPhase: null, selected: null, detail: null,
       size: { width: 640, height: 420 }, zoom: 1, busy: null, loading: false, gen: 0, layouts: new Map(), views: {}, drag: null, dragged: false,
     });
-    this.followup = InputState.new({ placeholder: "Follow-up: a QA bug or a new request, then Enter" });
-    this.followup.on("submit", (_e, cx) => this.sendFollowup(cx));
-    this.comment = TextareaState.new({ placeholder: "Gate comment, or an override like \"D8: keep partial refunds\"", rows: 3 });
     this.ticketIn = InputState.new({ placeholder: "Ticket, like ABC-123 (empty: no ticket, run here)" });
     this.goalIn = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 6 });
     // props.run pins one run folder: `herdr-app do pane.split --direction right --mod forge --props '{"run":"<dir>"}'`.
@@ -139,20 +136,6 @@ export default class Forge extends View {
     });
   }
 
-  sendFollowup(cx) {
-    const text = this.followup.value().trim();
-    if (!text || !this.dir) return;
-    this.followup.set_value("");
-    this.act(cx, "follow-up sent", ["followup", text, "--source", "user"]);
-  }
-
-  sendComment(cx) {
-    const text = this.comment.value().trim();
-    if (!text) return;
-    this.comment.set_value("");
-    this.act(cx, "gate comment sent", ["followup", text, "--source", "gate"]);
-  }
-
   start(cx) {
     const goal = this.goalIn.value().trim();
     if (!goal || !this.repo || this.busy) return;
@@ -259,7 +242,7 @@ export default class Forge extends View {
         })
         .child(this.body(t, cx)))
       .when(Boolean(this.detail), (el) => el.child(this.detailView(t)))
-      .child(this.footer(t, cx));
+      .when(!this.st, (el) => el.child(this.footer(t, cx)));
   }
 
   button(t, id, label, onClick, { primary = false, enabled = true } = {}) {
@@ -397,13 +380,11 @@ export default class Forge extends View {
       .child(v_flex().id("f-gate-side").w(320).flex_none().h_full().overflow_y_scrollbar().p(12).gap(10)
         .child(div().font_semibold().child("Decisions the agents made for you"))
         .children(decisions.length ? decisions.map((d, i) => v_flex().id(`f-dec-${i}`).gap(4).p(8).rounded(8).bg(t.surface).border_1().border_color(t.border)
-          .child(div().text_size(12).child(d.text))
-          .when(Boolean(d.id), (e) => e.child(h_flex().justify_end().child(div().id(`f-ovr-${i}`).text_size(11).text_color(t.accent).cursor_pointer()
-            .on_click((_e, cx) => { this.comment.set_value(`${d.id}: `); this.comment.focus(); cx.notify(); }).child("Override…")))))
+          .child(div().text_size(12).child(d.text)))
           : [div().text_size(12).text_color(t.dim).child("None listed.")])
-        .child(div().rounded(6).border_1().border_color(t.input).child(Textarea.new(this.comment).text_size(12)))
+        // Comments and overrides go through the run chat (forge followup --source gate), the one place for follow-ups.
+        .child(div().text_size(11.5).text_color(t.dim).child("To comment or override a decision, tell the run chat (Chat in the run window)."))
         .child(h_flex().gap(8).justify_end()
-          .child(this.button(t, "f-comment", "Send comment", (cx) => this.sendComment(cx)))
           .child(this.button(t, "f-approve", "Approve", (cx) => this.act(cx, "approved, exec started", ["approve"]), { primary: true }))));
   }
 
@@ -421,13 +402,9 @@ export default class Forge extends View {
   }
 
   footer(t, cx) {
-    const st = this.st;
+    // Only without a run. Follow-ups go through the run chat; Push and Create PR live in the Pull request panel.
     const row = h_flex().h(44).flex_none().px(10).gap(8).items_center().border_t(1).border_color(t.border);
-    if (!st) return row.child(div().text_size(11).text_color(t.dim).child(this.repo ? "No forge run in this repo yet." : ""));
-    return row
-      .child(div().flex_1().h(30).px(8).flex().items_center().rounded(6).border_1().border_color(t.input).child(Input.new(this.followup).h_full().text_size(12)))
-      .child(this.button(t, "f-followup", "Send", (cx) => this.sendFollowup(cx)));
-    // Push and Create PR live in the Pull request panel only (it knows what is pushed and what has a PR).
+    return row.child(div().text_size(11).text_color(t.dim).child(this.repo ? "No forge run in this repo yet." : ""));
   }
 
   // The graph: Blueprint's layout, boxes as divs, edges as one stroke path and one arrow path.

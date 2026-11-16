@@ -54,6 +54,11 @@ const kidStatus = (k, listed) => {
   const s = listed.get(k.address) ?? k.status;
   return s === "error" ? "blocked" : s === "done" ? "idle" : s;
 };
+// A forge terminal's short name from its label (forge=<ticket>/<cycle>/<id>, or <ticket>/chat): the node id or "chat".
+const forgeName = (k) => {
+  const parts = String(k.labels?.forge ?? "").split("/");
+  return parts.length > 1 ? parts.at(-1) : null;
+};
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
   { id: "grouped", label: "Grouped by space", icon: "layers" },
@@ -212,7 +217,7 @@ export default class Agents extends View {
         .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(0))))
       .when(Boolean(pic), el => el.child(div().mr(8).child(pic)))
-      .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).child(k.name || k.template || k.program?.name || k.address))
+      .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).child(s.name || k.name || k.template || k.program?.name || k.address))
       .when(this.hovered === k.address || this.arming === k.address, (el) => el.child(this.closer(t, k.address, st)))
       .child(this.status(t, { status: st }, compact));
   }
@@ -280,7 +285,42 @@ export default class Agents extends View {
     list = [...pinned, ...rest];
     setAgentOrder(list.map((a) => a.address));
 
+    // Forge runs: their terminals (label forge=<ticket>/…) have no pane, and their parent is gone or is not an
+    // agent here, so the list would never show them. One group row per run (by ticket), with its top-level
+    // terminals (coordinator, classifier, chat) and their sub-agents under it. A forge terminal already shown
+    // (listed itself, or under a listed agent through its parents) stays where it is.
+    const byAddr = new Map(all.map((k) => [k.address, k]));
+    const listedSet = new Set(list.map((a) => a.address));
+    const shownUnder = (k) => {
+      for (let p = k.parent, n = 0; p && n < 20; p = byAddr.get(p)?.parent, n++) if (listedSet.has(p)) return true;
+      return false;
+    };
+    const forgeLive = all.filter((k) => k.state === "live" && typeof k.labels?.forge === "string");
+    const forgeSet = new Set(forgeLive.map((k) => k.address));
+    const runsInfo = shared("forge.runs") ?? [];
+    const forgeGroups = [];
+    for (const k of forgeLive.filter((k) => !listedSet.has(k.address) && !forgeSet.has(k.parent) && !shownUnder(k))) {
+      const ticket = k.labels.forge.split("/")[0];
+      let g = forgeGroups.find((x) => x.ticket === ticket);
+      if (!g) {
+        const info = runsInfo.find((r) => r.ticket === ticket);
+        g = { forge: true, address: `forge-${ticket}`, ticket, dir: info?.dir ?? null, title: info?.title || ticket, tops: [] };
+        forgeGroups.push(g);
+      }
+      g.tops.push(k);
+    }
+    for (const g of forgeGroups) {
+      g.subs = g.tops.flatMap((k, i) => {
+        const last = i === g.tops.length - 1;
+        return [{ t: k, lines: [last ? "└" : "├"] }, ...this.tree(all, k.address, [last ? "" : "│"])].map((x) => ({ ...x, name: forgeName(x.t) }));
+      });
+      g.status = g.subs.reduce((m, x) => { const st = kidStatus(x.t, this.listed); return (RANK[st] ?? 0) > (RANK[m] ?? 0) ? st : m; }, "idle");
+    }
+    // A run's row opens its window (the projects list does that, on shared "forge.open").
+    const openRun = (g) => { if (g.dir) setShared("forge.open", { dir: g.dir, view: "coord", at: Date.now() }); };
+
     const withKids = (a, i) => {
+      if (a.forge) return collapsed ? [forgeSquare(a)] : [forgeRow(a), ...(this.folded.has(a.address) ? [] : a.subs.map((s) => this.subRow(t, s, shown, byPriority)))];
       const subs = collapsed ? [] : this.tree(all, a.address);
       const r = row(a, i, subs);
       if (this.folded.has(a.address)) return [r];
@@ -438,6 +478,40 @@ export default class Agents extends View {
         .child(this.status(t, a, byPriority && !isPinned));
     };
 
+    const forgeRow = (g) => h_flex()
+      .id(`ag-${g.address}`)
+      .px(squeezed ? 6 : 8)
+      .h(26)
+      .flex_none()
+      .rounded(0)
+      .border(1)
+      .border_color(t.foreground + "00")
+      .items_center()
+      .gap(squeezed ? 5 : 8)
+      .cursor_pointer()
+      .hover((s) => s.bg(t.foreground + "14").border_color(t.foreground + "40"))
+      .tooltip(g.dir ? `${g.title}: open the run window` : `${g.ticket}: no run found`)
+      .on_click(() => openRun(g))
+      .child(div().w(16).flex_none().flex().justify_center().text_color(t.accent).child("⚒"))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(g.title))
+      .when(g.subs.length > 0, (el) => el.child(fold(g, g.subs)))
+      .child(this.status(t, { status: g.status }, byPriority));
+    const forgeSquare = (g) => div()
+      .id(`ag-${g.address}`)
+      .size(30)
+      .flex_none()
+      .flex()
+      .items_center()
+      .justify_center()
+      .rounded(0)
+      .border(1)
+      .border_color(t.border)
+      .text_color(t[g.status] ?? t.accent)
+      .hover((s) => s.bg(t.foreground + "14").border_color(t.foreground + "40"))
+      .tooltip(g.title)
+      .on_click(() => openRun(g))
+      .child("⚒");
+
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
     // space are next to each other in agents(), so neighbours make a group.
     const groups = pinned.length ? [{ id: "pinned", label: "pinned", status: null, members: pinned }] : [];
@@ -474,8 +548,25 @@ export default class Agents extends View {
           .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)))
           .child(svg("mods/omarchy-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
     };
+    // Forge runs join the section of their most urgent terminal (priority), or one "forge" group at the end.
+    for (const g of collapsed ? [] : forgeGroups) {
+      if (!byPriority) {
+        if (groups.at(-1)?.id !== "forge") groups.push({ id: "forge", label: "forge", status: null, members: [] });
+        groups.at(-1).members.push(g);
+        continue;
+      }
+      const r = RANK[g.status] || RANK.idle;
+      let grp = groups.find((x) => x.id === `sec-${r}`);
+      if (!grp) {
+        grp = { id: `sec-${r}`, label: SECTION[r], status: SECTION_STATUS[r] ?? null, members: [] };
+        const at = groups.findIndex((x) => x.id.startsWith("sec-") && Number(x.id.slice(4)) < r);
+        if (at < 0) groups.push(grp);
+        else groups.splice(at, 0, grp);
+      }
+      grp.members.push(g);
+    }
     const rows = collapsed
-      ? list.flatMap(withKids)
+      ? [...list, ...forgeGroups].flatMap(withKids)
       : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);
 
     return v_flex()
@@ -508,7 +599,7 @@ export default class Agents extends View {
             ),
         ),
       )
-      .when(list.length === 0 && !collapsed, (el) =>
+      .when(list.length === 0 && !forgeGroups.length && !collapsed, (el) =>
         el.child(div().px(12).text_size(12).text_color(t.dim).child("No agent status yet. Agents show up here when they report their status. Older versions and agents inside tmux may not.")),
       )
       .child(v_flex().id("ag-list").flex_1().min_h(0).px(collapsed ? 0 : 10).when(collapsed, (el) => el.pt(10).gap(6).items_center()).pb(10).overflow_y_scrollbar().mode("always").children(rows))

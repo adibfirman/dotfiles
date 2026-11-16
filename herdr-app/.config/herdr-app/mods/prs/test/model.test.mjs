@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ago, check, ciSummary, normalize, prState, sortPrs, ticketOf, timeline } from "../model.js";
+import { actionStep, ago, check, ciSummary, normalize, prState, sortPrs, ticketOf, timeline } from "../model.js";
 
 const node = (over = {}) => ({
   url: "https://github.com/acme/shop/pull/7", number: 7, title: "Retry payments", isDraft: false,
@@ -76,4 +76,28 @@ test("ago and timeline", () => {
   const t = timeline(normalize(node()), now);
   assert.deepEqual(t.map((s) => s.label), ["PR opened", "CI passed", "Waiting for review", "Merge into main"]);
   assert.equal(t[1].sub, "1/1 passed");
+});
+
+test("timeline before a PR: push, open draft PR, then what comes after", () => {
+  const steps = timeline(null, Date.now(), { ahead: 2, base: "develop" });
+  assert.deepEqual(steps.map((s) => [s.label, s.status]), [["Push", "todo"], ["Open draft PR", "todo"], ["CI", "todo"], ["Review", "todo"], ["Merge into develop", "todo"]]);
+  assert.equal(steps[0].sub, "↑2 not pushed");
+  assert.deepEqual(timeline(null, Date.now(), { ahead: 0 })[0], { label: "Pushed", sub: "everything is on GitHub", status: "done" });
+});
+
+test("timeline: a clicked push or create shows running, done, or failed with the error", () => {
+  const run = timeline(null, Date.now(), { ahead: 1, action: { kind: "push", status: "running", cmd: "git push -u origin HEAD" } });
+  assert.deepEqual(run[0], { label: "Push", sub: "git push -u origin HEAD", status: "running" });
+  const fail = timeline(null, Date.now(), { action: { kind: "create", status: "failed", cmd: "gh pr create", out: "\npull request create failed: GraphQL: x\nmore" } });
+  assert.deepEqual(fail[1], { label: "Open draft PR", sub: "pull request create failed: GraphQL: x", status: "failed", tip: "pull request create failed: GraphQL: x\nmore" });
+  const done = actionStep({ kind: "create", status: "done", result: "PR #153 opened" }, "Draft PR opened");
+  assert.deepEqual(done, { label: "Draft PR opened", sub: "PR #153 opened", status: "done" });
+});
+
+test("timeline with a PR: a later push shows right after PR opened", () => {
+  const pr = normalize(node());
+  const t = timeline(pr, Date.parse("2026-11-15T12:00:00Z"), { action: { kind: "push", status: "done", result: "pushed 1 commit" } });
+  assert.deepEqual(t.slice(0, 2).map((s) => [s.label, s.status]), [["PR opened", "done"], ["Pushed", "done"]]);
+  assert.equal(timeline(pr, Date.now(), { ahead: 3 })[1].sub, "↑3 not pushed");
+  assert.equal(timeline(pr, Date.now()).length, 4);
 });

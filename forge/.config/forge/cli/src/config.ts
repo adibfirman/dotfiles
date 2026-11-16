@@ -8,7 +8,11 @@ import { allowRules, blockersOf, deniedBy, denyFloor, effectiveDeny, forgeHome, 
 // Project settings live in <main>/.forge/ (models.md, SOURCES.md, config.json). The defaults in
 // ~/.config/forge/ are never written from here.
 
-export const MODELS = ["opus", "sonnet", "haiku"] as const;
+export const MODELS = ["fable", "opus", "sonnet", "haiku"] as const;
+export const GRILL_MODES = ["auto", "me"] as const;
+export const CHECK_LEVELS = ["full", "light", "off"] as const;
+export type GrillMode = (typeof GRILL_MODES)[number];
+export type CheckLevel = (typeof CHECK_LEVELS)[number];
 const projectDir = (main: string) => join(main, ".forge");
 const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
 
@@ -42,6 +46,25 @@ function writeConfig(main: string, cur: Record<string, unknown>) {
 export function projectForced(main: string, phase: string): Forced[] {
   const list = readConfig(main).force?.[phase];
   return Array.isArray(list) ? list.filter((f) => f && typeof f.rule === "string" && Array.isArray(f.lifts)) : [];
+}
+
+/** The repo's default grill mode for new runs: "auto" (agents decide) or "me" (the user answers in the coordinator). */
+export function projectGrill(main: string): GrillMode {
+  const v = readConfig(main).grill;
+  return (GRILL_MODES as readonly string[]).includes(v) ? v : "auto";
+}
+
+/** The repo's default check level for exec: "full", "light" (the default), or "off". */
+export function projectChecks(main: string): CheckLevel {
+  const v = readConfig(main).checks;
+  return (CHECK_LEVELS as readonly string[]).includes(v) ? v : "light";
+}
+
+/** Keep the dialog's last pick of the grill mode or the check level for this repo. */
+export function setRunDefault(main: string, key: "grill" | "checks", value: string) {
+  const ok: readonly string[] = key === "grill" ? GRILL_MODES : CHECK_LEVELS;
+  if (!ok.includes(value)) throw new Refused(`${key} must be ${ok.join(", ")}, not "${value}"`);
+  writeConfig(main, { ...readConfig(main), [key]: value });
 }
 
 export function projectCap(main: string): number | null {
@@ -80,6 +103,8 @@ export function settings(main: string, worktree = main) {
     project: added,
     models,
     cap: { value: cap ?? Number(process.env.FORGE_CAP ?? 4), from: cap ? "project" : "default" },
+    grill: { value: projectGrill(main), from: readConfig(main).grill ? "project" : "default" },
+    checks: { value: projectChecks(main), from: readConfig(main).checks ? "project" : "default" },
     sources,
     deny,
     neverLift: NEVER_LIFT,
@@ -96,7 +121,7 @@ export function setModels(main: string, pairs: string[]) {
     if (!known.has(role)) throw new Refused(`unknown role ${role}: one of ${[...known].join(", ")}`);
     if (model === "default") project.delete(role);
     else if ((MODELS as readonly string[]).includes(model)) project.set(role, model);
-    else throw new Refused(`model must be opus, sonnet, haiku, or default, not "${model}"`);
+    else throw new Refused(`model must be ${MODELS.join(", ")}, or default, not "${model}"`);
   }
   mkdirSync(projectDir(main), { recursive: true });
   const lines = [...project].sort().map(([r, m]) => `- ${r}: ${m}`);

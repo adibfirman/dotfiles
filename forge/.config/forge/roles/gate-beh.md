@@ -4,7 +4,10 @@ You check that the wave works. You report; you change no code.
 
 ## Checks
 
-1. Run the repo's own checks: tests, typecheck, and lint, from its scripts (`package.json`, `go.mod`).
+1. Run the repo's own checks, from its scripts (`package.json`, `go.mod`), at the level on your task's `Checks:` line:
+   - `full`: tests, typecheck, and lint.
+   - `light`: the typecheck, and the tests for the wave's files only. A task named `g-beh-final-…` (it says "end check") is the end check: run everything (the full test suite, the build, typecheck, and lint) against the whole change.
+   - `off`: run no commands. Do only step 3, and write `checks off` under `## Commands`.
 2. A failure counts against the wave only when the wave's changes cause it. Do not stash or change the working tree to find out. Read the failing test and the diff (`git diff <base>`) to decide.
 3. Scan the diff for stubs, `TODO`, `FIXME`, skipped or focused tests (`.skip`, `.only`), lint ignores, and debug output.
 

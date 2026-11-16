@@ -1,16 +1,16 @@
 // forge-start: the dialog behind a space's "+". It reads the space folder's repo and its .forge runs:
-// open a run, send it a follow-up, or start a new run in this folder (forge init --here).
+// open a run, or start a new run in this folder (forge init --here). Follow-ups go through the run chat.
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { space, folder } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, panes, terminals, shared, setShared } from "herdr";
+import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, terminals, shared, setShared } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
 
 // Model settings by role group (Q45). A group shows "mixed" when its roles differ.
 const GROUPS = [
-  ["Coordinators", ["grill-coord", "verify-coord", "exec-coord"]],
+  ["Coordinators", ["grill-coord", "grill-me-coord", "verify-coord", "exec-coord"]],
   ["Asker, decider", ["asker", "decider"]],
   ["Fact-finders", ["fact-finder"]],
   ["TLA+ writers", ["tla-writer"]],
@@ -78,8 +78,7 @@ async function openRunWindow(f) {
 export default class ForgeStart extends View {
   init(_props, cx) {
     const p = props() ?? {};
-    Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, following: null, settings: null, settingsOpen: false, merged: new Set() });
-    this.follow = TextareaState.new({ placeholder: "Follow-up: a QA bug, a change, or a review note", rows: 3 });
+    Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, settings: null, settingsOpen: false, merged: new Set() });
     this.ticket = InputState.new({ placeholder: "Ticket, like ABC-123 (empty: none)" });
     this.goal = TextareaState.new({ placeholder: "The goal, the rules, and the files it should touch", rows: 5 });
     // References: one per line (a doc URL, a Confluence page, a Jira key, a GitHub link, a file or image path).
@@ -185,9 +184,32 @@ export default class ForgeStart extends View {
       const path = spec.approved ?? spec.gate ?? spec.draft;
       if (path) this.refs.set_value([...this.refList().filter((x) => x !== path), path].join("\n"));
       this.goal.set_value(`Continue from ${r.ticket} (${r.title}): `);
-      this.following = null;
       cx.notify();
     });
+  }
+
+  // Grill: Auto | With me, and Checks: Full | Light | Off. A pick is saved as this repo's default (forge config),
+  // and Start passes it to forge init.
+  runOptions(t) {
+    const s = this.settings;
+    const chip = (id, label, on, tip, f) => div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5)
+      .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted).tooltip(tip)
+      .when(Boolean(this.repo) && !this.busy, (e) => e.cursor_pointer().hover((x) => x.bg(t.hover)).on_click((_e, cx) => f(cx))).child(label);
+    const row = (label, items) => h_flex().gap(6).items_center()
+      .child(div().w(52).text_size(11.5).font_semibold().text_color(t.muted).child(label))
+      .children(items);
+    const grill = s?.grill?.value ?? "auto";
+    const checks = s?.checks?.value ?? "light";
+    return v_flex().gap(6).pt(2)
+      .child(row("Grill", [
+        chip("fs-grill-auto", "Auto", grill === "auto", "Agents ask and decide; you review the decisions at the gate.", (cx) => this.config(cx, ["grill", "auto"])),
+        chip("fs-grill-me", "With me", grill === "me", "You answer each question round in the run window, with your brainstorming rules.", (cx) => this.config(cx, ["grill", "me"])),
+      ]))
+      .child(row("Checks", [
+        chip("fs-checks-full", "Full", checks === "full", "Tests, typecheck, and lint in every unit and every wave.", (cx) => this.config(cx, ["checks", "full"])),
+        chip("fs-checks-light", "Light", checks === "light", "Only the changed files' tests and typecheck per wave; the full suite and build once at the end.", (cx) => this.config(cx, ["checks", "light"])),
+        chip("fs-checks-off", "Off", checks === "off", "No tests or builds. The PR says checks were not run.", (cx) => this.config(cx, ["checks", "off"])),
+      ]));
   }
 
   settingsView(t, button) {
@@ -205,7 +227,7 @@ export default class ForgeStart extends View {
       const project = known.some((r) => s.models[r].from === "project");
       return h_flex().id(`fs-model-${i}`).gap(6).items_center()
         .child(div().w(130).text_size(12).truncate().child(label))
-        .children(["opus", "sonnet", "haiku"].map((m) => chip(`fs-m-${i}-${m}`, m, value === m, (cx) => this.config(cx, ["model", ...known.map((r) => `${r}=${m}`)]))))
+        .children(["fable", "opus", "sonnet", "haiku"].map((m) => chip(`fs-m-${i}-${m}`, m, value === m, (cx) => this.config(cx, ["model", ...known.map((r) => `${r}=${m}`)]))))
         .child(div().text_size(11).text_color(project ? t.accent : t.dim).child(project ? "project" : value === "mixed" ? "mixed" : "default"))
         .when(project, (e) => e.child(div().id(`fs-reset-${i}`).text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => this.config(cx, ["model", ...known.map((r) => `${r}=default`)])).child("reset")));
@@ -339,17 +361,6 @@ export default class ForgeStart extends View {
     });
   }
 
-  sendFollow(cx, r) {
-    const text = this.follow.value().trim();
-    if (!text) return;
-    this.task(cx, "follow-up", async () => {
-      const refs = this.refList().flatMap((x) => ["--ref", x]);
-      const res = await forge(["followup", text, "--source", "user", ...refs, "--run", r.dir], r.main);
-      if (!res.ok) throw new Error(res.err);
-      return `Sent to ${r.ticket}.`;
-    });
-  }
-
   start(cx) {
     const goal = this.goal.value().trim();
     if (!goal || !this.repo) return;
@@ -366,15 +377,15 @@ export default class ForgeStart extends View {
       const repoLines = repos.length ? `repos:\n${repos.map((x) => `  - ${x}`).join("\n")}\n` : "";
       await writeTextFile(file, `---\nticket: ${ticket || "none"}\n${repoLines}${refLines}---\n${goal}\n`, null);
       // A workspace root has no git: forge init sees that and starts a workspace run. A repo runs --here.
-      // --home: a terminal of this space, so the run's coordinators and agents show in its Agents list.
-      const homeTerm = this.homeTerminal();
-      const init = await forge([...(this.workspace ? ["init", file] : ["init", file, "--here"]), ...(homeTerm ? ["--home", homeTerm] : [])], this.repo.top);
+      // --grill and --checks: the switches above the Start button (also kept as this repo's defaults).
+      const opts = ["--grill", this.settings?.grill?.value ?? "auto", "--checks", this.settings?.checks?.value ?? "light"];
+      const init = await forge([...(this.workspace ? ["init", file] : ["init", file, "--here"]), ...opts], this.repo.top);
       if (!init.ok) throw new Error(init.err);
       const st = JSON.parse(init.out);
       const coord = await forge(["coord", "--run", st.run], this.repo.main);
       if (!coord.ok) {
-        // The run exists but nothing runs it: remove it, so no dead row stays in the sidebar.
-        await forge(["remove", "--run", st.run], this.repo.main);
+        // The run exists but nothing runs it: delete it whole (--purge), so no dead row or half-made folder stays.
+        await forge(["remove", "--purge", "--run", st.run], this.repo.main);
         throw new Error(coord.err);
       }
       // Remember the space this run was started from: the spaces sidebar shows it there. The forge and prs
@@ -382,17 +393,6 @@ export default class ForgeStart extends View {
       if (this.space) setShared("forge.spaces", { ...(shared("forge.spaces") ?? {}), [st.run]: this.space });
       return `${st.ticket}: the grill coordinator is running. Click its row under the space to watch it.`;
     });
-  }
-
-  // A live terminal in the space this dialog was opened from: a plain shell first (no agent of yours gets the
-  // run's agents nested under it), else any. Null when the space has none.
-  homeTerminal() {
-    const sp = spaces().find((x) => x.id === this.space);
-    if (!sp) return null;
-    const tabs = new Set((sp.tabs ?? []).map((x) => x.id));
-    const live = new Set(terminals().filter((x) => x.state === "live").map((x) => x.address));
-    const ps = panes().filter((p) => tabs.has(p.tab) && p.terminal && live.has(p.terminal));
-    return (ps.find((p) => !p.status) ?? ps[0])?.terminal ?? null;
   }
 
   render(cx) {
@@ -431,8 +431,7 @@ export default class ForgeStart extends View {
               .child(div().px(6).rounded(5).bg(t.raised).text_size(11).text_color(t.muted).child(String(this.runs.length))))
             .children(this.runs.map((r, i) => {
               const [state, color] = phase(r);
-              const open = this.following === r.dir;
-              return v_flex().id(`fs-run-${i}`).gap(8).p(10).rounded(8).bg(t.surface).border_1().border_color(open ? t.accent : t.border)
+              return v_flex().id(`fs-run-${i}`).gap(8).p(10).rounded(8).bg(t.surface).border_1().border_color(t.border)
                 .child(h_flex().gap(8).items_center()
                   .child(v_flex().flex_1().min_w(0)
                     .child(div().font_semibold().truncate().child(r.title || r.ticket))
@@ -441,18 +440,11 @@ export default class ForgeStart extends View {
                 .child(h_flex().gap(8).justify_end().items_center()
                   .when(this.merged.has(r.dir), (x) => x.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
                   .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r); this.close(); }))
-                  .child(this.merged.has(r.dir)
-                    ? button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r))
-                    : button(`fs-follow-${i}`, open ? "Cancel" : "Follow up", (cx) => { this.following = open ? null : r.dir; this.follow.set_value(""); cx.notify(); })))
-                .when(open, (x) => x
-                  .child(label("Follow-up", "a QA bug, a change, a review note"))
-                  .child(areaField(this.follow))
-                  .child(label("References", "one per line · or drop files"))
-                  .child(areaField(this.refs))
-                  .child(h_flex().justify_end().child(button(`fs-send-${i}`, "Send follow-up", (cx) => this.sendFollow(cx, r), true))));
+                  // Follow-ups go through the run chat (Chat in the run window), the one place for them.
+                  .when(this.merged.has(r.dir), (x) => x.child(button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r)))));
             }))
             .when(!this.runs.length && !this.error, (x) => x.child(div().text_size(12).text_color(t.dim).child(`No forge run in this ${where} yet.`))))
-          .when(!this.following, (x) => x.child(v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)
+          .child(v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)
             .child(h_flex().justify_between().items_center()
               .child(div().text_size(12).font_semibold().child("New run"))
               .child(div().text_size(11).text_color(t.dim).truncate().child(this.repo?.top ?? this.folder ?? "")))
@@ -463,9 +455,10 @@ export default class ForgeStart extends View {
             .child(areaField(this.goal))
             .child(label("References", "one per line · or drop files"))
             .child(areaField(this.refs))
+            .child(this.runOptions(t))
             .child(h_flex().justify_between().items_center().pt(2)
-              .child(div().text_size(11).text_color(t.dim).child("Agents grill it, TLA+ checks it, then you approve."))
-              .child(button("fs-start", "Start", (cx) => this.start(cx), true))))))
+              .child(div().text_size(11).text_color(t.dim).child(this.settings?.grill?.value === "me" ? "You answer the grill, TLA+ checks it, then you approve." : "Agents grill it, TLA+ checks it, then you approve."))
+              .child(button("fs-start", "Start", (cx) => this.start(cx), true)))))
         .child(div().id("fs-settings-toggle").text_size(12).font_semibold().text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => { this.settingsOpen = !this.settingsOpen; cx.notify(); })
           .child(`${this.settingsOpen ? "▾" : "▸"} Settings`))

@@ -20,6 +20,18 @@ forge starts an exec node only when every node with a lower wave number is done.
 | fix round r (r = 1, 2, …) | 100·k + 2r |
 | gates after fix round r | 100·k + 2r + 1 |
 | `commit-w<k>` | 100·k + 99 |
+| `g-beh-final-r0` (Light only; K = the last plan wave) | 100·(K+1) + 1 |
+| final fix round r (`fix-final-<unit>-r<r>`) | 100·(K+1) + 2r |
+| `g-beh-final-r<r>` after fix round r | 100·(K+1) + 2r + 1 |
+| `commit-final` | 100·(K+1) + 99 |
+
+## Check level
+
+`forge status` → `checks` is the level the user picked at start: `full`, `light`, or `off`. Start every unit, fix, and gate task with the line `Checks: <level>`. The unit and gate-beh roles run the repo's tests and builds by it:
+
+- `full`: every unit and every BEH gate runs the tests, typecheck, and lint, wave by wave.
+- `light`: units run only the tests for their files and the typecheck; BEH gates per wave run the typecheck and the wave's tests. After the last wave, one end check (`g-beh-final-r0`, see step 3) runs the full suite and the build once.
+- `off`: no tests, builds, typecheck, or lint anywhere. The BEH gate scans the diff only.
 
 ## Workspace runs
 
@@ -43,11 +55,12 @@ When `forge status` shows `mode: "workspace"`:
       - Add every `comment` to `exec/review-notes.md`. Comments never loop.
       - When there is a `must-fix` finding: for each unit that owns a file with one, add node `fix-<unit>-r<r>` (role `unit`, wave 100k+2r, the same files) with those findings as its task. When a finding comes back after a fix, its next fix task must take another approach. Then run the gates again at 100k+2r+1. Repeat until all 4 gates pass.
    6. Add and spawn `commit-w<k>` (role `commit`, wave 100k+99). Its task holds the wave's files and a one-line summary.
-3. After the last wave, write `exec/PR.md`:
+3. Light only: the end check. Its base is the base of wave 1. Add and spawn `g-beh-final-r0` (role `gate-beh`, wave 100·(K+1)+1; in a workspace run one per repo, `g-beh-final-r0-<repo>`). Its task holds `Checks: light`, the words "end check", that base, and every file the run changed. On must-fix findings, run fix rounds as in step 2.5 at the waves in the table (`fix-final-<unit>-r<r>`), with `g-beh-final-r<r>` after each, until it passes. Then add and spawn `commit-final` (role `commit`, one per repo in a workspace run) for the fixes. Skip `commit-final` when there were no fixes.
+4. After the last wave, write `exec/PR.md`:
    - a title in the repo's commit style;
    - the goal, from section 1 of the spec;
    - the changes for each wave;
-   - the tests that ran;
+   - the tests that ran, and the check level. With `off`, write exactly: "Checks not run (check level: off)." With `light`, say the full suite and build ran once, at the end;
    - the verification table;
    - the review notes.
-4. Run `forge append phase_done`. Print `CYCLE DONE: push and create the PR from exec/PR.md`, then stop.
+5. Run `forge append phase_done`. Print `CYCLE DONE: push and create the PR from exec/PR.md`, then stop.

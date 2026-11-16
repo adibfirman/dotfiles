@@ -52,13 +52,17 @@ test("titleOf skips front matter and heading marks", () => {
   expect(titleOf("---\nticket: none\n---\n\n# Refunds\n\nAdd refunds.")).toBe("Refunds");
 });
 
-test("removeRun: ends live agents, takes the run off the list, deletes its forge folder", () => {
+test("removeRun: ends live agents, takes the run off the list, keeps its forge folder; purge deletes it", () => {
   const env = setup();
   startCoordinator(env.run);
   const r = removeRun(env.run);
   expect(r.killed).toEqual(["t-f-local-task-1-grillc-g1"]);
   expect(hcCalls(env).some((c) => c[0] === "kill" && c[1] === "t-f-local-task-1-grillc-g1")).toBe(true);
   expect(entries()).toHaveLength(0);
-  expect(existsSync(env.run.dir)).toBe(false);
+  expect(existsSync(env.run.dir)).toBe(true);
+  // A ticket-less run works in the main checkout: no worktree of its own to remove.
+  expect(r.worktrees).toEqual({ removed: [], skipped: [] });
   expect(existsSync(env.repo)).toBe(true);
+  expect(removeRun(env.run, true).kept).toBe(false);
+  expect(existsSync(env.run.dir)).toBe(false);
 });

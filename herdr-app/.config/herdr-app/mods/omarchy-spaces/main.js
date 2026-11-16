@@ -1,11 +1,11 @@
-// Workspace spaces: stable colored avatars, worktrees under their checkout,
-// grouped by machine when more than one is known. After a space's name, the repo
+// Workspace spaces: stable colored avatars, each repo's worktrees under it as branch rows (a folder of repos
+// shows each repo that has worktrees, under a header that folds), grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
 // switch, right-click for its menu, drag to reorder.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, terminals, run, openOverlay, closeOverlay, notify, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -21,65 +21,51 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // About how many characters a row's text gets at the sidebar's width (12px mono is ~7px; badge, gaps and status take ~84px).
 const room = () => Math.floor(((find(layout(), "sidebar")?.size?.px ?? 243) - 84) / 7);
 
-// The Pull request panel shows only when there is something to do with a PR: the run is done, and it is a
-// workspace run, or on its own branch, or has commits not pushed yet. A run on the default branch with
-// everything pushed has nothing to do (its commits went straight there).
-async function wantsPrPanel(f) {
-  if (f.head?.phase !== "done") return false;
-  if (f.mode === "workspace") return true;
-  const git = async (args) => {
-    const r = await exec("git", args, { cwd: f.worktree }).catch(() => null);
-    return r?.code === 0 ? r.stdout.trim() : null;
-  };
-  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const def = (await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]))?.replace(/^origin\//, "") ?? "main";
-  if (branch !== def) return true;
-  return (await git(["rev-list", "--count", "@{upstream}..HEAD"])) !== "0";
-}
-
-// The run's live coordinator terminal, or null (at the gate, or when the run is done).
-function liveCoord(f) {
-  const a = f.coordinator?.terminal;
-  return a && terminals().some((t) => t.address === a && t.state === "live") ? a : null;
-}
-
-// A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open
-// and which coordinator terminal it shows.
-async function openRunWindow(f) {
-  const title = f.title || f.ticket;
-  const prs = await wantsPrPanel(f);
-  const term = liveCoord(f);
-  // Left: the coordinator's own Claude terminal, to type into as usual. Herdr closes a window when its terminal
-  // ends, so at a phase handoff the sidebar reopens it with the next coordinator. With none running (the gate,
-  // or done), a panel says so. Right: the forge graph above the PR view.
-  // Each part is a framed panel with a gap around it.
-  const panel = { background: "background", border: { width: 1, color: "border" }, radius: 8 };
-  const layout = { type: "column", background: "chrome", children: [
-    { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title } } },
-    { type: "row", padding: 8, gap: 8, children: [
-      { type: "block", size: { weight: 1 }, min: 260, ...panel, content: term ? { terminal: term } : { mod: "forge-window", props: { part: "agent", run: f.dir } } },
-      { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
-        { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
-        ...(prs ? [{ type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } }] : []),
-      ] },
-    ] },
-  ] };
-  const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout });
-  setShared("forge.window", { run: f.dir, id, terminal: term });
-}
-
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
+// The folder a space works in: where most of its panes are (agent panes 2, shells 1). Its stored folder only
+// breaks a tie or fills in for an empty space. Its worktree rows go by this, not by its first terminal.
+function workFolder(w, ps) {
+  const tabs = new Set((w.tabs ?? []).map((x) => x.id));
+  const score = new Map();
+  for (const p of ps) if (tabs.has(p.tab) && p.cwd) score.set(p.cwd, (score.get(p.cwd) ?? 0) + (p.status ? 2 : 1));
+  if (w.folder) score.set(w.folder, (score.get(w.folder) ?? 0) + 0.5);
+  let best = null, top = 0;
+  for (const [folder, n] of score) if (n > top) [best, top] = [folder, n];
+  return best ?? place(w, ps);
+}
 const rowHeight = ({ tree }) => (tree ? 24 : 26);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
+const treeWhere = (s, ps) => JSON.stringify([s.machine ?? null, workFolder(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
+
+// `git worktree list --porcelain` -> its linked worktrees (the first entry is the main checkout; missing and
+// bare ones are left out). A detached one is named by its short commit.
+function linkedWorktrees(text) {
+  const all = [];
+  for (const block of text.split(/\n\s*\n/)) {
+    const w = {};
+    for (const line of block.split("\n")) {
+      if (line.startsWith("worktree ")) w.path = line.slice(9);
+      else if (line.startsWith("HEAD ")) w.head = line.slice(5);
+      else if (line.startsWith("branch ")) w.branch = line.slice(7).replace(/^refs\/heads\//, "");
+      else if (line.startsWith("prunable")) w.gone = true;
+      else if (line === "bare") w.gone = true;
+    }
+    if (w.path) all.push(w);
+  }
+  return all.slice(1).filter((w) => !w.gone).map((w) => ({ path: w.path, branch: w.branch ?? ((w.head ?? "").slice(0, 7) || "detached") }));
+}
+const inside = (cwd, dir) => cwd === dir || (cwd ?? "").startsWith(`${dir}/`);
+// Each child folder with its own .git folder (a main checkout, not a worktree): its name, then its worktree list.
+const CHILD_REPOS = 'for d in */; do [ -d "$d.git" ] || continue; printf "## %s\\n" "${d%/}"; git -C "$d" worktree list --porcelain; echo; done';
 
 // A space speaks up only when something in it needs you.
 export function tone(t, status) {
@@ -89,6 +75,7 @@ export function tone(t, status) {
 export default class Spaces extends View {
   init(_props, cx) {
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
+    this.trees = {}; // where() -> [{ repo: name, null for the place's own repo, items: [{ path, branch }] }]
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
     this.pending = new Set(); // where()s to look at next
@@ -106,146 +93,12 @@ export default class Spaces extends View {
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
     for (const state of Object.values(this.reconnecting)) state.busy = false;
     this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]"));
+    this.treeFolded = new Set(JSON.parse(localStorage.getItem("spaces.treeFolded") ?? "[]")); // folded repo headers
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // `git status` walks the whole tree, on another machine a process there:
     // only when its answer could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
-    // Forge runs, shown under the space whose folder is their worktree.
-    this.forge = [];
-    this.loadForge(cx);
-    cx.timer.every(8000, (cx) => this.loadForge(cx));
-    cx.timer.every(2000, (cx) => this.followWindow(cx));
-  }
-
-  // The open run window follows its run: when its live coordinator changes (a phase handoff, the gate, the end),
-  // reopen it in place with the new terminal. Herdr closes a window whose terminal ends, so this also brings it
-  // back after a handoff. Only the window's × (it clears forge.window) stops this.
-  followWindow(cx) {
-    const win = shared("forge.window");
-    if (!win?.run || this.following) return;
-    this.following = true;
-    cx.spawn(async () => {
-      try {
-        const r = await exec(`${home()}/.local/bin/forge`, ["runs"], { timeout: 20000 }).catch(() => null);
-        if (r?.code !== 0) return;
-        const f = JSON.parse(r.stdout).find((x) => x.dir === win.run);
-        if (f && liveCoord(f) !== (win.terminal ?? null) && shared("forge.window")?.run === win.run) await openRunWindow(f);
-      } finally {
-        this.following = false;
-      }
-    });
-  }
-
-  loadForge(cx) {
-    cx.spawn(async (cx) => {
-      const r = await exec(`${home()}/.local/bin/forge`, ["runs"], { timeout: 20000 }).catch(() => null);
-      if (r?.code !== 0) return;
-      const next = JSON.parse(r.stdout);
-      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused, f.head?.blocked, f.coordinator?.terminal]));
-      if (key === this.forgeKey) return;
-      this.forgeKey = key;
-      this.forge = next;
-      cx.notify();
-    });
-  }
-
-  // Which one space shows a run: the space it was started from (the + dialog records it in shared
-  // "forge.spaces"), else the space most in the run's folder (agent panes 2, shells 1, the space's own
-  // folder 1). Each run shows under exactly one space.
-  forgeOwner(f, sp, ps) {
-    const recorded = (shared("forge.spaces") ?? {})[f.dir];
-    if (recorded && sp.some((s) => s.id === recorded)) return recorded;
-    const inside = (cwd) => cwd === f.worktree || (cwd ?? "").startsWith(`${f.worktree}/`);
-    let best = null, bestScore = 0;
-    for (const s of sp) {
-      const tabs = new Set((s.tabs ?? []).map((x) => x.id));
-      const score = ps.filter((p) => tabs.has(p.tab) && inside(p.cwd)).reduce((n, p) => n + (p.status ? 2 : 1), 0) + (s.folder === f.worktree ? 1 : 0);
-      if (score > bestScore) [best, bestScore] = [s.id, score];
-    }
-    return best;
-  }
-
-  // A space's forge runs as child rows: click opens the forge panel pinned to that run.
-  forgeRows({ w, tree }, t) {
-    const sp = spaces(), ps = panes();
-    return this.forge.filter((f) => this.forgeOwner(f, sp, ps) === w.id).map((f) => {
-      const h = f.head ?? {};
-      // Waiting for you: the gate, or a node blocked by the retry cap (Retry or Skip in the run window).
-      const blocked = h.blocked?.length ?? 0;
-      const you = h.phase === "gate" || blocked > 0;
-      const [mark, color] = blocked ? ["◆", t.blocked] : h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
-      const open = shared("forge.window")?.run === f.dir;
-      return h_flex().id(`forge-${f.dir}`).h(22).flex_none().pl(tree ? 48 : 30).pr(8).gap(6).items_center().text_size(11.5)
-        .text_color(open ? t.foreground : t.muted).when(open, (e) => e.bg(t.accent + "26").border_l(2).border_color(t.accent))
-        .cursor_pointer().hover((s) => s.bg(t.foreground + "14").text_color(t.foreground))
-        .tooltip(`${f.ticket} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blocked ? ` · ${blocked} blocked: Retry or Skip in the run window` : ""}`)
-        .on_click((_e, cx) => {
-          cx.stop_propagation();
-          openRunWindow(f);
-        })
-        .on_hover((on, cx) => { const was = this.forgeHover; this.forgeHover = on ? f.dir : this.forgeHover === f.dir ? null : this.forgeHover; if (was !== this.forgeHover) cx.notify(); })
-        .child(div().flex_none().text_color(color).child(h.paused ? "Ⅱ" : mark))
-        .child(div().flex_1().min_w(0).truncate().child(f.title || f.ticket))
-        .children(this.forgeConfirm === f.dir
-          // A second click confirms: removing ends its agents and deletes its .forge/tickets folder (code stays).
-          ? [div().id(`forge-rm-yes-${f.dir}`).flex_none().px(4).rounded(4).text_size(10.5).text_color(t.blocked).hover((s) => s.bg(t.blocked + "26"))
-              .tooltip("Ends its agents and deletes its forge folder. Code, worktrees, and branches stay.")
-              .on_click((_e, cx) => { cx.stop_propagation(); this.removeRun(f, cx); }).child("remove"),
-            div().id(`forge-rm-no-${f.dir}`).flex_none().px(4).rounded(4).text_size(10.5).text_color(t.dim).hover((s) => s.text_color(t.foreground))
-              .on_click((_e, cx) => { cx.stop_propagation(); this.forgeConfirm = null; cx.notify(); }).child("keep")]
-          : this.forgeHover === f.dir
-            ? [div().id(`forge-rm-${f.dir}`).flex_none().px(4).text_size(12).text_color(t.dim).hover((s) => s.text_color(t.blocked)).tooltip("Remove this run")
-                .on_click((_e, cx) => { cx.stop_propagation(); this.forgeConfirm = f.dir; cx.notify(); }).child("×")]
-            : [div().flex_none().text_size(10.5).text_color(blocked ? t.blocked : you ? t.accent : t.dim).child(you ? "you" : h.phase ?? "")]);
-    });
-  }
-
-  // Remove a run: `forge remove` ends its agents, takes it off the list, and deletes its forge folder.
-  removeRun(f, cx) {
-    this.forgeConfirm = null;
-    cx.spawn(async (cx) => {
-      const r = await exec(`${home()}/.local/bin/forge`, ["remove", "--run", f.dir], { timeout: 60000 }).catch((e) => ({ code: 1, stderr: String(e?.message ?? e) }));
-      if (r.code !== 0) {
-        notify({ title: "Forge: remove failed", body: String(r.stderr || r.stdout || "").trim().slice(0, 300), level: "error" });
-        return;
-      }
-      const win = shared("forge.window");
-      if (win?.run === f.dir) {
-        closeOverlay(win.id);
-        setShared("forge.window", null);
-      }
-      const owners = { ...(shared("forge.spaces") ?? {}) };
-      delete owners[f.dir];
-      setShared("forge.spaces", owners);
-      const kept = JSON.parse(r.stdout || "{}").kept ?? [];
-      notify({ title: "Forge: run removed", body: `${f.ticket}${kept.length ? `. Worktrees kept: ${kept.join(", ")}` : ""}`, level: "success" });
-      this.forgeKey = null;
-      this.loadForge(cx);
-    });
-  }
-
-  // The folder a space works in: where most of its panes are (agent panes 2, shells 1). Its stored folder
-  // only breaks a tie or fills in for an empty space: a space made from one repo can live in another.
-  workFolder(w, ps) {
-    const tabs = new Set((w.tabs ?? []).map((x) => x.id));
-    const score = new Map();
-    for (const p of ps) if (tabs.has(p.tab) && p.cwd) score.set(p.cwd, (score.get(p.cwd) ?? 0) + (p.status ? 2 : 1));
-    if (w.folder) score.set(w.folder, (score.get(w.folder) ?? 0) + 0.5);
-    let best = null, top = 0;
-    for (const [folder, n] of score) if (n > top) [best, top] = [folder, n];
-    return best ?? place(w, ps);
-  }
-
-  // The "+" on a hovered space: open a forge run, follow one up, or start one in this space's folder.
-  forgePlus(t, w) {
-    return div().id(`forge-plus-${w.id}`).flex_none().px(4).text_size(13).text_color(t.dim).hover((s) => s.text_color(t.foreground))
-      .tooltip("Forge: start a run here, or follow up an existing one")
-      .on_click((_e, cx) => {
-        cx.stop_propagation();
-        openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: this.workFolder(w, panes()) } });
-      })
-      .child("+");
   }
 
   checkNew(cx) {
@@ -265,6 +118,8 @@ export default class Spaces extends View {
     const at = {};
     for (const s of sp) at[s.id] = where(s, ps);
     const keys = new Set(Object.values(at).filter((k) => JSON.parse(k)[1]));
+    // Where each space works most: its worktree rows come from there.
+    for (const s of sp) { const k = treeWhere(s, ps); if (JSON.parse(k)[1]) keys.add(k); }
     const due = new Set([...keys].filter((k) => !(k in this.git)));
     for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
     this.at = at;
@@ -284,7 +139,8 @@ export default class Spaces extends View {
     }
     if (window().active) {
       for (const k of keys) {
-        const asks = this.git[k] || this.unsure.has(k);
+        // A folder of repos is asked too: a worktree made there shows without a cd.
+        const asks = this.git[k] || this.unsure.has(k) || k in this.trees;
         if (asks && !this.folded.has(JSON.parse(k)[0]) && now - (this.checked[k] ?? 0) > FALLBACK) due.add(k);
       }
     }
@@ -380,8 +236,18 @@ export default class Spaces extends View {
       const r = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v2", "--branch"], { cwd, on });
       if (r.code !== 0) {
         // Only git's own "no" is remembered as no repo; anything else is asked again.
-        if (!/not a git repository/i.test(r.stderr)) this.unsure.add(key);
+        if (!/not a git repository/i.test(r.stderr)) { this.unsure.add(key); this.git[key] = null; return; }
         this.git[key] = null;
+        // A folder of repos: each child repo that has worktrees, in one look.
+        const kids = await exec("sh", ["-c", CHILD_REPOS], { cwd, on });
+        if (kids.code !== 0) return;
+        const groups = [];
+        for (const part of kids.stdout.split(/^## /m).slice(1)) {
+          const nl = part.indexOf("\n");
+          const items = linkedWorktrees(part.slice(nl + 1));
+          if (items.length) groups.push({ repo: part.slice(0, nl).trim(), items });
+        }
+        this.trees[key] = groups;
         return;
       }
       // The repo's own .git folder names it; a worktree's top differs from it.
@@ -400,6 +266,14 @@ export default class Spaces extends View {
       }
       this.git[key] = info;
       if (!on) this.watch(repo, cx);
+      if (!info.linked) {
+        const wt = await exec("git", ["worktree", "list", "--porcelain"], { cwd, on });
+        if (wt.code === 0) this.trees[key] = [{ repo: null, items: linkedWorktrees(wt.stdout) }].filter((g) => g.items.length);
+      } else {
+        // A new worktree (made here or by a command): the places that list worktrees look again.
+        const listed = Object.values(this.trees).some((gs) => gs.some((g) => g.items.some((it) => inside(cwd, it.path))));
+        if (!listed) for (const k of Object.keys(this.trees)) if (k !== key && JSON.parse(k)[0] === on) this.pending.add(k);
+      }
     } catch {
       // Couldn't ask (the machine is away): keep what it showed, look again later.
       this.git[key] ??= null;
@@ -431,51 +305,121 @@ export default class Spaces extends View {
       && this.ordering.machines.every(name => machines().some(m => m.name === name && m.layout === "ready"));
   }
 
-  // Spaces in order, each worktree space moved under its main checkout's.
+  // The sidebar's rows, in order: each space, and under a space whose place lists worktrees (its repo, or a
+  // folder of repos) one row per worktree (a header per repo in a folder of repos). A space open in one of those
+  // worktrees shows as that worktree's row, not as a space row of its own; Herdr's order keeps it right after
+  // the space that lists it, so the numbers stay in the order they show.
   ordered() {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
-    const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
-    const nested = (r) => r.g?.linked && mains.has(r.g.repo);
-    const out = [];
-    const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces)
+    const machineOf = (w) => w.machine ?? null;
+    const list = sp.map((w, i) => ({ w, i, key: where(w, ps), tkey: treeWhere(w, ps), at: place(w, ps), g: this.git[where(w, ps)] ?? null }));
+    // One space lists each repo's worktrees: the first one at that place (or in that repo).
+    const owners = [];
+    const seen = new Set();
     for (const r of list) {
-      if (nested(r)) continue;
-      out.push({ ...r, tree: null });
-      if (!r.g || r.g.linked || placed.has(r.g.repo)) continue;
-      placed.add(r.g.repo);
-      const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
-      kids.forEach((k, n) => out.push({ ...k, tree: n === kids.length - 1 ? "└─" : "├─" }));
+      if (!this.trees[r.tkey]?.length) continue;
+      const id = this.git[r.tkey]?.repo ?? r.tkey;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      owners.push(r);
+    }
+    // A space in a listed worktree: shown on that worktree's row.
+    const listedBy = new Map(); // space id -> owner row
+    const openIn = (o, path) => list.find((r) => r !== o && machineOf(r.w) === machineOf(o.w) && inside(r.at, path));
+    for (const o of owners) for (const g of this.trees[o.tkey]) for (const it of g.items) {
+      const r = openIn(o, it.path);
+      if (r && !listedBy.has(r.w.id)) listedBy.set(r.w.id, o);
+    }
+    const rows = [];
+    const order = [];
+    for (const r of list) {
+      if (listedBy.has(r.w.id)) continue;
+      order.push(r.w.id);
+      for (const [id, o] of listedBy) if (o === r) order.push(id);
+      if (!this.shown.has(r.w.id)) continue;
+      const machine = machineOf(r.w);
+      rows.push({ kind: "space", ...r, machine, tree: null });
+      if (!owners.includes(r)) continue;
+      for (const g of this.trees[r.tkey]) {
+        const fkey = JSON.stringify([r.tkey, g.repo]);
+        const folded = g.repo !== null && this.treeFolded.has(fkey);
+        if (g.repo !== null) rows.push({ kind: "repo", machine, fkey, name: g.repo, count: g.items.length, folded });
+        if (folded) continue;
+        g.items.forEach((it, n) => {
+          const open = list.find((x) => listedBy.get(x.w.id) === r && inside(x.at, it.path));
+          rows.push({ kind: "worktree", machine, item: it, deep: g.repo !== null, glyph: n === g.items.length - 1 ? "└─" : "├─", w: open?.w ?? null, i: open?.i ?? -1 });
+        });
+      }
     }
     // Simulate the batch so later indexes include earlier moves. An attempted
     // write can lose a sync conflict: allow the echo to settle before retrying.
-    const order = sp.map(w => w.id);
-    const target = out.map(r => r.w.id);
-    const key = JSON.stringify([order, target, machines()]);
-    if (order.every((id, i) => id === target[i])) {
+    const now = sp.map((w) => w.id);
+    const key = JSON.stringify([now, order, machines()]);
+    if (now.every((id, i) => id === order[i])) {
       this.ordering = null;
     } else if (this.ordering?.key !== key || this.orderingDue(Date.now())) {
+      const byId = new Map(sp.map((w) => [w.id, w]));
       const moved = new Set();
       this.ordering = { key, at: Date.now(), machines: [] };
-      for (let i = 0; i < out.length; i++) {
-        const from = order.indexOf(out[i].w.id);
+      for (let i = 0; i < order.length; i++) {
+        const from = now.indexOf(order[i]);
         if (from === i) continue;
-        run("space.move", { id: out[i].w.id, index: i + 1 });
-        moved.add(out[i].w.machine ?? null);
-        order.splice(i, 0, order.splice(from, 1)[0]);
+        run("space.move", { id: order[i], index: i + 1 });
+        moved.add(byId.get(order[i])?.machine ?? null);
+        now.splice(i, 0, now.splice(from, 1)[0]);
       }
       this.ordering.machines = [...moved];
     }
-    return out.filter(r => this.shown.has(r.w.id));
+    return rows;
+  }
+
+  // A repo inside a folder of repos: its name and how many worktrees it has. Click folds it.
+  repoRow(r, t) {
+    return h_flex().id(`wt-repo-${r.fkey}`).h(22).flex_none().pl(22).pr(8).gap(6).items_center().text_size(11.5).text_color(t.muted)
+      .cursor_pointer().hover((s) => s.bg(t.foreground + "14").text_color(t.foreground))
+      .on_click((_e, cx) => {
+        r.folded ? this.treeFolded.delete(r.fkey) : this.treeFolded.add(r.fkey);
+        localStorage.setItem("spaces.treeFolded", JSON.stringify([...this.treeFolded]));
+        cx.notify();
+      })
+      .child(div().flex_none().w(10).text_color(t.dim).child(r.folded ? "▸" : "▾"))
+      .child(div().flex_1().min_w(0).truncate().child(r.name))
+      .child(div().flex_none().text_size(10.5).text_color(t.dim).child(String(r.count)));
+  }
+
+  // One worktree: its branch. A dot when a space is open in it (in its status color when an agent there works,
+  // waits, or is done). Click switches to that space, or opens the worktree as a new space.
+  worktreeRow(r, t) {
+    const { item, w } = r;
+    const on = w?.active;
+    const busy = w && ["working", "blocked", "done"].includes(w.status);
+    return h_flex().relative().id(`wt-${r.machine ?? ""}-${item.path}`).h(22).flex_none().pl(r.deep ? 36 : 22).pr(8).gap(6).items_center().text_size(11.5)
+      .text_color(on ? t.foreground : w ? t.muted : t.dim)
+      .when(on, (el) => el.bg(t.foreground + "2e").child(div().absolute().left(-1).top(0).bottom(0).w(2).bg(t.accent)))
+      .cursor_pointer().hover((s) => s.bg(t.foreground + "14").text_color(t.foreground))
+      .tooltip(w ? `${item.path} · space ${w.name}` : `${item.path} · click to open it as a space`)
+      .on_click(() => (w ? run("space.select", { id: w.id }) : run("space.new", { folder: item.path, machine: r.machine ?? "" })))
+      .when(Boolean(w), (el) => el.on_mouse_down("right", () => this.menu(w)).on_hover((over, cx) => {
+        if (over) this.hovered = w.id;
+        else if (this.hovered === w.id) this.hovered = null;
+        cx.notify();
+      }))
+      .child(div().flex_none().text_color(t.dim).child(r.glyph))
+      .child(div().flex_1().min_w(0).truncate().child(item.branch))
+      .when(Boolean(w), (el) => el.child(div().size(6).flex_none().rounded_full().bg(busy ? tone(t, w.status) : t.accent)))
+      .when(Boolean(w) && (this.hovered === w.id || this.arming === w.id), (el) => el.child(this.closer(t, w)));
   }
 
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
     const rows = this.ordered();
-    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.forgeRows(r, t)]);
-    const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
+    // The rail shows spaces only: a space open in a worktree keeps its badge there.
+    const draw = (r) => collapsed
+      ? (r.kind === "space" || (r.kind === "worktree" && r.w) ? [this.compact(r, t)] : [])
+      : [r.kind === "repo" ? this.repoRow(r, t) : r.kind === "worktree" ? this.worktreeRow(r, t) : this.row(r, t)];
+    const remote = [...new Set([...rows.map(r => r.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
       return layout === "loading" || (!layout && this.machines.some(k => k.name === m && k.state === "connected"))
@@ -485,7 +429,7 @@ export default class Spaces extends View {
     if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.flatMap(draw);
     const machineNames = [null, ...remote];
     return machineNames.flatMap((m) => {
-      const mine = rows.filter((r) => (r.w.machine ?? null) === m);
+      const mine = rows.filter((r) => r.machine === m);
       const repair = this.reconnecting[m];
       const machine = this.machines.find(k => k.name === m) ?? repair?.machine;
       const connected = !m || machine?.state === "connected";
@@ -639,7 +583,6 @@ export default class Spaces extends View {
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
           // A space with an agent working, waiting on you, or finished gets a square in that status color.
           .when(!tree && ["working", "blocked", "done"].includes(w.status), el => el.child(div().size(6).flex_none().ml(6).bg(tone(t, w.status))))
-          .when(this.hovered === w.id, el => el.child(this.forgePlus(t, w)))
           .when(this.hovered === w.id || this.arming === w.id, el => el.child(this.closer(t, w))),
       );
   }

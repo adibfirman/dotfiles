@@ -95,9 +95,42 @@ export function ago(iso, now = Date.now()) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-/** The detail timeline: [{ label, sub, status: "done" | "running" | "failed" | "todo" }]. */
-export function timeline(pr, now = Date.now()) {
+/**
+ * One step for a Push or Create PR the user clicked: running (◌, the command), done (✓, the result), or failed
+ * (✕, the first error line; the full output as `tip`). `action`: { kind, status, cmd, out, result }.
+ */
+export function actionStep(action, label) {
+  if (action.status === "running") return { label, sub: action.cmd, status: "running" };
+  if (action.status === "done") return { label, sub: action.result ?? "", status: "done" };
+  const out = String(action.out ?? "").trim();
+  return { label, sub: out.split("\n").find((l) => l.trim()) ?? "failed", status: "failed", tip: out };
+}
+
+/**
+ * Before a PR: Push, Open draft PR, then CI, review, and merge to come. `ahead`: commits not on any remote
+ * (null: unknown). `action`: the Push or Create PR the user clicked last, if any.
+ */
+function beforePr(opts) {
+  const { ahead = null, base = "main", action = null } = opts;
+  const push = action?.kind === "push" ? actionStep(action, action.status === "done" ? "Pushed" : "Push")
+    : ahead === 0 ? { label: "Pushed", sub: "everything is on GitHub", status: "done" }
+    : { label: "Push", sub: ahead ? `↑${ahead} not pushed` : "not pushed yet", status: "todo" };
+  const open = action?.kind === "create" ? actionStep(action, action.status === "done" ? "Draft PR opened" : "Open draft PR")
+    : { label: "Open draft PR", sub: "", status: "todo" };
+  return [push, open, { label: "CI", sub: "", status: "todo" }, { label: "Review", sub: "", status: "todo" }, { label: `Merge into ${base}`, sub: "", status: "todo" }];
+}
+
+/**
+ * The detail timeline: [{ label, sub, status: "done" | "running" | "failed" | "todo", tip? }].
+ * pr null: the steps before a PR (opts: ahead, base, action). With a PR, a push the user clicked (or commits
+ * not pushed yet) shows right after "PR opened".
+ */
+export function timeline(pr, now = Date.now(), opts = {}) {
+  if (!pr) return beforePr(opts);
   const steps = [{ label: "PR opened", sub: ago(pr.createdAt, now), status: "done" }];
+  const { ahead = null, action = null } = opts;
+  if (action?.kind === "push") steps.push(actionStep(action, action.status === "done" ? "Pushed" : "Push"));
+  else if (ahead) steps.push({ label: "Push", sub: `↑${ahead} not pushed`, status: "todo" });
   const ci = pr.ci;
   steps.push({
     label: ci.status === "failed" ? "CI failed" : ci.status === "running" ? "CI running" : ci.status === "passed" ? "CI passed" : "No CI",
