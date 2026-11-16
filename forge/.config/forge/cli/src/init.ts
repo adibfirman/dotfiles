@@ -63,7 +63,7 @@ function initWorkspace(contextFile: string, fm: Record<string, string>, root: st
   const repos = childRepos(root);
   if (!repos.length) throw new Refused(`${root} is not a git repo and holds no git repos. Run git init there, or start forge inside a repo.`);
   const ticketField = fm.ticket ?? "none";
-  if (ticketField !== "none" && !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like INTR-123`);
+  if (ticketField !== "none" && !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like ABC-123`);
   const type = fm.type ?? "feat";
   if (!["fix", "feat", "chore"].includes(type)) throw new Refused(`type must be fix, feat, or chore, not "${type}"`);
   const ticket = ticketField !== "none" ? ticketField : `local-${slugify(basename(contextFile).replace(/\.md$/, "").replace(/^\./, ""))}`;
@@ -93,7 +93,7 @@ export function init(contextFile: string, cwd = process.cwd(), cap = Number(proc
   let branch: string | null = null;
 
   if (here) {
-    if (ticketField !== "none" && !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like INTR-123`);
+    if (ticketField !== "none" && !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like ABC-123`);
     worktree = git(cwd, ["rev-parse", "--show-toplevel"]).out || cwd;
     branch = git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]).out || null;
     ticket = ticketField !== "none" ? ticketField : `local-${slugify(basename(contextFile).replace(/\.md$/, "").replace(/^\./, ""))}`;
@@ -101,7 +101,7 @@ export function init(contextFile: string, cwd = process.cwd(), cap = Number(proc
     ticket = `local-${slugify(basename(contextFile).replace(/\.md$/, "").replace(/^\./, ""))}`;
     worktree = cwd;
   } else {
-    if (!/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like INTR-123`);
+    if (!/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ticketField)) throw new Refused(`ticket "${ticketField}" is not a ticket key like ABC-123`);
     const type = fm.type ?? "feat";
     if (!["fix", "feat", "chore"].includes(type)) throw new Refused(`type must be fix, feat, or chore, not "${type}"`);
     ticket = ticketField;

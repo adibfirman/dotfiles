@@ -36,8 +36,8 @@ describe("classify", () => {
   test("sources", () => {
     expect(classify("https://github.com/a/b/pull/7", env).kind).toBe("github");
     expect(classify("https://acme.atlassian.net/wiki/spaces/X/pages/123456/Title", env)).toEqual({ kind: "confluence", id: "123456" });
-    expect(classify("https://acme.atlassian.net/browse/INTR-12", env)).toEqual({ kind: "jira", id: "INTR-12" });
-    expect(classify("INTR-12", env)).toEqual({ kind: "jira", id: "INTR-12" });
+    expect(classify("https://acme.atlassian.net/browse/ABC-12", env)).toEqual({ kind: "jira", id: "ABC-12" });
+    expect(classify("ABC-12", env)).toEqual({ kind: "jira", id: "ABC-12" });
     expect(classify("https://example.com/a", env).kind).toBe("url");
     expect(classify("./docs/x.png", env).kind).toBe("file");
   });
@@ -98,10 +98,10 @@ test("init fetches refs from the front matter, relative to the context file", as
   const env = setup();
   writeFileSync(join(env.root, "spec-notes.md"), "notes");
   const ctx = join(env.root, "ctx2.md");
-  writeFileSync(ctx, `---\nticket: INTR-5\nrefs:\n  - spec-notes.md\n  - ${base}/shot.png\n---\n# Two refs\n`);
+  writeFileSync(ctx, `---\nticket: ABC-5\nrefs:\n  - spec-notes.md\n  - ${base}/shot.png\n---\n# Two refs\n`);
   process.chdir(env.repo);
   expect(await quiet(() => main(["init", ctx, "--here"]))).toBe(0);
-  const run = { dir: join(env.repo, ".forge", "tickets", "INTR-5"), ticket: "INTR-5", main: env.repo, worktree: env.repo };
+  const run = { dir: join(env.repo, ".forge", "tickets", "ABC-5"), ticket: "ABC-5", main: env.repo, worktree: env.repo };
   expect(listRefs(run).map((e) => e.kind)).toEqual(["file", "url"]);
 });
 
@@ -167,10 +167,10 @@ describe("failures (Q40 to Q43)", () => {
   test("init with a failed ref creates no run", async () => {
     const env = setup();
     const ctx = join(env.root, "bad.md");
-    writeFileSync(ctx, `---\nticket: INTR-77\nrefs:\n  - ${url}/ok\n  - ${url}/gone\n---\n# Bad ref\n`);
+    writeFileSync(ctx, `---\nticket: ABC-77\nrefs:\n  - ${url}/ok\n  - ${url}/gone\n---\n# Bad ref\n`);
     process.chdir(env.repo);
     expect(await quiet(() => main(["init", ctx, "--here"]))).toBe(1);
-    expect(require("node:fs").existsSync(join(env.repo, ".forge", "tickets", "INTR-77"))).toBe(false);
+    expect(require("node:fs").existsSync(join(env.repo, ".forge", "tickets", "ABC-77"))).toBe(false);
   });
 
   test("followup with a failed ref sends nothing", async () => {

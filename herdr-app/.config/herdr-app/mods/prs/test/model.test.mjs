@@ -5,7 +5,7 @@ import { ago, check, ciSummary, normalize, prState, sortPrs, ticketOf, timeline 
 const node = (over = {}) => ({
   url: "https://github.com/acme/shop/pull/7", number: 7, title: "Retry payments", isDraft: false,
   createdAt: "2026-11-15T10:00:00Z", updatedAt: "2026-11-15T11:00:00Z",
-  headRefName: "fix/INTR-123", baseRefName: "main", headRefOid: "abc",
+  headRefName: "fix/ABC-123", baseRefName: "main", headRefOid: "abc",
   repository: { nameWithOwner: "acme/shop" }, mergeable: "MERGEABLE", mergeStateStatus: "CLEAN",
   reviewDecision: null, reviews: { nodes: [] }, reviewThreads: { nodes: [] },
   commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [{ name: "unit", status: "COMPLETED", conclusion: "SUCCESS" }] } } } }] },
@@ -27,7 +27,7 @@ test("ciSummary counts", () => {
 });
 
 test("ticketOf reads branch names", () => {
-  assert.equal(ticketOf("fix/INTR-123"), "INTR-123");
+  assert.equal(ticketOf("fix/ABC-123"), "ABC-123");
   assert.equal(ticketOf("feat/ABC-45-retry"), "ABC-45");
   assert.equal(ticketOf("main"), null);
 });
@@ -38,7 +38,7 @@ test("normalize: approvals count only on the head commit", () => {
     { state: "APPROVED", author: { login: "old" }, commit: { oid: "zzz" } },
   ] } }));
   assert.deepEqual(pr.approvedBy.map((a) => a.login), ["dana"]);
-  assert.equal(pr.ticket, "INTR-123");
+  assert.equal(pr.ticket, "ABC-123");
   assert.equal(pr.ci.status, "passed");
 });
 

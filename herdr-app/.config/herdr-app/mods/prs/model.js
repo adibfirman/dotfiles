@@ -27,7 +27,7 @@ export function ciSummary(checks) {
   return { status, failed, running, passed, total: checks.length };
 }
 
-/** A ticket key from a branch name like fix/INTR-123 or feat/INTR-123-retry. */
+/** A ticket key from a branch name like fix/ABC-123 or feat/ABC-123-retry. */
 export function ticketOf(branch) {
   return /([A-Z][A-Z0-9]+-\d+)/.exec(branch ?? "")?.[1] ?? null;
 }

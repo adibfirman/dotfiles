@@ -71,7 +71,7 @@ export default class ForgeStart extends View {
     const p = props() ?? {};
     Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, following: null, settings: null, settingsOpen: false, merged: new Set() });
     this.follow = TextareaState.new({ placeholder: "Follow-up: a QA bug, a change, or a review note", rows: 3 });
-    this.ticket = InputState.new({ placeholder: "Ticket, like INTR-123 (empty: none)" });
+    this.ticket = InputState.new({ placeholder: "Ticket, like ABC-123 (empty: none)" });
     this.goal = TextareaState.new({ placeholder: "The goal, the rules, and the files it should touch", rows: 5 });
     // References: one per line (a doc URL, a Confluence page, a Jira key, a GitHub link, a file or image path).
     // Files dropped on the dialog are added here.

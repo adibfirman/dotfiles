@@ -26,7 +26,7 @@ export default class Forge extends View {
     this.followup = InputState.new({ placeholder: "Follow-up: a QA bug or a new request, then Enter" });
     this.followup.on("submit", (_e, cx) => this.sendFollowup(cx));
     this.comment = TextareaState.new({ placeholder: "Gate comment, or an override like \"D8: keep partial refunds\"", rows: 3 });
-    this.ticketIn = InputState.new({ placeholder: "Ticket, like INTR-123 (empty: no ticket, run here)" });
+    this.ticketIn = InputState.new({ placeholder: "Ticket, like ABC-123 (empty: no ticket, run here)" });
     this.goalIn = TextareaState.new({ placeholder: "What to build: the goal, the rules, the files", rows: 6 });
     // props.run pins one run folder: `herdr-app do pane.split --direction right --mod forge --props '{"run":"<dir>"}'`.
     // Pane props come from props() (the init argument does not carry them).

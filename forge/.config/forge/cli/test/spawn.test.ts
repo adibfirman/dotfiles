@@ -121,8 +121,8 @@ describe("spawn", () => {
   });
 
   test("terminal names fit hc's 32 characters", async () => {
-    expect(terminalName("INTR-123", 2, "facts", 0)).toBe("f-intr-123-2-facts-g0");
-    const long = terminalName("INTR-12345", 12, "fact-finder-payment-retry-backoff", 3);
+    expect(terminalName("ABC-123", 2, "facts", 0)).toBe("f-abc-123-2-facts-g0");
+    const long = terminalName("ABC-12345", 12, "fact-finder-payment-retry-backoff", 3);
     expect(long.length).toBe(32);
     expect(long).toMatch(/^[a-z0-9_-]+$/);
   });

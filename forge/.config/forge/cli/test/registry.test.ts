@@ -40,12 +40,12 @@ test("register twice keeps one entry", () => {
 
 test("init --here uses this checkout and its branch, with the ticket as the run name", () => {
   const env = setup();
-  spawnSync("git", ["checkout", "-q", "-b", "feat/INTR-9"], { cwd: env.repo });
+  spawnSync("git", ["checkout", "-q", "-b", "feat/ABC-9"], { cwd: env.repo });
   const ctx = join(env.root, "here.md");
-  writeFileSync(ctx, "---\nticket: INTR-9\n---\n# Retry payments\n");
+  writeFileSync(ctx, "---\nticket: ABC-9\n---\n# Retry payments\n");
   const run = init(ctx, env.repo, 4, true);
-  expect([run.ticket, run.worktree]).toEqual(["INTR-9", env.repo]);
-  expect(entries().find((e) => e.ticket === "INTR-9")).toMatchObject({ branch: "feat/INTR-9", title: "Retry payments" });
+  expect([run.ticket, run.worktree]).toEqual(["ABC-9", env.repo]);
+  expect(entries().find((e) => e.ticket === "ABC-9")).toMatchObject({ branch: "feat/ABC-9", title: "Retry payments" });
 });
 
 test("titleOf skips front matter and heading marks", () => {

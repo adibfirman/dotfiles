@@ -38,7 +38,7 @@ function workspace(repos: Record<string, string>) {
   }
   mkdirSync(join(root, "loose-folder"));
   const ctx = join(root, "ctx.md");
-  writeFileSync(ctx, "---\nticket: INTR-42\ntype: fix\n---\n# Cross-repo change\n");
+  writeFileSync(ctx, "---\nticket: ABC-42\ntype: fix\n---\n# Cross-repo change\n");
   return { env, root, ctx };
 }
 
@@ -47,7 +47,7 @@ describe("workspace mode", () => {
     const { root, ctx } = workspace({ api: "develop", web: "main" });
     expect(childRepos(root)).toEqual(["api", "web"]);
     const run = init(ctx, root);
-    expect(run.dir).toBe(join(root, ".forge", "tickets", "INTR-42"));
+    expect(run.dir).toBe(join(root, ".forge", "tickets", "ABC-42"));
     expect(status(run)).toMatchObject({ mode: "workspace", repos: [] });
     expect(findRun(undefined, root).dir).toBe(run.dir); // found from the root with no git
   });
@@ -64,7 +64,7 @@ describe("workspace mode", () => {
     const run = init(ctx, root);
     const added = addRepos(run, ["api", "web"]);
     expect(added.map((r) => [r.name, r.base])).toEqual([["api", "develop"], ["web", "main"]]);
-    const wt = join(root, "worktrees", "INTR-42", "api");
+    const wt = join(root, "worktrees", "ABC-42", "api");
     expect(existsSync(join(wt, "README.md"))).toBe(true);
     expect(g(wt, "rev-parse", "--abbrev-ref", "HEAD")).toBe("HEAD"); // detached
     expect(g(join(root, "api"), "rev-parse", "--abbrev-ref", "HEAD")).toBe("my-own-work");
@@ -92,8 +92,8 @@ describe("workspace mode", () => {
     g(other, "commit", "-q", "-m", "newer");
     g(other, "push", "-q", "origin", "develop");
     const [r] = branchRepos(run);
-    expect(r.branch).toBe("fix/INTR-42");
-    expect(g(r.worktree, "rev-parse", "--abbrev-ref", "HEAD")).toBe("fix/INTR-42");
+    expect(r.branch).toBe("fix/ABC-42");
+    expect(g(r.worktree, "rev-parse", "--abbrev-ref", "HEAD")).toBe("fix/ABC-42");
     expect(existsSync(join(r.worktree, "NEW.md"))).toBe(true);
   });
 
@@ -106,7 +106,7 @@ describe("workspace mode", () => {
     add(run, "node_add", "u-bad", { wave: 100, files: ["x"], role: "unit" });
     spawnNode(run, "unit", "u-api", "change api");
     const call = hcCalls(env).find((c) => c[0] === "run")!;
-    expect(call[call.indexOf("--cwd") + 1]).toBe(join(root, "worktrees", "INTR-42", "api"));
+    expect(call[call.indexOf("--cwd") + 1]).toBe(join(root, "worktrees", "ABC-42", "api"));
     expect(() => spawnNode(run, "unit", "u-bad", "x")).toThrow(/needs data.repo/);
     add(run, "node_add", "g-bad", { wave: 100, role: "gate-beh" });
     expect(() => spawnNode(run, "gate-beh", "g-bad", "x")).toThrow(/needs data.repo/);
