@@ -3,7 +3,7 @@
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { space, folder } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, terminals, shared, setShared } from "herdr";
+import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, spaces, panes, terminals, shared, setShared } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -366,7 +366,9 @@ export default class ForgeStart extends View {
       const repoLines = repos.length ? `repos:\n${repos.map((x) => `  - ${x}`).join("\n")}\n` : "";
       await writeTextFile(file, `---\nticket: ${ticket || "none"}\n${repoLines}${refLines}---\n${goal}\n`, null);
       // A workspace root has no git: forge init sees that and starts a workspace run. A repo runs --here.
-      const init = await forge(this.workspace ? ["init", file] : ["init", file, "--here"], this.repo.top);
+      // --home: a terminal of this space, so the run's coordinators and agents show in its Agents list.
+      const homeTerm = this.homeTerminal();
+      const init = await forge([...(this.workspace ? ["init", file] : ["init", file, "--here"]), ...(homeTerm ? ["--home", homeTerm] : [])], this.repo.top);
       if (!init.ok) throw new Error(init.err);
       const st = JSON.parse(init.out);
       const coord = await forge(["coord", "--run", st.run], this.repo.main);
@@ -380,6 +382,17 @@ export default class ForgeStart extends View {
       if (this.space) setShared("forge.spaces", { ...(shared("forge.spaces") ?? {}), [st.run]: this.space });
       return `${st.ticket}: the grill coordinator is running. Click its row under the space to watch it.`;
     });
+  }
+
+  // A live terminal in the space this dialog was opened from: a plain shell first (no agent of yours gets the
+  // run's agents nested under it), else any. Null when the space has none.
+  homeTerminal() {
+    const sp = spaces().find((x) => x.id === this.space);
+    if (!sp) return null;
+    const tabs = new Set((sp.tabs ?? []).map((x) => x.id));
+    const live = new Set(terminals().filter((x) => x.state === "live").map((x) => x.address));
+    const ps = panes().filter((p) => tabs.has(p.tab) && p.terminal && live.has(p.terminal));
+    return (ps.find((p) => !p.status) ?? ps[0])?.terminal ?? null;
   }
 
   render(cx) {

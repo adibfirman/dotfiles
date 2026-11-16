@@ -7,6 +7,14 @@ import { childRepos } from "./repos";
 
 const herdrBin = () => process.env.FORGE_HERDR ?? "herdr";
 
+/** Set the run's home terminal (where its coordinators show in Herdr). An address like t7 or machine/t7. */
+export function setHome(run: Run, terminal: string) {
+  if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)?$/.test(terminal)) throw new Refused(`not a terminal address: ${terminal}`);
+  const f = join(run.dir, "run.json");
+  const meta = JSON.parse(readFileSync(f, "utf8"));
+  writeFileSync(f, JSON.stringify({ ...meta, home: terminal }, null, 2) + "\n");
+}
+
 /** The `- item` lines under `key:` in the front matter (refs: one URL or path per line). */
 export function frontMatterList(text: string, key: string): string[] {
   const m = /^---\n([\s\S]*?)\n---/.exec(text);

@@ -213,12 +213,29 @@ function acceptTrust(terminal: string): boolean {
 
 export interface Launched { terminal: string; name: string; model: string; trusted: boolean; recovered: boolean }
 
+/**
+ * The run's home: a terminal in the space the run was started from (run.json `home`), when still live. A
+ * coordinator started under it shows in Herdr's Agents list in that space, with its node agents nested under it.
+ */
+export function homeOf(run: Run): string | null {
+  try {
+    const h = JSON.parse(readFileSync(join(run.dir, "run.json"), "utf8")).home;
+    return typeof h === "string" && h && isLive(h) ? h : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Run claude in a new hc terminal. Writes .spawn/<id>.json with the address. */
 export function launch(run: Run, opts: { role: string; id: string; name: string; phase: string; cycle: number; cycleDir: string; task: string; label: string; cwd?: string; onFail?: (detail: string) => void }): Launched {
   const cwd = opts.cwd ?? run.worktree;
   const { args, model } = claudeArgs(run, opts.phase, opts.role, opts.id, opts.cycleDir, cwd);
+  // A coordinator lives under the run's home (no notes typed into it: it is the user's own terminal), else
+  // under whoever started it. Either way it outlives that parent. A node stays a child of its coordinator.
+  const home = isCoordinator(opts.role) ? homeOf(run) : null;
   const r = hc([
     "run", "--bg", "--json", "--name", opts.name, "--cwd", cwd, "--label", `forge=${opts.label}`,
+    ...(home ? ["--parent", home, "--no-notify"] : []),
     ...(isCoordinator(opts.role) ? ["--outlive-parent"] : []),
     "claude", ...args, opts.task,
   ]);

@@ -179,3 +179,22 @@ test("decide: retry tells the live coordinator, or starts one with the note", ()
   expect(s.sentTo ?? s.coordinator).toBeTruthy();
   expect(hcCalls(env).some((c) => c[0] === "send" && /skipped a/.test(c.slice(1).join(" ")))).toBe(s.sentTo !== undefined);
 });
+
+test("home: a coordinator lives under the run's home terminal (no notes typed into it); a node stays under its coordinator", () => {
+  const env = setup();
+  const { setHome } = require("../src/init");
+  setHome(env.run, "t-home");
+  expect(() => setHome(env.run, "bad address!")).toThrow("not a terminal address");
+  startCoordinator(env.run);
+  const coordRun = hcCalls(env).find((c) => c[0] === "run" && c.includes("f-local-task-1-grillc-g1"))!;
+  expect(coordRun.slice(0, coordRun.indexOf("claude"))).toEqual(expect.arrayContaining(["--parent", "t-home", "--no-notify", "--outlive-parent"]));
+  add(env.run, "node_add", "a", { role: "fact-finder" });
+  spawnNode(env.run, "fact-finder", "a", "find it");
+  const nodeRun = hcCalls(env).filter((c) => c[0] === "run").pop()!;
+  expect(nodeRun.slice(0, nodeRun.indexOf("claude"))).not.toContain("--parent");
+  // A home that ended: back to the default parent.
+  appendFileSync(env.log + ".dead", "t-home\n");
+  startCoordinator(env.run, "classifier", "x");
+  const last = hcCalls(env).filter((c) => c[0] === "run").pop()!;
+  expect(last.slice(0, last.indexOf("claude"))).not.toContain("--parent");
+});

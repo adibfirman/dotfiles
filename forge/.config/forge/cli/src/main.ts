@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { join as pathJoin } from "node:path";
 import { appendEvent, findRun, Refused } from "./append";
 import { HUMAN_KINDS, KINDS, type Data, type Kind } from "./events";
-import { init } from "./init";
+import { init, setHome } from "./init";
 import { allowedFor, closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
@@ -34,6 +34,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
+  forge home <terminal> [--run <dir>]         the terminal whose space shows this run's coordinators and agents
   forge allowed <node> "<command>"           whether that node's agent may run the command now (allow list and deny floor)
   forge history [--run <dir>]                 every cycle: why it opened, where it came from, its nodes' final state
   forge remove --run <dir>                    end its agents, take it off the list, delete its .forge/tickets folder (code stays)
@@ -79,9 +80,10 @@ export async function main(argv: string[]): Promise<number> {
     const [cmd, ...rest] = args;
     switch (cmd) {
       case "init": {
+        const home = takeFlag(rest, "--home");
         const here = rest.includes("--here");
         const files = rest.filter((a) => a !== "--here");
-        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here]");
+        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here] [--home <terminal>]");
         // refs: in the front matter are fetched first, relative to the context file. A failed ref
         // stops the start before anything is written.
         const fetched = await fetchAll(frontMatterList(readFileSync(files[0], "utf8"), "refs"), dirname(resolve(files[0])));
@@ -95,6 +97,7 @@ export async function main(argv: string[]): Promise<number> {
         const run = init(files[0], process.cwd(), cap, here);
         // After init the run exists: a failure from here removes it again, so no half-made run stays listed.
         try {
+          if (home) setHome(run, home);
           storeRefs(run, fetched);
           // repos: in the context join a workspace run now (fetch base, worktree at origin/<base>).
           const repos = frontMatterList(readFileSync(files[0], "utf8"), "repos");
@@ -261,6 +264,12 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
         print(settings(main));
+        return 0;
+      }
+      case "home": {
+        if (rest.length !== 1) throw new UsageError("forge home <terminal> --run <dir>");
+        setHome(findRun(runFlag), rest[0]);
+        print({ ok: true, home: rest[0] });
         return 0;
       }
       case "allowed": {
