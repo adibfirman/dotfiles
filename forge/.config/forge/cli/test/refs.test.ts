@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { addRef, adfToText, classify, htmlToText, listRefs, TEXT_LIMIT } from "../src/refs";
+import { addRef, adfToText, classify, credEnv, htmlToText, listRefs, resetShellEnv, TEXT_LIMIT } from "../src/refs";
 import { frontMatterList } from "../src/init";
 import { main } from "../src/main";
 import { spawnNode } from "../src/spawn";
@@ -188,4 +188,27 @@ describe("failures (Q40 to Q43)", () => {
     await expect(quiet(() => main(["refs", "refresh", String(e.n), "--run", env.run.dir]))).resolves.toBe(1);
     expect(listRefs(env.run).map((x) => x.n)).toEqual([e.n]);
   });
+});
+
+test("credEnv: missing credentials come from the interactive shell, set ones win, a banner is skipped", () => {
+  const { root } = setup();
+  const shell = join(root, "fake-shell");
+  // Prints a banner, then runs the script it is given (like `zsh -ic`), with the tokens a ~/.zshrc would export.
+  writeFileSync(shell, '#!/bin/sh\necho "welcome banner"\nJIRA_URL=https://x.atlassian.net JIRA_USERNAME=me JIRA_API_TOKEN=tok sh -c "$2"\n');
+  chmodSync(shell, 0o755);
+  const saved = { SHELL: process.env.SHELL, JIRA_USERNAME: process.env.JIRA_USERNAME };
+  Object.assign(process.env, { SHELL: shell, JIRA_USERNAME: "set-here" });
+  delete process.env.FORGE_NO_SHELL_ENV;
+  delete process.env.JIRA_URL;
+  delete process.env.JIRA_API_TOKEN;
+  resetShellEnv();
+  const env = credEnv(["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"]);
+  expect(env.JIRA_URL).toBe("https://x.atlassian.net");
+  expect(env.JIRA_API_TOKEN).toBe("tok");
+  expect(env.JIRA_USERNAME).toBe("set-here");
+  process.env.FORGE_NO_SHELL_ENV = "1";
+  process.env.SHELL = saved.SHELL;
+  if (saved.JIRA_USERNAME === undefined) delete process.env.JIRA_USERNAME;
+  else process.env.JIRA_USERNAME = saved.JIRA_USERNAME;
+  resetShellEnv();
 });

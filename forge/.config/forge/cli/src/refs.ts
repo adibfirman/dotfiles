@@ -7,6 +7,31 @@ import { readLines, Refused, slugify, type Run } from "./append";
 // with the user's own credentials, into <run>/refs/, so every agent reads the same copy and no agent
 // needs credentials or network access. Agents can read refs/ but not write it.
 
+// Herdr (and other apps started from the Dock) run forge from a shell that never read ~/.zshrc, where people
+// export their tokens. When a credential is missing, read only these names once from the user's interactive shell.
+const CRED_NAMES = ["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN", "CONFLUENCE_USER_NAME", "CONFLUENCE_USERNAME", "CONFLUENCE_API_TOKEN", "CONFLUENCE_API_KEY", "CONFLUENCE_DOMAIN", "CONFLUENCE_URL"];
+let shellVars: Record<string, string> | null = null;
+
+/** process.env, plus the credential names it lacks, taken from `$SHELL -ic` (FORGE_NO_SHELL_ENV=1 turns this off). */
+export function credEnv(needed: string[]): NodeJS.ProcessEnv {
+  if (needed.every((n) => process.env[n]) || process.env.FORGE_NO_SHELL_ENV) return process.env;
+  if (!shellVars) {
+    shellVars = {};
+    // A marker first: an interactive shell may print a banner before the values.
+    const script = `printf '\\0FORGE-ENV\\0'; ${CRED_NAMES.map((n) => `printf '%s=%s\\0' ${n} "$${n}"`).join("; ")}`;
+    const r = spawnSync(process.env.SHELL || "/bin/zsh", ["-ic", script], { encoding: "utf8", timeout: 15_000, stdio: ["ignore", "pipe", "ignore"] });
+    const out = (r.stdout ?? "").split("\0FORGE-ENV\0")[1] ?? "";
+    for (const pair of out.split("\0")) {
+      const i = pair.indexOf("=");
+      if (i > 0 && pair.slice(i + 1)) shellVars[pair.slice(0, i)] = pair.slice(i + 1);
+    }
+  }
+  return { ...shellVars, ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v)) };
+}
+
+/** Tests only: forget the values read from the shell. */
+export const resetShellEnv = () => { shellVars = null; };
+
 export const TEXT_LIMIT = 200_000; // bytes of text per ref
 export const BINARY_LIMIT = 10_000_000; // bytes per image or PDF
 
@@ -137,18 +162,18 @@ async function fetchGithub(source: string): Promise<Item[]> {
 }
 
 async function fetchConfluence(source: string, id: string): Promise<Item[]> {
-  const env = process.env;
+  const env = credEnv(["CONFLUENCE_USER_NAME", "CONFLUENCE_API_TOKEN"]);
   const auth = basic(env.CONFLUENCE_USER_NAME || env.CONFLUENCE_USERNAME, env.CONFLUENCE_API_TOKEN || env.CONFLUENCE_API_KEY);
   const host = confluenceHost(env) || new URL(source).hostname;
-  if (!auth) throw new Refused("Confluence needs CONFLUENCE_USER_NAME and CONFLUENCE_API_TOKEN in the shell that runs forge");
+  if (!auth) throw new Refused("Confluence needs CONFLUENCE_USER_NAME and CONFLUENCE_API_TOKEN, in the shell that runs forge or in your interactive shell (~/.zshrc)");
   const d = await getJson(`https://${host}/wiki/api/v2/pages/${id}?body-format=storage`, auth);
   return [{ title: d.title, text: `# ${d.title}\n\n${htmlToText(d.body?.storage?.value ?? "")}`, source }];
 }
 
 async function fetchJira(source: string, key: string): Promise<Item[]> {
-  const env = process.env;
+  const env = credEnv(["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"]);
   const auth = basic(env.JIRA_USERNAME, env.JIRA_API_TOKEN);
-  if (!auth || !env.JIRA_URL) throw new Refused("Jira needs JIRA_URL, JIRA_USERNAME, and JIRA_API_TOKEN in the shell that runs forge");
+  if (!auth || !env.JIRA_URL) throw new Refused("Jira needs JIRA_URL, JIRA_USERNAME, and JIRA_API_TOKEN, in the shell that runs forge or in your interactive shell (~/.zshrc)");
   const base = `https://${hostOf(env.JIRA_URL)}`;
   const d = await getJson(`${base}/rest/api/3/issue/${key}?fields=summary,description,status,comment,attachment,issuetype`, auth);
   const f = d.fields ?? {};
