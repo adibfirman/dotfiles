@@ -4,7 +4,8 @@
 //                 has no chat yet): a centered "Start a chat" button (`forge chat --open`). The sidebar then
 //                 shows the chat's terminal here.
 // Both parts show a coordinator's "blocked: <role> needs <tool>: <command>" (forge status → needs) with what fixes
-// it: "Allow for this repo" (or "Force allow" past the deny floor), and "Restart coordinator".
+// it: "Lift for this repo" when the deny floor blocks it, "Remove this repo's deny" when the repo's own SOURCES.md
+// does, and "Restart coordinator". Agents run in bypass mode, so any other block is the environment.
 // The left side's view lives in shared "forge.window".view ("coord" or "chat"); the sidebar (forge-runs) reopens
 // the window when it changes. The window does not move: every part stops presses (a press that reaches a window
 // drags it).
@@ -56,7 +57,8 @@ export default class ForgeWindow extends View {
     });
   }
 
-  // Allow (or force-allow) the blocked command for this repo, then start the coordinator again; or only restart.
+  // Lift the floor rule (or remove the repo's own deny) for the blocked command, then start the coordinator again;
+  // or only restart.
   unblock(cx, how) {
     const p = props() ?? {};
     const nd = this.needs;
@@ -68,8 +70,10 @@ export default class ForgeWindow extends View {
       const said = (r) => (r.stderr || r.stdout || "").trim().split("\n").pop()?.slice(0, 200) ?? "";
       let done = null;
       if (how !== "restart" && nd?.prefix) {
-        // The phase whose agent is blocked (an allow under another phase does nothing for it).
-        const r = await run(["config", how === "force" ? "force" : "allow", nd.phase ?? "exec", "bash", nd.prefix, "--main", mainOf(p.run)]);
+        // The phase whose agent is blocked (a lift in another phase does nothing for it).
+        const own = /^Bash\((.*?):\*\)$/.exec(nd.deniedBy ?? "")?.[1] ?? nd.deniedBy;
+        const args = how === "undeny" ? ["config", "undeny", nd.phase ?? "exec", own] : ["config", "force", nd.phase ?? "exec", "bash", nd.prefix];
+        const r = await run([...args, "--main", mainOf(p.run)]);
         if (r.code !== 0) done = { ok: false, text: `Could not allow ${nd.prefix}: ${said(r)}` };
       }
       if (!done) {
@@ -94,11 +98,11 @@ export default class ForgeWindow extends View {
       .bg(primary ? t.blocked : t.raised).text_color(primary ? t.background : t.foreground)
       .when(!working, (e) => e.cursor_pointer().hover((s) => s.opacity(0.85)).on_click((_e, cx) => { cx.stop_propagation(); this.unblock(cx, how); }))
       .child(label);
-    const floor = nd.floor ?? "none";
-    const allow = floor === "none" ? btn("fw-allow", `Allow "${nd.prefix}" in ${nd.phase ?? "exec"}`, "allow", true)
-      : floor === "force" ? btn("fw-force", `Force allow "${nd.prefix}"`, "force", true)
-      : floor === "unknown" ? div().flex_none().text_size(11).text_color(t.dim).tooltip("The block names no command forge can allow. Answer the coordinator, or edit the project SOURCES.md.").child("no command to allow")
-      : div().flex_none().text_size(11).text_color(t.dim).tooltip("The deny floor never lifts this command.").child("never allowed");
+    const floor = nd.floor ?? "env";
+    const allow = floor === "lift" ? btn("fw-lift", `Lift "${nd.prefix}" for this repo`, "lift", true)
+      : floor === "project" ? btn("fw-undeny", "Remove this repo's deny", "undeny", true)
+      : floor === "never" ? div().flex_none().text_size(11).text_color(t.dim).tooltip("The deny floor never lifts this command.").child("never allowed")
+      : div().flex_none().text_size(11).text_color(t.dim).tooltip("No rule denies it: a program is missing, a login ran out, or the agent needs an answer. Fix that (forge doctor), then restart.").child("fix it, then restart");
     const what = `blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? "a tool"}${nd.command ? `: ${nd.command}` : ""}`;
     const result = this.fix && this.fix !== "working" ? this.fix : null;
     const row = h_flex().id(compact ? "fw-needs-bar" : "fw-needs").gap(8).items_center().min_w(0)

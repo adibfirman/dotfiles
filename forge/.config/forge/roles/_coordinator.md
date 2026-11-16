@@ -18,7 +18,7 @@ The state lives in `events.jsonl`, and only `forge` commands change it. You neve
 
 When forge refuses (exit 1), read the reason. It names the rule. Fix your next step; never try to get around a rule.
 
-Run each command alone and in plain form, with absolute paths: no `cd`, variables, `;`, `&&`, or pipes. The allow list matches how a command starts. Use `forge status` → `cyclePath` for the cycle folder.
+Use absolute paths. Use `forge status` → `cyclePath` for the cycle folder. You change no code and no file outside the cycle folder: node agents do the work.
 
 ## Workspace runs
 
@@ -49,17 +49,17 @@ Run each command alone and in plain form, with absolute paths: no `cd`, variable
 
 ## A node that "needs" a tool
 
-A node that ends with `failed: needs <tool>` hit a permission. Read the newest `.spawn/<id>-g<gen>-*.screen.txt` and find the denied command.
+A node that ends with `failed: needs <tool>` hit a deny rule or the environment. Agents run in bypass mode: everything that is not denied runs. Read the newest `.spawn/<id>-g<gen>-*.screen.txt` and find the command that failed.
 
-Run `forge allowed <id> "<the denied command>"` first. The allowed tools can change between your boots (the user adds one, forge learns the repo's toolchain), so an old "blocked" note can be out of date. When it says `"allowed": true`, retry the node: add one line to its task, `The last try was denied <command>; it is allowed now.` Only when it says `false` do the rules below apply.
+Run `forge allowed <id> "<the command>"` first. The user can lift a rule between your boots, so an old "blocked" note can be out of date. When it says `"allowed": true` and the program is there, retry the node: add one line to its task, `The last try was denied <command>; it is allowed now.` Only when it says `false` do the rules below apply.
 
-- It was a compound command, or a tool the role does not need (for example `mkdir` instead of the Write tool): retry, and add the plain way to the task.
-- The role really needs that tool: run `forge append comment --data '{"text":"blocked: <role> needs <tool>: <exact command>"}'`, print `BLOCKED: <role> needs <tool>`, and stop retrying that node. Write the comment exactly in that form, one line: the run window reads it and offers the user "Allow for this repo" for that command, and a restart. Only the user can change what is allowed.
+- A tool the role does not need, or another way exists that no rule denies (for example the Write tool instead of a shell write): retry, and add that way to the task.
+- The role really needs that command: run `forge append comment --data '{"text":"blocked: <role> needs <tool>: <exact command>"}'`, print `BLOCKED: <role> needs <tool>`, and stop retrying that node. Write the comment exactly in that form, one line: the run window reads it and offers the user "Lift for this repo" when the deny floor blocks it, and a restart. Only the user can lift a rule.
 - A program that is not found (exit 127, "command not found") is the environment, not a permission: run `forge doctor` and put the missing item in the same comment form (`blocked: <role> needs <program>: <command>`).
 
 ## Lessons
 
-When a node that failed for a tool, a command form, or the environment passes on a later try, run `forge lesson "<one line>"`: what to do in this repo next time, for example "Tests: `pnpm test <paths>`; `npx vitest` is denied." Every agent of later runs in this repo reads these lines first. One line per lesson, no run details.
+When a node that failed for a tool, a command, or the environment passes on a later try, run `forge lesson "<one line>"`: what to do in this repo next time, for example "Tests: `pnpm test <paths>`; run `pnpm install` first in a new worktree." Every agent of later runs in this repo reads these lines first. One line per lesson, no run details.
 
 ## Retry and evolve, up to the retry cap
 

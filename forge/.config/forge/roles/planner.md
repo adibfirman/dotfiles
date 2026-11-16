@@ -12,7 +12,7 @@ You turn the approved spec into units of work that agents can run in parallel. Y
 - Each invariant in the spec has at least one unit that adds or updates a test for it. Name the invariant slugs each unit touches.
 - A code change and its tests go in the same wave: in the same unit, or in two units of that wave. The gates check each wave on its own, so tests in a later wave leave a wave unchecked.
 - A task says exactly what to change: the files, the functions, the behavior, and the tests to add. "Improve X" is not a task.
-- Check commands: use only the ones under `## Check commands` in your task (from `forge checks`), word for word. Run one test file by adding its path to the test command (`pnpm test src/a.test.ts`, `go test ./pkg/a/...`). Never write `npx`, `npm run`, or a test runner by name (`vitest`, `jest`, `eslint`) unless that exact form is listed: forge denies it.
+- Check commands: use the ones under `## Check commands` in your task (from `forge checks`), so every unit runs the same checks. Run one test file by adding its path to the test command (`pnpm test src/a.test.ts`, `go test ./pkg/a/...`).
 - No stubs, no TODOs, no work left for later.
 - In a cycle that started at exec, the follow-up is the work. Plan only that fix and its test.
 

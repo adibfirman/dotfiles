@@ -6,9 +6,9 @@ import { agentPath } from "../src/env";
 import { spawnNode } from "../src/spawn";
 import { status } from "../src/status";
 import { add, hcCalls, setup, toExec } from "./helpers";
-import { allow, commandLike } from "../src/config";
+import { commandLike, deny } from "../src/config";
 
-test("checks: a pnpm repo gets the pnpm forms the preset allows; a Go repo the go forms", () => {
+test("checks: a pnpm repo gets the pnpm forms; a Go repo the go forms", () => {
   const env = setup();
   writeFileSync(join(env.repo, "package.json"), JSON.stringify({ scripts: { test: "vitest run", typecheck: "tsc --noEmit", lint: "eslint .", build: "vite build" } }));
   writeFileSync(join(env.repo, "pnpm-lock.yaml"), "");
@@ -30,20 +30,23 @@ test("doctor: a program missing from the agents' PATH fails, with that PATH in t
   expect(r.path).toBe(agentPath());
 });
 
-test("needs: the newest blocked comment, until a coordinator or node starts; its phase, allow prefix, and floor", () => {
+test("needs: the newest blocked comment, until a coordinator or node starts; its phase, prefix, and what can lift it", () => {
   const env = setup();
   toExec(env.run);
   expect(needsOf(env.run)).toBeNull();
   add(env.run, "comment", undefined, { text: "blocked: unit needs git: git log --oneline -n 3" });
-  expect(needsOf(env.run)).toMatchObject({ role: "unit", tool: "git", command: "git log --oneline -n 3", prefix: "git log", phase: "exec", floor: "none" });
+  expect(needsOf(env.run)).toMatchObject({ role: "unit", tool: "git", command: "git log --oneline -n 3", prefix: "git log", phase: "exec", floor: "env" });
   expect(status(env.run).needs?.prefix).toBe("git log");
   add(env.run, "comment", undefined, { text: "blocked: unit needs git push: git push origin HEAD" });
-  expect(needsOf(env.run)!.floor).toBe("force");
+  expect(needsOf(env.run)).toMatchObject({ floor: "lift", deniedBy: "Bash(git push:*)" });
+  deny(env.repo, "exec", "kubectl delete");
+  add(env.run, "comment", undefined, { text: "blocked: unit needs kubectl: kubectl delete pod web-1" });
+  expect(needsOf(env.run)).toMatchObject({ floor: "project", deniedBy: "Bash(kubectl delete:*)", prefix: "kubectl delete pod" });
   add(env.run, "comment", undefined, { text: "blocked: unit needs sudo: sudo ls" });
   expect(needsOf(env.run)!.floor).toBe("never");
-  // A note, not a command: no allow button.
+  // A note, not a command: no button.
   add(env.run, "comment", undefined, { text: "blocked: fact-finder needs cluster access: kubectl/helm not allowed, the MCP needs a browser login" });
-  expect(needsOf(env.run)!.floor).toBe("unknown");
+  expect(needsOf(env.run)!.floor).toBe("env");
   add(env.run, "node_add", "u1", { role: "unit", wave: 100, files: ["a.ts"] });
   spawnNode(env.run, "unit", "u1", "do it");
   expect(needsOf(env.run)).toBeNull();
@@ -51,14 +54,14 @@ test("needs: the newest blocked comment, until a coordinator or node starts; its
     .toEqual(["pnpm test", "go test", "./scripts/gen.sh", "kubectl get pods", "kubectl"]);
 });
 
-test("needs in grill: the phase is grill, so the allow goes to the grill section; notes are refused as rules", () => {
+test("needs in grill: the phase is grill, so a lift goes to the grill phase; notes are refused as rules", () => {
   const env = setup();
   add(env.run, "comment", undefined, { text: "blocked: fact-finder needs git: git log -n 1" });
   expect(needsOf(env.run)!.phase).toBe("grill");
   expect(commandLike("kubectl get pods")).toBe(true);
   expect(commandLike("./scripts/gen.sh")).toBe(true);
   expect(commandLike("kubectl/helm not")).toBe(false);
-  expect(() => allow(env.repo, "grill", "bash", "kubectl/helm not")).toThrow("not a command prefix");
+  expect(() => deny(env.repo, "grill", "kubectl/helm not")).toThrow("not a command prefix");
 });
 
 test("lessons: one line each, no duplicates; every node's task points at the file", () => {

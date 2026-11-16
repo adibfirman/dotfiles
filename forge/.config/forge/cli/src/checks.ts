@@ -5,16 +5,16 @@ import { loadState, readLines, type Run } from "./append";
 import { commandLike, projectForced } from "./config";
 import { agentPath, onAgentPath } from "./env";
 import { childRepos, isRepo, listRepos } from "./repos";
-import { blockersOf, deniedBy, denyFloor, effectiveDeny, forgeHome, NEVER_LIFT, safeScript } from "./sources";
+import { blockersOf, deniedBy, denyFloor, denyRules, effectiveDeny, forgeHome, mergeSources, NEVER_LIFT, safeScript } from "./sources";
 
-// What blocks agents is mostly the environment (a program not on their PATH, a login that ran out) and commands
-// that are not on the allow list. These give agents the exact allowed check commands, find a missing program before
-// any agent runs (`forge doctor`), surface a "needs" block, and keep one line per lesson so a repo's next run does
-// not hit the same block.
+// Agents run in bypass mode, so what blocks them is the environment (a program not on their PATH, a login that ran
+// out) or a deny rule. These give agents the repo's check commands, find a missing program before any agent runs
+// (`forge doctor`), surface a "needs" block, and keep one line per lesson so a repo's next run does not hit the same
+// block.
 
 export interface Checks { repo: string; worktree: string; test: string | null; typecheck: string | null; lint: string | null; build: string | null; other: string[]; programs: string[] }
 
-/** The repo's own check commands, in the exact form the toolchain preset allows (agents use only these). */
+/** The repo's own check commands (test, typecheck, lint, build), so every agent runs the same ones. */
 export function checkCommands(worktree: string): Checks {
   const c: Checks = { repo: basename(worktree), worktree, test: null, typecheck: null, lint: null, build: null, other: [], programs: [] };
   const pkg = join(worktree, "package.json");
@@ -93,11 +93,16 @@ export function doctor(checks: Checks[]): { ok: boolean; path: string; items: Do
   return { ok: items.every((i) => i.ok), path, items };
 }
 
-export interface Needs { role: string; tool: string; command: string; prefix: string; phase: string; floor: "none" | "force" | "never" | "unknown"; text: string; at: string }
+/**
+ * floor: what the user can do about it. "lift": the deny floor blocks it ("Lift for this repo"); "project": this
+ * repo's own `- deny:` entry blocks it (remove that entry); "never": NEVER_LIFT blocks it; "env": no rule blocks it,
+ * so it is the environment (a missing program, a login) or a note: fix that, then restart.
+ */
+export interface Needs { role: string; tool: string; command: string; prefix: string; phase: string; floor: "lift" | "project" | "never" | "env"; deniedBy?: string; text: string; at: string }
 
 /**
- * The command prefix an allow rule would name: the program and up to 2 subcommands ("kubectl get pods", not "kubectl",
- * which would also allow its write commands). Arguments, paths, and flags end it.
+ * The command prefix a rule names: the program and up to 2 subcommands ("kubectl get pods", not "kubectl", which
+ * would also cover its write commands). Arguments, paths, and flags end it.
  */
 export function allowPrefix(command: string): string {
   const words = command.trim().replace(/^`|`$/g, "").split(/\s+/);
@@ -135,15 +140,25 @@ export function needsOf(run: Run): Needs | null {
   const m = /^blocked:\s*(\S+)\s+needs\s+(.+?)(?::\s*(.+))?$/i.exec(text.split("\n")[0]);
   const command = (m?.[3] ?? m?.[2] ?? "").trim().replace(/^`|`$/g, "");
   const prefix = allowPrefix(command);
-  const deny = effectiveDeny(denyFloor(join(forgeHome(), "deny-floor.json")), projectForced(run.main, "exec").flatMap((f) => f.lifts));
-  const rule = `Bash(${prefix}:*)`;
-  // NEVER_LIFT rules count even when this floor file lacks them: nobody may allow them from a button.
-  // A note that is not a command ("cluster access", "kubectl/helm not allowed") gets no allow button: "unknown".
-  const floor = !commandLike(prefix) || (!onAgentPath(prefix.split(" ")[0]) && !prefix.startsWith("./")) ? "unknown"
-    : deniedBy(rule, NEVER_LIFT) || blockersOf(rule, deny).some((r) => NEVER_LIFT.includes(r)) ? "never"
-    : deniedBy(rule, deny) ? "force" : "none";
-  // The phase whose agents need it: an allow in another phase's section does nothing for them.
-  return { role: m?.[1] ?? "agent", tool: m?.[2] ?? command, command, prefix, phase, floor, text, at: String(e.ts ?? i) };
+  // Match the whole command (a rule covers a command that starts with it); the prefix is what a lift names.
+  const rule = `Bash(${command.replace(/\s+/g, " ")}:*)`;
+  const floorRules = effectiveDeny(denyFloor(join(forgeHome(), "deny-floor.json")), projectForced(run.main, phase).flatMap((f) => f.lifts));
+  const projectRules = denyRules(mergeSources([existsSync(join(run.main, ".forge", "SOURCES.md")) ? readFileSync(join(run.main, ".forge", "SOURCES.md"), "utf8") : ""], [phase, "all"]));
+  const by = (rules: string[]) => rules.find((r) => deniedBy(rule, [r]));
+  // NEVER_LIFT rules count even when this floor file lacks them: nobody may lift them from a button.
+  // A note that is not a command ("cluster access", "kubectl/helm not allowed") gets no button: "env".
+  let floor: Needs["floor"] = "env";
+  let deniedRule: string | undefined;
+  if (commandLike(prefix)) {
+    const never = by(NEVER_LIFT) ?? blockersOf(rule, floorRules).find((r) => NEVER_LIFT.includes(r));
+    const lift = by(floorRules);
+    const own = by(projectRules);
+    if (never) [floor, deniedRule] = ["never", never];
+    else if (lift) [floor, deniedRule] = ["lift", lift];
+    else if (own) [floor, deniedRule] = ["project", own];
+  }
+  // The phase whose agents need it: a lift in another phase does nothing for them.
+  return { role: m?.[1] ?? "agent", tool: m?.[2] ?? command, command, prefix, phase, floor, ...(deniedRule ? { deniedBy: deniedRule } : {}), text, at: String(e.ts ?? i) };
 }
 
 /** <main>/.forge/lessons.md: one line per block that was solved, read by every agent of later runs. */

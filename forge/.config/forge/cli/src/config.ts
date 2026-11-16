@@ -1,9 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Refused } from "./append";
-import { homedir } from "node:os";
-import { findConnector, isConnector, toolPrefix } from "./mcp";
-import { allowRules, blockersOf, deniedBy, denyFloor, effectiveDeny, forgeHome, mcpServerName, mergeSources, NEVER_LIFT, parseSources, toolchainPreset, type Key } from "./sources";
+import { toolPrefix } from "./mcp";
+import { blockersOf, denyFloor, denyRule, denyRules, effectiveDeny, forgeHome, mcpServerName, mergeSources, NEVER_LIFT, parseSources, scriptDenies } from "./sources";
 
 // Project settings live in <main>/.forge/ (models.md, SOURCES.md, config.json). The defaults in
 // ~/.config/forge/ are never written from here.
@@ -42,22 +41,22 @@ function writeConfig(main: string, cur: Record<string, unknown>) {
   writeFileSync(join(projectDir(main), "config.json"), JSON.stringify(cur, null, 2) + "\n");
 }
 
-/** What this repo force-allows in one phase: each entry, its allow rule, and the floor rules it lifts. */
+/** What this repo lifts in one phase ("Lift for this repo"): each entry, its rule, and the floor rules it lifts. */
 export function projectForced(main: string, phase: string): Forced[] {
   const list = readConfig(main).force?.[phase];
   return Array.isArray(list) ? list.filter((f) => f && typeof f.rule === "string" && Array.isArray(f.lifts)) : [];
 }
 
-/** The repo's default grill mode for new runs: "auto" (agents decide) or "me" (the user answers in the coordinator). */
 /**
- * A bash allow value: a program (a plain name, or a ./path to a repo script) and then plain words. Free text such
- * as "kubectl/helm not allowed" is refused, so a note can never become an allow rule.
+ * A command value: a program (a plain name, or a ./path to a repo script) and then plain words. Free text such
+ * as "kubectl/helm not allowed" is refused, so a note can never become a rule.
  */
 export const commandLike = (v: string) => {
   const [first, ...rest] = v.trim().split(/\s+/);
   return /^(\.\/[\w./-]+|[A-Za-z0-9][\w.+-]*)$/.test(first ?? "") && rest.every((w) => /^[\w:./=@-]+$/.test(w));
 };
 
+/** The repo's default grill mode for new runs: "auto" (agents decide) or "me" (the user answers in the coordinator). */
 export function projectGrill(main: string): GrillMode {
   const v = readConfig(main).grill;
   return (GRILL_MODES as readonly string[]).includes(v) ? v : "auto";
@@ -96,17 +95,18 @@ export function settings(main: string, worktree = main) {
   }));
   const cap = projectCap(main);
   const deny = denyFloor(join(home, "deny-floor.json"));
-  const layers = [read(join(home, "SOURCES.md")), toolchainPreset(worktree), read(join(projectDir(main), "SOURCES.md"))];
+  const layers = [read(join(home, "SOURCES.md")), read(join(projectDir(main), "SOURCES.md"))];
+  const scripts = scriptDenies(worktree);
+  // Per phase: every deny rule an agent of that phase gets (the floor less this repo's lifts, the repo's own
+  // outside scripts, and the SOURCES `- deny:` entries), and what this repo lifted.
   const sources = Object.fromEntries(["grill", "verify", "exec"].map((phase) => {
-    const src = mergeSources(layers, [phase, "all"]);
     const forced = projectForced(main, phase);
-    const floor = effectiveDeny(deny, forced.flatMap((f) => f.lifts));
-    const allow = [...new Set([...allowRules(src), ...forced.map((f) => f.rule)])].filter((r) => !deniedBy(r, floor));
-    return [phase, { allow, mcp: [...new Set(src.mcp.map(mcpServerName))], forced }];
+    const all = [...new Set([...effectiveDeny(deny, forced.flatMap((f) => f.lifts)), ...scripts, ...denyRules(mergeSources(layers, [phase, "all"]))])];
+    return [phase, { deny: all, forced }];
   }));
-  // What this repo's SOURCES.md adds, per phase, so the dialog can offer "remove" on exactly those.
-  const projectParsed = parseSources(layers[2]);
-  const added = Object.fromEntries(["grill", "verify", "exec"].map((ph) => [ph, (projectParsed.get(ph) ?? []).filter((e) => !e.remove).map((e) => ({ key: e.key, value: e.value }))]));
+  // The deny entries this repo's SOURCES.md adds, per phase, so the dialog can offer "remove" on exactly those.
+  const projectParsed = parseSources(layers[1]);
+  const added = Object.fromEntries(["grill", "verify", "exec"].map((ph) => [ph, (projectParsed.get(ph) ?? []).filter((e) => !e.remove && e.key === "deny").map((e) => e.value)]));
   return {
     main,
     project: added,
@@ -115,6 +115,7 @@ export function settings(main: string, worktree = main) {
     grill: { value: projectGrill(main), from: readConfig(main).grill ? "project" : "default" },
     checks: { value: projectChecks(main), from: readConfig(main).checks ? "project" : "default" },
     sources,
+    scripts,
     deny,
     neverLift: NEVER_LIFT,
     files: { models: join(projectDir(main), "models.md"), sources: join(projectDir(main), "SOURCES.md"), config: join(projectDir(main), "config.json") },
@@ -144,7 +145,7 @@ export function setCap(main: string, n: number) {
 }
 
 /**
- * Force-allow one entry in one phase of this repo, even when the deny floor blocks it: the floor rules that
+ * "Lift for this repo": let one entry the deny floor blocks run in one phase of this repo. The floor rules that
  * block it are lifted for this repo and phase only. Refused for the rules in NEVER_LIFT.
  */
 export function force(main: string, phase: string, key: string, value: string): Forced {
@@ -153,10 +154,11 @@ export function force(main: string, phase: string, key: string, value: string): 
   if (!["tools", "bash", "mcp"].includes(key)) throw new Refused("force works for tools, bash, or mcp");
   if (!v || v.includes(",") || v.includes("\n")) throw new Refused("give one value, with no comma");
   if (key === "bash" && !commandLike(v)) throw new Refused(`"${v}" is not a command prefix: give a program and its subcommands`);
-  const rule = ruleFor(key as Key, v)!;
+  const rule = ruleFor(key, v)!;
   const lifts = blockersOf(rule, denyFloor(join(forgeHome(), "deny-floor.json")));
   const locked = lifts.filter((r) => NEVER_LIFT.includes(r));
   if (locked.length) throw new Refused(`${v} is blocked by ${locked.join(", ")}, which a repo can never lift`);
+  if (!lifts.length) throw new Refused(`${v} is not denied by the deny floor: there is nothing to lift`);
   const cur = readConfig(main);
   const list: Forced[] = projectForced(main, phase).filter((f) => f.rule !== rule);
   const entry = { key, value: v, rule, lifts };
@@ -164,66 +166,62 @@ export function force(main: string, phase: string, key: string, value: string): 
   return entry;
 }
 
-/** Remove one force-allowed entry from a phase (its lifted floor rules apply again). */
+/** Remove one lifted entry from a phase (its floor rules apply again). */
 export function unforce(main: string, phase: string, key: string, value: string) {
   const cur = readConfig(main);
-  const rule = ruleFor(key as Key, value.trim());
+  const rule = ruleFor(key, value.trim());
   const list = projectForced(main, phase).filter((f) => f.rule !== rule);
   writeConfig(main, { ...cur, force: { ...(cur.force ?? {}), [phase]: list } });
 }
 
 const PHASES = ["grill", "verify", "exec"];
-const ADD_KEYS: Key[] = ["tools", "bash", "mcp", "read", "write"];
 
-function ruleFor(key: Key, value: string): string | null {
+function ruleFor(key: string, value: string): string | null {
   return key === "bash" ? `Bash(${value}:*)` : key === "tools" ? value : key === "mcp" ? `mcp__${toolPrefix(mcpServerName(value))}` : null;
 }
 
-/**
- * Add one allowed entry to a phase in the project SOURCES.md (`- key: value` under `## <phase>`).
- * Refused when the deny floor blocks it (it would never apply) or an MCP server is unknown.
- */
-export function allow(main: string, phase: string, key: string, value: string) {
+/** A deny value: a command prefix, a tool rule (`WebFetch`, `Edit(path)`, `mcp__server`), or a claude.ai connector name. */
+const denyLike = (v: string) => commandLike(v) || /^mcp__[\w-]+$/.test(v) || /^[A-Z][A-Za-z]*(\(.+\))?$/.test(v) || /^claude[._]ai[ _][\w .-]+$/i.test(v);
+
+/** The `## <phase>` section of the project SOURCES.md: its line index and the index after its last line. */
+function section(lines: string[], phase: string): { at: number; end: number } {
+  const at = lines.findIndex((l) => l.trim().toLowerCase() === `## ${phase}`);
+  let end = at + 1;
+  while (at >= 0 && end < lines.length && !lines[end].startsWith("## ")) end++;
+  return { at, end };
+}
+
+/** Deny one more command (or tool) for agents of one phase in this repo: `- deny: value` under `## <phase>`. */
+export function deny(main: string, phase: string, value: string) {
   const v = value.trim();
   if (!PHASES.includes(phase)) throw new Refused(`phase must be grill, verify, or exec, not "${phase}"`);
-  if (!(ADD_KEYS as string[]).includes(key)) throw new Refused(`key must be one of ${ADD_KEYS.join(", ")}`);
   if (!v || v.includes(",") || v.includes("\n")) throw new Refused("give one value, with no comma");
-  if (key === "bash" && !commandLike(v)) throw new Refused(`"${v}" is not a command prefix: give a program and its subcommands, like "kubectl get pods" or "./scripts/gen.sh"`);
-  const rule = ruleFor(key as Key, v);
-  if (rule && deniedBy(rule, denyFloor(join(forgeHome(), "deny-floor.json")))) throw new Refused(`${v} is blocked by the deny floor, so it would never apply`);
-  if (key === "mcp" && isConnector(mcpServerName(v))) findConnector(mcpServerName(v));
-  else if (key === "mcp") {
-    const registry = JSON.parse(read(process.env.FORGE_MCP_REGISTRY ?? join(homedir(), ".claude", "mcp-servers.json")) || "{}").mcpServers ?? {};
-    if (!registry[mcpServerName(v)]) throw new Refused(`MCP server "${mcpServerName(v)}" is not in ~/.claude/mcp-servers.json`);
-  }
+  if (!denyLike(v)) throw new Refused(`"${v}" is not a command prefix or a tool: give a program and its subcommands, like "kubectl delete"`);
   const f = ensureProjectSources(main);
   const lines = read(f).split("\n");
-  const entry = `- ${key}: ${v}`;
-  let at = lines.findIndex((l) => l.trim().toLowerCase() === `## ${phase}`);
+  const entry = `- deny: ${v}`;
+  let { at, end } = section(lines, phase);
   if (at < 0) {
     lines.push("", `## ${phase}`);
     at = lines.length - 1;
+    end = lines.length;
   }
-  let end = at + 1;
-  while (end < lines.length && !lines[end].startsWith("## ")) end++;
-  if (lines.slice(at + 1, end).some((l) => l.trim() === entry)) return;
+  if (lines.slice(at + 1, end).some((l) => l.trim() === entry)) return denyRule(v);
   let insert = end;
   while (insert > at + 1 && lines[insert - 1].trim() === "") insert--;
   lines.splice(insert, 0, entry);
   writeFileSync(f, lines.join("\n").replace(/\n*$/, "\n"));
+  return denyRule(v);
 }
 
-/** Remove one entry this repo added to a phase (the defaults are never changed here). */
-export function disallow(main: string, phase: string, key: string, value: string) {
+/** Remove one deny entry this repo added to a phase (the defaults are never changed here). */
+export function undeny(main: string, phase: string, value: string) {
   const f = join(projectDir(main), "SOURCES.md");
   if (!existsSync(f)) return;
   const lines = read(f).split("\n");
-  const at = lines.findIndex((l) => l.trim().toLowerCase() === `## ${phase}`);
+  const { at, end } = section(lines, phase);
   if (at < 0) return;
-  let end = at + 1;
-  while (end < lines.length && !lines[end].startsWith("## ")) end++;
-  const entry = `- ${key}: ${value.trim()}`;
-  const i = lines.slice(at + 1, end).findIndex((l) => l.trim() === entry);
+  const i = lines.slice(at + 1, end).findIndex((l) => l.trim() === `- deny: ${value.trim()}`);
   if (i >= 0) lines.splice(at + 1 + i, 1);
   writeFileSync(f, lines.join("\n"));
 }
@@ -233,7 +231,7 @@ export function ensureProjectSources(main: string): string {
   const f = join(projectDir(main), "SOURCES.md");
   if (!existsSync(f)) {
     mkdirSync(projectDir(main), { recursive: true });
-    writeFileSync(f, "# SOURCES (project override)\n\nAdds to ~/.config/forge/SOURCES.md. `- !key: a` removes an entry. The deny floor always wins.\n\n## grill\n\n## exec\n");
+    writeFileSync(f, "# SOURCES (project override)\n\nAdds to ~/.config/forge/SOURCES.md. Agents run every command that is not denied.\n`- deny: kubectl delete` denies a command prefix for a phase; `- !deny: a` removes an entry.\n\n## grill\n\n## exec\n");
   }
   return f;
 }

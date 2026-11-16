@@ -12,7 +12,7 @@ import { approve, assertClean, coordinators, decide, followup, reconcile, remove
 import { registerExisting, rename, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { knownServers } from "./mcp";
-import { allow, disallow, ensureProjectSources, force, MODELS, projectCap, projectChecks, projectGrill, setCap, setModels, setRunDefault, settings, unforce } from "./config";
+import { deny, ensureProjectSources, force, MODELS, projectCap, projectChecks, projectGrill, setCap, setModels, setRunDefault, settings, undeny, unforce } from "./config";
 import { addRepos, branchRepos, reposWithHead } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
@@ -38,12 +38,12 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
-  forge allowed <node> "<command>"           whether that node's agent may run the command now (allow list and deny floor)
+  forge allowed <node> "<command>"           whether that node's agent may run the command now (true unless a deny rule covers it)
   forge chat [--open [--message <text>]] [--run <dir>]
                                               your own claude in the run's worktree, with the run as context
                                               (--open: in its own hc terminal, printed as JSON; --message: its next prompt)
   forge rename <title> [--run <dir>]          the title the run shows in lists
-  forge checks [--repo <name>] [--run <dir>]  the repo's allowed test, typecheck, lint, and build commands (agents use only these)
+  forge checks [--repo <name>] [--run <dir>]  the repo's test, typecheck, lint, and build commands
   forge doctor [--main <dir>] [--repo <name>]... [--run <dir>]
                                               can agents work here: programs on their PATH, gh login, docker (exit 1 when not)
   forge lesson <text> [--run <dir>] | forge lessons [--main <dir>]
@@ -51,14 +51,15 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge history [--run <dir>]                 every cycle: why it opened, where it came from, its nodes' final state
   forge remove --run <dir> [--purge]          end its agents and chat, take it off the list, remove the worktrees forge made
                                               (branches and the .forge/tickets folder stay; --purge deletes the folder too)
-  forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
+  forge settings [--main <dir>]               models, cap, denied commands per phase, deny floor (default or project)
   forge config model <role>=<${MODELS.join("|")}|default>... | forge config cap <1-8> [--main <dir>]
   forge config grill auto|me | forge config checks full|light|off [--main <dir>]   the defaults for new runs
   forge config sources-file [--main <dir>]    the project SOURCES.md path (created when missing)
-  forge config allow|disallow <phase> <tools|bash|mcp|read|write> <value> [--main <dir>]
+  forge config deny|undeny <phase> <command|tool> [--main <dir>]
+                                              add or remove one denied command for this repo or workspace
+                                              (agents run in bypass mode: everything not denied runs)
+  forge config force|unforce <phase> <tools|bash|mcp> <value> [--main <dir>]   lift a deny floor rule (this repo only)
   forge mcp list [--refresh]                  MCP servers Claude Code knows here, claude.ai connectors marked
-  forge config force|unforce <phase> <tools|bash|mcp> <value> [--main <dir>]   allow past the deny floor (this repo only)
-                                              add or remove one allowed entry for this repo or workspace
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
   forge runs                                  every registered run on this machine, as JSON
   forge register                              add a run made before the registry existed
@@ -276,12 +277,12 @@ export async function main(argv: string[]): Promise<number> {
         if (what === "model" && vals.length) setModels(main, vals);
         else if (what === "cap" && vals.length === 1) setCap(main, Number(vals[0]));
         else if ((what === "grill" || what === "checks") && vals.length === 1) setRunDefault(main, what, vals[0]);
-        else if ((what === "allow" || what === "disallow") && vals.length >= 3) (what === "allow" ? allow : disallow)(main, vals[0], vals[1], vals.slice(2).join(" "));
+        else if ((what === "deny" || what === "undeny") && vals.length >= 2) (what === "deny" ? deny : undeny)(main, vals[0], vals.slice(1).join(" "));
         else if ((what === "force" || what === "unforce") && vals.length >= 3) (what === "force" ? force : unforce)(main, vals[0], vals[1], vals.slice(2).join(" "));
         else if (what === "sources-file" && !vals.length) {
           print({ file: ensureProjectSources(main) });
           return 0;
-        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config grill auto|me | forge config checks full|light|off | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
+        } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config grill auto|me | forge config checks full|light|off | forge config deny|undeny <phase> <command> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
         print(settings(main));
         return 0;
       }

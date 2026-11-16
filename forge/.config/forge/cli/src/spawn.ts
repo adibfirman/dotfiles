@@ -7,9 +7,8 @@ import { appendEvent, loadState, readLines, Refused, withLock, type Run } from "
 import { startBlock } from "./events";
 import { refsIndexPath } from "./refs";
 import { isWorkspace, repoWorktree } from "./repos";
-import { allowRules, deniedBy, denyFloor, effectiveDeny, expandPath, forgeHome, mcpServerName, mergeSources, modelFor, toolchainPreset } from "./sources";
+import { deniedBy, denyFloor, denyRules, effectiveDeny, expandPath, forgeHome, mergeSources, modelFor, scriptDenies } from "./sources";
 import { projectForced } from "./config";
-import { findConnector, isConnector, knownServers, toolPrefix } from "./mcp";
 import { agentPath } from "./env";
 import { lessonsFile } from "./checks";
 
@@ -80,37 +79,39 @@ function promptFile(home: string, role: string, spawnDir: string, id: string): s
 export interface ClaudeCommand { args: string[]; model: string; mcpConfig: string; outDir: string }
 
 /**
- * The claude argv for one agent: SOURCES layers + toolchain preset + deny floor, role prompt, model.
- * A node writes only its phase folder; a coordinator writes the whole cycle folder. The run's state
- * files (events, queue, HEAD, run.json) are never writable.
+ * The deny rules an agent of this role and phase gets in this folder (no files written). Agents run in bypass
+ * mode: everything not denied runs. Deny = the floor minus what this repo lifted for the phase (never NEVER_LIFT),
+ * plus HARD_DENY, the repo's own scripts that reach outside, and the `- deny:` entries of the SOURCES layers.
  */
-/** The allow and deny rules an agent of this role and phase gets in this folder (no files written). */
 export function toolRules(run: Run, phase: string, role: string, cwd = run.worktree) {
   const home = forgeHome();
   const sections = [phase, "all", ...(isCoordinator(role) ? ["coordinator"] : []), role];
-  const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(cwd), read(join(run.main, ".forge", "SOURCES.md"))], sections);
+  const src = mergeSources([read(join(home, "SOURCES.md")), read(join(run.main, ".forge", "SOURCES.md"))], sections);
   const forced = projectForced(run.main, phase);
-  const deny = effectiveDeny(denyFloor(join(home, "deny-floor.json")), forced.flatMap((f) => f.lifts));
-  const allow = [...new Set([...allowRules(src), ...forced.map((f) => f.rule)])].filter((r) => !deniedBy(r, deny));
-  return { allow, deny };
+  const floor = effectiveDeny(denyFloor(join(home, "deny-floor.json")), forced.flatMap((f) => f.lifts));
+  const deny = [...new Set([...floor, ...scriptDenies(cwd), ...denyRules(src)])];
+  return { deny, src };
 }
 
 /**
- * Whether a node's agent may run one shell command now: on its allow list (a Bash rule whose command it
- * starts with) and not denied. A coordinator checks this before it treats a "needs <tool>" node as blocked.
+ * Whether a node's agent may run one shell command now: true unless a deny rule covers it. A coordinator checks
+ * this before it treats a "needs <tool>" node as blocked (the user may have lifted the rule since).
  */
 export function allowedFor(run: Run, nodeId: string, command: string) {
   const { state } = loadState(run);
   const node = state.nodes.get(nodeId);
   if (!node) throw new Refused(`unknown node ${nodeId}`);
   const cwd = node.repo ? repoWorktree(run, node.repo) ?? run.worktree : run.worktree;
-  const { allow, deny } = toolRules(run, node.phase, node.role ?? "unit", cwd);
+  const { deny } = toolRules(run, node.phase, node.role ?? "unit", cwd);
   const cmd = command.trim().replace(/\s+/g, " ");
-  const body = (r: string) => /^Bash\((.*?)(?::\*)?\)$/.exec(r)?.[1];
-  const covers = (r: string) => { const b = body(r); return b !== undefined && (cmd === b || cmd.startsWith(b + " ")); };
-  const denied = deny.find(covers);
-  const rule = allow.find(covers);
-  return { node: nodeId, command: cmd, allowed: Boolean(rule) && !denied, ...(rule ? { rule } : {}), ...(denied ? { deniedBy: denied } : {}) };
+  const denied = deny.find((d) => deniedBy(`Bash(${cmd}:*)`, [d]));
+  return { node: nodeId, command: cmd, allowed: !denied, ...(denied ? { deniedBy: denied } : {}) };
+}
+
+/** Every MCP server in ~/.claude/mcp-servers.json: agents load all of them (and the claude.ai connectors). */
+function mcpRegistry(): Record<string, unknown> {
+  const file = process.env.FORGE_MCP_REGISTRY ?? join(homedir(), ".claude", "mcp-servers.json");
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")).mcpServers ?? {} : {};
 }
 
 export function claudeArgs(run: Run, phase: string, role: string, id: string, cycleDir: string, cwd = run.worktree): ClaudeCommand {
@@ -118,71 +119,37 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   const spawnDir = join(cycleDir, ".spawn");
   mkdirSync(spawnDir, { recursive: true });
   const prompt = promptFile(home, role, spawnDir, id);
-  const sections = [phase, "all", ...(isCoordinator(role) ? ["coordinator"] : []), role];
-  const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(cwd), read(join(run.main, ".forge", "SOURCES.md"))], sections);
-  // SOURCES layers, the repo's toolchain, and its force-allowed entries (which lift floor rules, never the
-  // NEVER_LIFT ones; HARD_DENY is always added). The same rules `forge allowed` checks.
-  const rules = toolRules(run, phase, role, cwd);
-  const deny = rules.deny;
+  const { deny: rules, src } = toolRules(run, phase, role, cwd);
 
   const outDir = isCoordinator(role) ? cycleDir : join(cycleDir, phase);
   mkdirSync(outDir, { recursive: true });
-  // Edit(path) rules cover every file tool, Write included; Write(path) rules are not matched.
-  const allow = [...rules.allow, `Read(${abs(join(run.dir, "**"))})`, `Edit(${abs(join(outDir, "**"))})`];
   const stateDeny = ["**/events.jsonl", "**/queue.jsonl", "run.json", "HEAD"].map((f) => `Edit(${abs(join(run.dir, f))})`);
+  const deny = [...rules, ...stateDeny];
 
-  const registryFile = process.env.FORGE_MCP_REGISTRY ?? join(homedir(), ".claude", "mcp-servers.json");
-  const registry = existsSync(registryFile) ? JSON.parse(readFileSync(registryFile, "utf8")).mcpServers ?? {} : {};
-  const servers: Record<string, unknown> = {};
-  const connectors: string[] = [];
-  for (const name of new Set(src.mcp.map(mcpServerName))) {
-    if (isConnector(name)) {
-      connectors.push(name);
-      continue;
-    }
-    if (!registry[name]) throw new Refused(`SOURCES names MCP server "${name}", which is not in ${registryFile}`);
-    servers[name] = registry[name];
-  }
-  // claude.ai connectors only load without --strict-mcp-config. Then every other server Claude Code knows here
-  // (yours and the other connectors) is denied by name, so the agent still gets only what SOURCES gives it.
-  let mcpDeny: string[] = [];
-  if (connectors.length) {
-    // The repo's own .mcp.json servers are not in the cached list (it is not per folder): deny them too.
-    const local = existsSync(join(cwd, ".mcp.json")) ? Object.keys(JSON.parse(readFileSync(join(cwd, ".mcp.json"), "utf8")).mcpServers ?? {}) : [];
-    const known = [...knownServers(), ...local.map((name) => ({ name, prefix: toolPrefix(name), connector: false }))];
-    const wanted = new Set([...connectors.map((c) => findConnector(c, known).prefix), ...Object.keys(servers).map(toolPrefix)]);
-    mcpDeny = known.filter((s) => !wanted.has(s.prefix)).map((s) => `mcp__${s.prefix}`);
-  }
+  // No --strict-mcp-config: the claude.ai connectors load too. The floor denies the ones that post or write.
   const mcpConfig = join(spawnDir, `${id}-mcp.json`);
-  writeFileSync(mcpConfig, JSON.stringify({ mcpServers: servers }, null, 2) + "\n");
+  writeFileSync(mcpConfig, JSON.stringify({ mcpServers: mcpRegistry() }, null, 2) + "\n");
 
-  const dirs = [...new Set([outDir, ...[...src.read, ...src.write].map((p) => expandPath(p, cwd))])].filter((d) => d !== cwd);
+  const dirs = [...new Set([run.dir, outDir, ...[...src.read, ...src.write].map((p) => expandPath(p, cwd))])].filter((d) => d !== cwd);
   const model = modelFor(role, [read(join(home, "models.md")), read(join(run.main, ".forge", "models.md"))]);
 
-  // Deny floor + the run address for the agent's shell (forge commands find the run with it).
-  // An env wrapper would hide claude from hc, which then shows no agent status.
   const settings = join(spawnDir, `${id}-settings.json`);
-  // hc terminals start with a short PATH, and a caller started from Herdr has a short one too: the login shell's.
   const path = agentPath();
-  // No co-author trailer: commits follow the repo's own format (tested: the attribution keys turn it off).
   writeFileSync(settings, JSON.stringify({
-    permissions: { deny: [...deny, ...mcpDeny] },
+    permissions: { deny, defaultMode: "bypassPermissions" },
+    skipDangerousModePermissionPrompt: true,
+    enableAllProjectMcpServers: true,
     attribution: { commit: "", pr: "" }, includeCoAuthoredBy: false,
-    // Under $HOME, Claude also reads ~/.claude/CLAUDE.md as a parent folder's project file, so agents would get
-    // the user's own global rules (and an import dialog nobody answers). The repo's own CLAUDE.md still loads.
     claudeMdExcludes: [join(homedir(), ".claude", "**"), join(homedir(), "CLAUDE.md"), join(homedir(), "CLAUDE.local.md")],
     env: { FORGE_RUN: run.dir, FORGE_NODE: id, PATH: path },
   }, null, 2) + "\n");
 
-  // Variadic flags (--allowedTools, --disallowedTools, --add-dir) are always followed by another flag,
-  // so they never swallow the task text at the end.
   const args = [
     "--setting-sources", "project",
-    ...(connectors.length ? [] : ["--strict-mcp-config"]), "--mcp-config", mcpConfig,
-    "--allowedTools", ...allow,
-    "--disallowedTools", ...deny, ...mcpDeny, ...stateDeny,
+    "--mcp-config", mcpConfig,
+    "--disallowedTools", ...deny,
     "--add-dir", ...dirs,
-    "--permission-mode", "dontAsk",
+    "--permission-mode", "bypassPermissions",
     "--settings", settings,
     "--plugin-dir", skillsPlugin(home),
     "--append-system-prompt-file", prompt,
@@ -202,6 +169,11 @@ function acceptTrust(terminal: string): boolean {
     const screen = hc(["read", "--lines", "0", terminal]).out;
     if (/Yes, I trust this folder/.test(screen)) return hc(["keys", terminal, "down", "enter"]).code === 0;
     // A project CLAUDE.md that imports outside files asks first; its default ("No, disable external imports") is the safe answer.
+    // Bypass mode asks once to accept it when the setting that skips the question is not loaded: "Yes, I accept".
+    if (/Yes, I accept/.test(screen)) {
+      hc(["keys", terminal, "down", "enter"]);
+      continue;
+    }
     if (/Allow external CLAUDE\.md file imports/.test(screen)) {
       hc(["keys", terminal, "enter"]);
       continue;

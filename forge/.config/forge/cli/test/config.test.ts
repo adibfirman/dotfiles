@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadState } from "../src/append";
-import { allow, disallow, force, settings, setCap, setModels, unforce } from "../src/config";
+import { deny, force, settings, setCap, setModels, undeny, unforce } from "../src/config";
 import { claudeArgs } from "../src/spawn";
 import { currentCycleDir } from "../src/append";
 import { add, setup, toExec } from "./helpers";
@@ -13,7 +13,7 @@ test("settings: defaults, then project overrides marked as project", () => {
   expect(s.models["grill-coord"]).toEqual({ value: "opus", from: "default" });
   expect(s.models["unit"]).toEqual({ value: "sonnet", from: "default" });
   expect(s.cap).toEqual({ value: 4, from: "default" });
-  expect(s.sources.grill.allow).toContain("Bash(git log:*)");
+  expect(s.sources.grill.deny).toContain("Bash(git push:*)");
   setModels(env.repo, ["unit=opus", "grill-coord=haiku"]);
   setCap(env.repo, 2);
   s = settings(env.repo);
@@ -24,22 +24,22 @@ test("settings: defaults, then project overrides marked as project", () => {
   expect(readFileSync(join(env.repo, ".forge", "models.md"), "utf8")).toContain("- grill-coord: haiku");
 });
 
-test("allow and disallow: project entries per phase, deny floor and unknown MCP refused", () => {
+test("deny and undeny: project entries per phase; notes and bad phases refused", () => {
   const env = setup();
-  allow(env.repo, "exec", "bash", "pnpm lint");
-  allow(env.repo, "exec", "bash", "pnpm lint"); // no duplicate
-  allow(env.repo, "grill", "mcp", "context7");
+  expect(deny(env.repo, "exec", "kubectl delete")).toBe("Bash(kubectl delete:*)");
+  deny(env.repo, "exec", "kubectl delete"); // no duplicate
+  deny(env.repo, "grill", "claude.ai Sentry");
   let s = settings(env.repo);
-  expect(s.project.exec).toEqual([{ key: "bash", value: "pnpm lint" }]);
-  expect(s.sources.exec.allow).toContain("Bash(pnpm lint:*)");
-  expect(s.sources.grill.mcp).toContain("context7");
-  expect(() => allow(env.repo, "exec", "bash", "git push --force")).toThrow(/blocked by the deny floor/);
-  expect(() => allow(env.repo, "grill", "mcp", "nope")).toThrow(/not in ~\/.claude\/mcp-servers.json/);
-  expect(() => allow(env.repo, "deploy", "bash", "x")).toThrow(/phase must be/);
-  disallow(env.repo, "exec", "bash", "pnpm lint");
+  expect(s.project.exec).toEqual(["kubectl delete"]);
+  expect(s.sources.exec.deny).toContain("Bash(kubectl delete:*)");
+  expect(s.sources.grill.deny).toContain("mcp__claude_ai_Sentry");
+  expect(s.sources.grill.deny).not.toContain("Bash(kubectl delete:*)");
+  expect(() => deny(env.repo, "exec", "kubectl/helm not allowed")).toThrow(/not a command prefix/);
+  expect(() => deny(env.repo, "deploy", "x")).toThrow(/phase must be/);
+  undeny(env.repo, "exec", "kubectl delete");
   s = settings(env.repo);
   expect(s.project.exec).toEqual([]);
-  expect(s.sources.exec.allow).not.toContain("Bash(pnpm lint:*)");
+  expect(s.sources.exec.deny).not.toContain("Bash(kubectl delete:*)");
 });
 
 test("bad values are refused", () => {
@@ -59,21 +59,19 @@ test("the project cap applies from the next cycle", () => {
   expect(loadState(env.run).state.cap).toBe(2);
 });
 
-test("force: lifts the floor rule for this repo and phase only; never-lift rules refused; force push stays denied", () => {
+test("force (Lift for this repo): lifts the floor rule for this repo and phase only; never-lift rules refused; force push stays denied", () => {
   const env = setup();
   const run = env.run;
-  expect(() => allow(env.repo, "exec", "bash", "git push")).toThrow("deny floor");
+  expect(() => force(env.repo, "exec", "bash", "pnpm lint")).toThrow("nothing to lift");
   const f = force(env.repo, "exec", "bash", "git push");
   expect(f).toEqual({ key: "bash", value: "git push", rule: "Bash(git push:*)", lifts: ["Bash(git push:*)"] });
   const s = settings(env.repo);
-  expect(s.sources.exec.allow).toContain("Bash(git push:*)");
-  expect(s.sources.grill.allow).not.toContain("Bash(git push:*)");
+  expect(s.sources.exec.deny).not.toContain("Bash(git push:*)");
+  expect(s.sources.grill.deny).toContain("Bash(git push:*)");
   expect(s.sources.exec.forced).toHaveLength(1);
 
   const { args } = claudeArgs(run, "exec", "unit", "u1", currentCycleDir(run));
-  const allowed = args.slice(args.indexOf("--allowedTools") + 1, args.indexOf("--disallowedTools"));
   const denied = args.slice(args.indexOf("--disallowedTools") + 1, args.indexOf("--add-dir"));
-  expect(allowed).toContain("Bash(git push:*)");
   expect(denied).not.toContain("Bash(git push:*)");
   expect(denied).toContain("Bash(git push --force:*)");
   const settingsFile = JSON.parse(readFileSync(args[args.indexOf("--settings") + 1], "utf8"));
@@ -84,5 +82,5 @@ test("force: lifts the floor rule for this repo and phase only; never-lift rules
 
   expect(() => force(env.repo, "exec", "tools", "Edit(~/.claude/**)")).toThrow("never lift");
   unforce(env.repo, "exec", "bash", "git push");
-  expect(settings(env.repo).sources.exec.allow).not.toContain("Bash(git push:*)");
+  expect(settings(env.repo).sources.exec.deny).toContain("Bash(git push:*)");
 });

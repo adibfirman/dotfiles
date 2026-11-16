@@ -1,29 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
 import { currentCycleDir } from "../src/append";
-import { allowRules, deniedBy, mergeSources, modelFor, parseSources, safeScript, toolchainPreset } from "../src/sources";
+import { deniedBy, denyRule, denyRules, mergeSources, modelFor, parseSources, safeScript, scriptDenies } from "../src/sources";
 import { claudeArgs } from "../src/spawn";
 import { setup } from "./helpers";
 
 describe("SOURCES layers", () => {
-  test("sections, comments, and removal across layers", () => {
-    const base = "## all\n- tools: Read, Grep\n## grill, verify (read only)\n- bash: git log, gh pr view\n";
-    const project = "## grill\n- !bash: gh pr view\n- bash: gh issue view\n";
+  test("deny entries per section, removal across layers; the old allow keys are ignored", () => {
+    const base = "## all\n- deny: git stash\n- tools: Read\n## grill, verify (read only)\n- deny: git commit, gh pr view\n- bash: git log\n";
+    const project = "## grill\n- !deny: gh pr view\n- deny: kubectl delete\n- mcp: context7\n";
     const src = mergeSources([base, project], ["grill", "all"]);
-    expect(src.tools).toEqual(["Read", "Grep"]);
-    expect(src.bash).toEqual(["git log", "gh issue view"]);
-    expect(mergeSources([base, project], ["verify"]).bash).toEqual(["git log", "gh pr view"]);
+    expect(src.deny).toEqual(["git commit", "git stash", "kubectl delete"]);
+    expect(mergeSources([base, project], ["verify"]).deny).toEqual(["git commit", "gh pr view"]);
+    expect(Object.keys(src)).toEqual(["deny", "read", "write"]);
   });
 
   test("an unknown key is refused", () => {
     expect(() => parseSources("## all\n- tool: Read\n")).toThrow(/unknown key "tool"/);
   });
 
-  test("MCP entries become server or tool rules", () => {
-    const src = mergeSources(["## all\n- mcp: context7, sentry(search_issues get_issue_details)\n- bash: git log\n"], ["all"]);
-    expect(allowRules(src)).toEqual(["Bash(git log:*)", "mcp__context7", "mcp__sentry__search_issues", "mcp__sentry__get_issue_details"]);
+  test("deny values: command prefixes, tool rules, MCP servers, and connectors by name", () => {
+    expect(["kubectl delete", "WebFetch", "Edit(/x/**)", "mcp__sentry", "claude.ai Sentry", "./scripts/x.sh"].map(denyRule))
+      .toEqual(["Bash(kubectl delete:*)", "WebFetch", "Edit(/x/**)", "mcp__sentry", "mcp__claude_ai_Sentry", "Bash(./scripts/x.sh:*)"]);
+    expect(denyRules(mergeSources(["## all\n- deny: gcloud run deploy\n"], ["all"]))).toEqual(["Bash(gcloud run deploy:*)"]);
   });
 });
 
@@ -37,83 +37,37 @@ describe("deny floor", () => {
     expect(deniedBy("Bash(git log:*)", deny)).toBe(false);
   });
 
-  test("a SOURCES entry cannot unlock a deny floor entry", () => {
-    const { run } = setup({ sources: "## exec\n- bash: git push, git commit\n" });
+  test("agents get the floor, HARD_DENY, and the SOURCES denies; no allow list", () => {
+    const { run } = setup({ sources: "## exec\n- deny: kubectl delete\n- bash: git push\n" });
     const { args } = claudeArgs(run, "exec", "unit", "u1", currentCycleDir(run));
-    const allowed = args.slice(args.indexOf("--allowedTools") + 1, args.indexOf("--disallowedTools"));
-    expect(allowed).toContain("Bash(git commit:*)");
-    expect(allowed).not.toContain("Bash(git push:*)");
-    expect(args).toContain("Bash(git push:*)");
+    expect(args).not.toContain("--allowedTools");
+    const denied = args.slice(args.indexOf("--disallowedTools") + 1, args.indexOf("--add-dir"));
+    expect(denied).toEqual(expect.arrayContaining(["Bash(git push:*)", "Bash(git push --force:*)", "Bash(kubectl delete:*)"]));
   });
 });
 
-describe("toolchain preset", () => {
-  test("bun scripts", () => {
-    const { root } = setup();
-    const dir = join(root, "bunrepo");
-    mkdirSync(dir);
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { lint: "x", typecheck: "y" } }));
-    writeFileSync(join(dir, "bun.lock"), "");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: bun run lint, bun run typecheck, bun lint, bun typecheck, bun install, bun test, npx tsc --noEmit\n");
-  });
-
-  test("go module", () => {
-    const { root } = setup();
-    const dir = join(root, "gorepo");
-    mkdirSync(dir);
-    writeFileSync(join(dir, "go.mod"), "module x\n");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: go build, go vet, go test, go generate, go mod download, go mod tidy, gofmt\n");
-  });
-
-  test("test files with no package.json: the plain test runners", () => {
-    const { repo } = setup();
-    mkdirSync(join(repo, "mods", "x", "test"), { recursive: true });
-    writeFileSync(join(repo, "mods", "x", "test", "a.test.mjs"), "");
-    spawnSync("git", ["add", "."], { cwd: repo });
-    expect(toolchainPreset(repo)).toBe("## exec\n- bash: node --test, bun test\n");
-  });
-
-  test("test files in a bun repo: bun test is not added twice", () => {
-    const { repo } = setup();
-    writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: {} }));
-    writeFileSync(join(repo, "bun.lock"), "");
-    writeFileSync(join(repo, "a.test.ts"), "");
-    spawnSync("git", ["add", "."], { cwd: repo });
-    expect(toolchainPreset(repo)).toBe("## exec\n- bash: bun install, bun test, npx tsc --noEmit\n- bash: node --test\n");
-  });
-
-  test("pnpm: the short script form and install; npm: ci, and no short form", () => {
-    const { root } = setup();
-    const dir = join(root, "pnpmrepo");
-    mkdirSync(dir);
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { lint: "x" } }));
-    writeFileSync(join(dir, "pnpm-lock.yaml"), "");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: pnpm run lint, pnpm lint, pnpm install, pnpm test, npx tsc --noEmit\n");
-    const npm = join(root, "npmrepo");
-    mkdirSync(npm);
-    writeFileSync(join(npm, "package.json"), JSON.stringify({ scripts: { lint: "x" } }));
-    expect(toolchainPreset(npm)).toBe("## exec\n- bash: npm run lint, npm install, npm ci, npm test, npx tsc --noEmit\n");
-  });
-
-  test("repo scripts and make targets: build and check names only, never ones that reach outside", () => {
+describe("repo scripts that reach outside", () => {
+  test("package scripts, script files, and make targets with an outside word are denied; checks are not", () => {
     const { root } = setup();
     const dir = join(root, "scripted");
-    mkdirSync(join(dir, "script"), { recursive: true });
-    for (const name of ["gen", "check-coverage.sh", "trigger_setup_dev.py", "deploy.sh", "gen-user-insert.sh", "notes.txt"]) {
-      writeFileSync(join(dir, "script", name), "#!/bin/sh\n");
-      if (name !== "notes.txt") chmodSync(join(dir, "script", name), 0o755);
-    }
-    writeFileSync(join(dir, "Makefile"), "test:\n\tgo test\nbuild:\n\tgo build\ndeploy-prod:\n\tx\nVAR:=1\n");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: ./script/check-coverage.sh, ./script/gen, make test, make build\n");
-    writeFileSync(join(dir, "script", "Dockerfile.codegen"), "FROM x\n");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: ./script/check-coverage.sh, ./script/gen, docker build, make test, make build\n");
+    mkdirSync(join(dir, "scripts"), { recursive: true });
+    for (const name of ["gen", "check-coverage.sh", "trigger_setup_dev.py", "deploy.sh"]) writeFileSync(join(dir, "scripts", name), "#!/bin/sh\n");
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { test: "x", "db:migrate": "y", "build:prod": "z" } }));
+    writeFileSync(join(dir, "Makefile"), "test:\n\tgo test\ndeploy-prod:\n\tx\nVAR:=1\n");
+    const d = scriptDenies(dir);
+    expect(d).toEqual(expect.arrayContaining([
+      "Bash(pnpm db:migrate:*)", "Bash(npm run db:migrate:*)", "Bash(pnpm run build:prod:*)",
+      "Bash(./scripts/deploy.sh:*)", "Bash(scripts/deploy.sh:*)", "Bash(bash scripts/deploy.sh:*)", "Bash(python3 scripts/trigger_setup_dev.py:*)",
+      "Bash(make deploy-prod:*)",
+    ]));
+    expect(d.some((r) => /gen|coverage|make test|pnpm test|npm run test/.test(r))).toBe(false);
     expect(safeScript("gen-proto.sh")).toBe(true);
     expect(safeScript("trigger_setup_dev.py")).toBe(false);
   });
 
-  test("nothing to add", () => {
+  test("nothing to deny", () => {
     const { repo } = setup();
-    expect(toolchainPreset(repo)).toBe("");
+    expect(scriptDenies(repo)).toEqual([]);
   });
 });
 
@@ -127,19 +81,23 @@ describe("models", () => {
 });
 
 describe("claude argv", () => {
-  test("flags, MCP config, state protection, and the order before the task", () => {
-    const { run } = setup({ sources: "## grill\n- mcp: context7\n- read: ~/.claude/plans\n" });
+  test("bypass mode, every registry MCP server, state protection, and the order before the task", () => {
+    const { run } = setup({ sources: "## grill\n- read: ~/.claude/plans\n", registry: { context7: { command: "c7" }, fff: { command: "fff" } } });
     const cycleDir = currentCycleDir(run);
     const { args, model } = claudeArgs(run, "grill", "grill-coord", "coord", cycleDir);
     expect(model).toBe("opus");
-    expect(args.slice(0, 3)).toEqual(["--setting-sources", "project", "--strict-mcp-config"]);
+    expect(args.slice(0, 2)).toEqual(["--setting-sources", "project"]);
+    expect(args).not.toContain("--strict-mcp-config");
+    expect(args[args.indexOf("--permission-mode") + 1]).toBe("bypassPermissions");
     expect(args.slice(-2)).toEqual(["--model", "opus"]);
-    expect(args).toContain("mcp__context7");
     expect(args).toContain(cycleDir); // a coordinator writes the whole cycle folder
-    expect(args).toContain(`Edit(/${join(cycleDir, "**")})`);
+    expect(args).toContain(run.dir);
     expect(args).toContain(`Edit(/${join(run.dir, "**/events.jsonl")})`);
-    expect(args).toContain(`Read(/${join(run.dir, "**")})`);
-    expect(args.indexOf("--permission-mode")).toBeGreaterThan(args.indexOf("--add-dir"));
+    const cfg = JSON.parse(readFileSync(args[args.indexOf("--mcp-config") + 1], "utf8"));
+    expect(Object.keys(cfg.mcpServers)).toEqual(["context7", "fff"]);
+    const settings = JSON.parse(readFileSync(args[args.indexOf("--settings") + 1], "utf8"));
+    expect(settings).toMatchObject({ skipDangerousModePermissionPrompt: true, enableAllProjectMcpServers: true, permissions: { defaultMode: "bypassPermissions" } });
+    expect(settings.permissions.deny).toContain("Bash(git push:*)");
   });
 
   test("the skills plugin is built at run time: installed skills linked, missing ones skipped", () => {
@@ -151,11 +109,6 @@ describe("claude argv", () => {
     expect(fs.readlinkSync(join(dir, "skills", "code-review"))).toBe(join(root, "skills", "code-review"));
     expect(fs.existsSync(join(dir, "skills", "not-installed"))).toBe(false);
     expect(JSON.parse(fs.readFileSync(join(dir, ".claude-plugin", "plugin.json"), "utf8")).name).toBe("forge-skills");
-  });
-
-  test("an MCP server missing from the registry is refused", () => {
-    const { run } = setup({ sources: "## grill\n- mcp: nope\n" });
-    expect(() => claudeArgs(run, "grill", "grill-coord", "c", currentCycleDir(run))).toThrow(/MCP server "nope"/);
   });
 
   test("a role without a prompt file is refused", () => {

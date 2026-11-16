@@ -175,12 +175,13 @@ describe("CLI", () => {
   });
 });
 
-test("allowedFor: a node's command against its allow list and the deny floor", () => {
-  const env = setup({ sources: "## exec\n- bash: git commit\n## unit\n- bash: pnpm lint\n" });
+test("allowedFor: anything a deny rule does not cover is allowed (bypass mode)", () => {
+  const env = setup({ sources: "## exec\n- deny: kubectl delete\n## unit\n- deny: pnpm publish\n" });
   toExec(env.run);
   add(env.run, "node_add", "u1", { role: "unit", wave: 1 });
-  expect(allowedFor(env.run, "u1", "pnpm   lint --fix")).toMatchObject({ allowed: true, rule: "Bash(pnpm lint:*)", command: "pnpm lint --fix" });
-  expect(allowedFor(env.run, "u1", "pnpm install").allowed).toBe(false);
+  expect(allowedFor(env.run, "u1", "pnpm   lint --fix")).toEqual({ node: "u1", command: "pnpm lint --fix", allowed: true });
+  expect(allowedFor(env.run, "u1", "pnpm publish --tag x")).toMatchObject({ allowed: false, deniedBy: "Bash(pnpm publish:*)" });
+  expect(allowedFor(env.run, "u1", "kubectl delete pod x")).toMatchObject({ allowed: false, deniedBy: "Bash(kubectl delete:*)" });
   expect(allowedFor(env.run, "u1", "git push origin main")).toMatchObject({ allowed: false, deniedBy: "Bash(git push:*)" });
   expect(() => allowedFor(env.run, "nope", "ls")).toThrow("unknown node");
 });

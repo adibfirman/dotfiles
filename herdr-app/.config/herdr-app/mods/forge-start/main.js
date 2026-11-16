@@ -21,8 +21,10 @@ const GROUPS = [
   ["Classifier, commit", ["classifier", "commit"]],
 ];
 const short = (rule) => rule.replace(/^Bash\((.*?):\*\)$/, "$1").replace(/^mcp__/, "mcp:");
+// A `- deny:` value as forge's rule (sources.ts denyRule), to tell this repo's entries from the defaults.
+const denyRuleOf = (v) => /^mcp__/.test(v) || /^[A-Z][A-Za-z]*(\(.*\))?$/.test(v) ? v
+  : /^claude[._]ai[ _]/i.test(v) ? `mcp__${v.trim().replace(/[^A-Za-z0-9_-]/g, "_")}` : `Bash(${v}:*)`;
 // "claude.ai Atlassian" → "claude_ai_Atlassian", the server part of its tool names (as the forge CLI does).
-const prefixOf = (v) => v.replace(/\(.*$/, "").trim().replace(/[^A-Za-z0-9_-]/g, "_");
 const forge = async (args, cwd) => {
   const r = await exec(forgeBin(), args, { cwd, timeout: 120_000 }).catch((e) => ({ code: 1, stdout: "", stderr: String(e?.message ?? e) }));
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
@@ -94,14 +96,10 @@ export default class ForgeStart extends View {
     // Workspace runs (a root that holds repos): which repos the change touches, one per line or comma separated.
     this.repoIn = InputState.new({ placeholder: "Repos, like api, web-app (grill can add more)" });
     this.refs = TextareaState.new({ placeholder: "A URL, a Confluence page, JIRA-123, or a file or image path", rows: 3 });
-    // Settings → Allowed tools: one add row per phase (key cycles on click).
-    this.toolIn = Object.fromEntries(["grill", "verify", "exec"].map((ph) => [ph, InputState.new({ placeholder: "pnpm lint" })]));
-    this.toolKey = { grill: "bash", verify: "bash", exec: "bash" };
-    // An entry the deny floor refused, per phase, so the row can offer "Force allow" for it.
+    // Settings → Denied commands: one row per phase to deny one more command, or lift a deny floor rule.
+    this.toolIn = Object.fromEntries(["grill", "verify", "exec"].map((ph) => [ph, InputState.new({ placeholder: "kubectl delete" })]));
+    // The last refusal per phase ("not a command prefix", "never lift"), shown under the row.
     this.blocked = {};
-    // MCP servers Claude Code knows here (claude.ai connectors), loaded when a row switches to "mcp".
-    this.mcpList = null;
-    for (const ph of ["grill", "verify", "exec"]) this.toolIn[ph].on("change", (_e, cx) => { if (this.toolKey[ph] === "mcp") cx.notify(); });
     cx.spawn(async (cx) => {
       // Settings load on their own, so the defaults show even outside a git repo.
       if (this.folder) {
@@ -305,55 +303,46 @@ export default class ForgeStart extends View {
         .when(project, (e) => e.child(div().id(`fs-reset-${i}`).text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => this.config(cx, ["model", ...known.map((r) => `${r}=default`)])).child("reset")));
     });
-    const KEYS = ["bash", "tools", "mcp", "read", "write"];
+    // Agents run in bypass mode: everything runs except these. Per phase: the default denies (dotfiles SOURCES.md),
+    // this repo's own (accent, × removes), and the floor rules this repo lifted (red ⚠, × puts them back).
+    const floor = new Set(s.deny);
+    const scripts = new Set(s.scripts ?? []);
     const phases = ["grill", "verify", "exec"].map((ph) => {
       const src = s.sources[ph];
       const mine = s.project?.[ph] ?? [];
-      const mineRules = new Set(mine.map((e) => (e.key === "bash" ? `Bash(${e.value}:*)` : e.key === "mcp" ? `mcp__${prefixOf(e.value)}` : e.value)));
+      const mineRules = new Set(mine.map(denyRuleOf));
       const forced = src.forced ?? [];
-      const forcedRules = new Set(forced.map((f) => f.rule));
-      const defaults = src.allow.filter((r) => !mineRules.has(r) && !forcedRules.has(r)).map(short);
+      const defaults = src.deny.filter((r) => !floor.has(r) && !scripts.has(r) && !mineRules.has(r) && !/^Bash\(git push (--force|-f|--force-with-lease):\*\)$/.test(r)).map(short);
       const blocked = this.blocked[ph];
-      const query = this.toolKey[ph] === "mcp" ? this.toolIn[ph].value().trim().toLowerCase() : null;
-      const picks = query !== null && this.mcpList ? this.mcpList.filter((m) => m.connector && (!query || m.name.toLowerCase().includes(query))).slice(0, 8) : [];
       return v_flex().id(`fs-tools-${ph}`).gap(6).p(8).rounded(6).bg(t.background).border_1().border_color(t.border)
         .child(h_flex().gap(8).items_start()
           .child(div().w(52).flex_none().text_size(12).font_semibold().child(ph))
           .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.muted)
-            .child(`${defaults.join(", ")}${src.mcp.length ? ` · MCP: ${src.mcp.join(", ")}` : ""}`)))
+            .child(defaults.length ? defaults.join(", ") : "only the deny floor")))
         .when(mine.length > 0, (e) => e.child(h_flex().flex_wrap().gap(6).pl(60)
-          .children(mine.map((m, i) => h_flex().id(`fs-mine-${ph}-${i}`).h(22).px(8).gap(6).items_center().rounded(5).bg(alpha(t.accent, 0.14)).text_size(11.5).text_color(t.accent)
-            .child(`${m.key}: ${m.value}`)
+          .children(mine.map((v, i) => h_flex().id(`fs-mine-${ph}-${i}`).h(22).px(8).gap(6).items_center().rounded(5).bg(alpha(t.accent, 0.14)).text_size(11.5).text_color(t.accent)
+            .child(v)
             .when(editable, (c) => c.child(div().id(`fs-rm-${ph}-${i}`).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.blocked))
-              .tooltip("Remove from this repo").on_click((_e, cx) => this.config(cx, ["disallow", ph, m.key, m.value])).child("×")))))))
-        // Force-allowed: past the deny floor, this repo and phase only. Red, so it is never missed.
+              .tooltip("Remove from this repo: agents may run it again").on_click((_e, cx) => this.config(cx, ["undeny", ph, v])).child("×")))))))
+        // Lifted: past the deny floor, this repo and phase only. Red, so it is never missed.
         .when(forced.length > 0, (e) => e.child(h_flex().flex_wrap().gap(6).pl(60)
           .children(forced.map((m, i) => h_flex().id(`fs-forced-${ph}-${i}`).h(22).px(8).gap(6).items_center().rounded(5).bg(alpha(t.blocked, 0.14)).text_size(11.5).text_color(t.blocked)
-            .tooltip(`Force-allowed: lifts ${m.lifts.map(short).join(", ")} for ${ph} in this repo`)
-            .child(`⚠ ${m.key}: ${m.value}`)
+            .tooltip(`Lifted: ${m.lifts.map(short).join(", ")} runs in ${ph} for this repo`)
+            .child(`⚠ lifted: ${m.value}`)
             .when(editable, (c) => c.child(div().id(`fs-unforce-${ph}-${i}`).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
               .tooltip("Remove: the deny floor applies again").on_click((_e, cx) => this.config(cx, ["unforce", ph, m.key, m.value])).child("×")))))))
         .when(Boolean(blocked), (e) => e.child(h_flex().gap(8).items_center().ml(60).p(6).rounded(5).bg(alpha(t.blocked, 0.10))
-          .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.blocked).child(blocked.err))
-          .when(blocked.forceable, (c) => c.child(button(`fs-force-${ph}`, "Force allow", (cx) => { this.blocked[ph] = null; this.config(cx, ["force", ph, blocked.key, blocked.value]); })))
+          .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.blocked).child(blocked))
           .child(div().id(`fs-blocked-x-${ph}`).text_size(11.5).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.blocked[ph] = null; cx.notify(); }).child("×"))))
         .when(editable, (e) => e.child(h_flex().gap(6).items_center().pl(60)
-          .child(div().id(`fs-key-${ph}`).h(26).w(56).flex().items_center().justify_center().rounded(5).bg(t.raised).text_size(11.5).cursor_pointer()
-            .hover((x) => x.bg(t.hover)).tooltip("Click to change: bash, tools, mcp, read, write")
-            .on_click((_e, cx) => { this.toolKey[ph] = KEYS[(KEYS.indexOf(this.toolKey[ph]) + 1) % KEYS.length]; if (this.toolKey[ph] === "mcp") this.loadMcp(cx); cx.notify(); })
-            .child(this.toolKey[ph]))
           .child(div().flex_1().h(26).px(8).flex().items_center().rounded(5).border_1().border_color(t.input).bg(t.popover)
             .child(Input.new(this.toolIn[ph]).h_full().text_size(11.5)))
-          .child(button(`fs-add-${ph}`, "Add", (cx) => this.addTool(cx, ph)))))
-        // MCP: a server from ~/.claude/mcp-servers.json, or a claude.ai connector (pick one; typing filters).
-        .when(editable && query !== null, (e) => e.child(v_flex().gap(4).pl(60)
-          .child(div().text_size(11).text_color(t.dim).child(this.mcpList ? "A server in ~/.claude/mcp-servers.json, or a claude.ai connector:" : "Loading claude.ai connectors…"))
-          .child(h_flex().flex_wrap().gap(6).children(picks.map((m, i) => div().id(`fs-mcp-${ph}-${i}`).h(22).px(8).flex().items_center().rounded(5).bg(t.raised).text_size(11.5).text_color(t.muted)
-            .cursor_pointer().hover((x) => x.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => { this.toolIn[ph].set_value(m.name); this.addTool(cx, ph); }).child(m.name))))));
+          .child(button(`fs-add-${ph}`, "Deny", (cx) => this.addTool(cx, ph, "deny")))
+          .child(button(`fs-lift-${ph}`, "Lift", (cx) => this.addTool(cx, ph, "lift")))));
     });
     return v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)
       .child(div().text_size(11.5).text_color(t.dim).child(editable
-        ? `Saved in ${this.workspace ? "this workspace's" : "this repo's"} .forge/, kept for every later run here. Models and tools apply from the next agent, the cap from the next cycle.`
+        ? `Saved in ${this.workspace ? "this workspace's" : "this repo's"} .forge/, kept for every later run here. Models and denies apply from the next agent, the cap from the next cycle.`
         : "The defaults. They can be changed per repo or workspace."))
       .child(heading("Models"))
       .children(rows)
@@ -364,39 +353,29 @@ export default class ForgeStart extends View {
         .child(chip("fs-cap-up", "+", false, (cx) => this.config(cx, ["cap", String(Math.min(8, s.cap.value + 1))])))
         .child(div().text_size(11).text_color(s.cap.from === "project" ? t.accent : t.dim).child(s.cap.from)))
       .when(editable, (e) => e.child(this.lessonsView(t, heading)))
-      .child(heading("Allowed tools"))
+      .child(heading("Denied commands"))
+      .child(div().text_size(11.5).text_color(t.dim).child("Agents run in bypass mode: every command, tool, and MCP server runs except what is denied here. Deny adds a command for this repo; Lift lets one deny floor rule run in that phase."))
       .children(phases)
       .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map((r) => (s.neverLift?.includes(r) ? `${short(r)}  (never liftable)` : short(r))).join("\n"))
-        .child(`Deny floor: ${s.deny.length} rules, wins over anything above (hover to see). Add a blocked entry to get "Force allow" for this repo.`))
+        .child(`Deny floor: ${s.deny.length} rules for every phase (hover to see).${scripts.size ? ` This repo's outside scripts: ${scripts.size} rules.` : ""}`))
       .when(editable, (e) => e.child(h_flex().justify_end().child(button("fs-edit-sources", "Edit project SOURCES.md", (cx) => this.editSources(cx)))));
   }
 
-  // Add one entry. When the deny floor refuses it, keep it so the row can offer "Force allow".
-  addTool(cx, ph) {
+  // Deny one more command for this repo and phase, or lift a deny floor rule ("Lift for this repo").
+  addTool(cx, ph, how) {
     const value = this.toolIn[ph].value().trim();
-    const key = this.toolKey[ph];
     if (!value || this.busy || !this.repo) return;
     this.toolIn[ph].set_value("");
     this.blocked[ph] = null;
     this.busy = "saving settings";
     cx.notify();
     cx.spawn(async (cx) => {
-      const r = await forge(["config", "allow", ph, key, value, "--main", this.repo.main], this.repo.main);
+      const key = /^mcp__|^claude[._]ai[ _]/i.test(value) ? "mcp" : /^[A-Z]/.test(value) ? "tools" : "bash";
+      const args = how === "lift" ? ["config", "force", ph, key, value] : ["config", "deny", ph, value];
+      const r = await forge([...args, "--main", this.repo.main], this.repo.main);
       if (r.ok) this.settings = JSON.parse(r.out);
-      else if (/deny floor/.test(r.err)) this.blocked[ph] = { key, value, err: `${value} is blocked by the deny floor.`, forceable: ["bash", "tools", "mcp"].includes(key) };
-      else this.blocked[ph] = { key, value, err: r.err.replace(/^refused: /, ""), forceable: false };
+      else this.blocked[ph] = r.err.replace(/^refused: /, "");
       this.busy = null;
-      cx.notify();
-    });
-  }
-
-  loadMcp(cx) {
-    if (this.mcpList || this.mcpLoading) return;
-    this.mcpLoading = true;
-    cx.spawn(async (cx) => {
-      const r = await forge(["mcp", "list"], this.repo?.main ?? this.folder ?? home());
-      this.mcpList = r.ok ? JSON.parse(r.out) : [];
-      this.mcpLoading = false;
       cx.notify();
     });
   }

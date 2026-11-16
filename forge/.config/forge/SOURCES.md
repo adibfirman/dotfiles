@@ -1,55 +1,38 @@
 # SOURCES (forge default)
 
-What each forge agent may use. `forge spawn` reads this file, then a toolchain
-preset from the repo (package.json scripts, go.mod), then the optional project
-file `<main>/.forge/SOURCES.md`. The deny floor (`deny-floor.json`) always wins.
+Agents run in bypass mode: every tool, shell command, and MCP server they have
+runs, except what is denied. The role prompt says what each agent should use.
+`forge spawn` denies, for each agent:
+
+1. the deny floor (`deny-floor.json`), minus the rules this repo lifted for the
+   phase ("Lift for this repo"; never the `NEVER_LIFT` rules);
+2. the repo's own scripts whose names reach outside (deploy, prod, publish,
+   migrate, ...): package.json scripts, `script/` and `scripts/` files, and
+   Makefile targets;
+3. the `- deny:` entries below, then those of `<main>/.forge/SOURCES.md`.
+
+Every agent loads every MCP server in `~/.claude/mcp-servers.json` and every
+claude.ai connector. The floor denies the connectors that post or write where
+other people see it.
 
 Format:
 
 - `## <sections>`: phases (`grill`, `verify`, `exec`), `all` (every agent),
   `coordinator` (the `*-coord` roles and `classifier`), or a role name such as
-  `gate-review`. Role sections come last, so they can remove what a phase
-  section added. Text in parentheses is a comment.
-- `- <key>: a, b`: keys are `tools`, `bash`, `mcp`, `read`, `write`.
-- `- !<key>: a` removes `a` that an earlier layer added.
-- `bash` entries are command prefixes: `git log` allows `git log -n 5`.
-- MCP tools go in parentheses with spaces: `- mcp: sentry(search_issues get_issue_details)`.
-  A bare name allows every tool of that server. Server definitions come from
-  `~/.claude/mcp-servers.json`.
-- `read` and `write` paths outside the worktree become `--add-dir`.
-- Every agent can read the run folder and write its own output folder (the
-  phase folder; the cycle folder for coordinators) without a line here. A role
-  with no `Edit` or `Write` in `tools` can write nothing else.
+  `gate-review`. Text in parentheses is a comment.
+- `- deny: a, b`: a command prefix (`kubectl delete` denies
+  `kubectl delete pod x`), a tool rule (`WebFetch`, `Edit(path)`,
+  `mcp__server`), or a claude.ai connector by name (`claude.ai Sentry`).
+- `- !deny: a` removes `a` that an earlier layer added.
+- `- read: path`, `- write: path`: folders outside the worktree, passed as
+  `--add-dir`.
+- The old allow keys (`tools`, `bash`, `mcp`) are ignored.
 
-## all
-- tools: Read, Grep, Glob
-- bash: hc send, git status, git diff, git log, git show, git blame
-- bash: forge checks, forge lessons
+## all (one shared worktree: never switch its branch or stash other agents' work)
+- deny: git checkout, git switch, git stash
 
-## coordinator (grill-coord, grill-me-coord, verify-coord, exec-coord, classifier: they delegate, never change code)
-- bash: forge append, forge spawn, forge status, forge coord, forge reconcile, forge followup, forge repo, forge refs list, forge allowed, forge history, forge doctor, forge lesson
-- bash: hc read, hc wait, hc get, hc ls, hc interrupt
-- !tools: Edit, Write
-- !bash: git add, git commit, git mv, git rm
+## grill, verify, coordinator, planner, gate-beh, gate-spec, gate-sec, gate-review (read only: they report, units change code)
+- deny: git add, git commit, git mv, git rm, git merge, git cherry-pick, git revert, git reset, git tag
 
-## grill (read only)
-- tools: WebFetch, WebSearch
-- bash: gh pr view, gh pr diff, gh issue view, gh run view, gh repo view
-- mcp: context7, fff
+## grill
 - read: ~/.claude/plans
-
-## verify
-- bash: forge tlc
-
-## exec (write)
-- tools: Edit, Write
-- bash: git add, git commit, git mv, git rm
-- mcp: context7, fff
-
-## gate-beh, gate-spec, gate-sec, gate-review (read only: they report, units fix)
-- !tools: Edit, Write
-- !bash: git add, git commit, git mv, git rm
-
-## planner (plans, does not change code)
-- !tools: Edit, Write
-- !bash: git add, git commit, git mv, git rm

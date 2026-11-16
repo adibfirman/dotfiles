@@ -30,11 +30,10 @@ describe("real role files", () => {
     const prompt = readFileSync(args[args.indexOf("--append-system-prompt-file") + 1], "utf8");
     expect(prompt).toContain("# forge agent: shared rules");
     expect(prompt.includes("# forge coordinator: shared protocol")).toBe(role.endsWith("-coord") || role === "classifier");
-    const allowed = args.slice(args.indexOf("--allowedTools") + 1, args.indexOf("--disallowedTools"));
-    const writesCode = allowed.includes("Edit") || allowed.includes("Write");
-    expect(writesCode).toBe(["unit", "commit"].includes(role));
-    if (role.endsWith("-coord") || role === "classifier") expect(allowed).toContain("Bash(forge append:*)");
-    else expect(allowed).not.toContain("Bash(forge append:*)");
-    expect(allowed.some((a) => a.startsWith("Bash(git push"))).toBe(false);
+    expect(args[args.indexOf("--permission-mode") + 1]).toBe("bypassPermissions");
+    const denied = args.slice(args.indexOf("--disallowedTools") + 1, args.indexOf("--add-dir"));
+    expect(denied).toEqual(expect.arrayContaining(["Bash(git push:*)", "Bash(git push --force:*)", "Bash(sudo:*)", "Bash(git checkout:*)", "mcp__claude_ai_Slack"]));
+    // Roles that report deny git writes; only unit and commit change the repo.
+    expect(denied.includes("Bash(git commit:*)")).toBe(!["unit", "commit"].includes(role));
   });
 });

@@ -6,8 +6,8 @@ import { Refused } from "./append";
 
 // claude.ai connectors (the account's remote MCP servers, shown as "claude.ai <Name>" by `claude mcp list`).
 // They have no command or URL forge can pass in --mcp-config, and --strict-mcp-config turns them all off
-// (tested). So an agent that needs one runs without --strict-mcp-config, and every MCP server it was not
-// given is denied by name instead.
+// (tested). Agents run without --strict-mcp-config, so every connector loads; the deny floor names the ones
+// agents may not use (`mcp__claude_ai_Slack`). `forge mcp list` prints them, to name one in a deny or a lift.
 
 export interface McpServer { name: string; prefix: string; connector: boolean }
 
