@@ -1,5 +1,5 @@
 // forge-window: the parts of a forge run window.
-//   part "bar":   the title bar: run title, the Coordinator | Chat switch for the left side, close.
+//   part "bar":   the title bar: run title, the Coordinator | Chat switch (only while a coordinator runs), close.
 //   part "agent": the left side when it has no live terminal to show (no coordinator runs, or the Chat view
 //                 has no chat yet): a centered "Start a chat" button (`forge chat --open`). The sidebar then
 //                 shows the chat's terminal here.
@@ -10,7 +10,7 @@
 // drags it).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, theme, closeOverlay, exec, home, shared, setShared, notify } from "herdr";
+import { props, theme, closeOverlay, exec, home, shared, setShared, notify, terminals } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -42,9 +42,12 @@ export default class ForgeWindow extends View {
       try {
         const r = await exec(forgeBin(), ["status", "--run", p.run], { timeout: 20_000 }).catch(() => null);
         if (r?.code !== 0) return;
-        const nd = JSON.parse(r.stdout).needs ?? null;
-        if (JSON.stringify(nd) !== JSON.stringify(this.needs)) {
+        const st = JSON.parse(r.stdout);
+        const nd = st.needs ?? null;
+        const coord = st.coordinator?.terminal ?? null;
+        if (JSON.stringify(nd) !== JSON.stringify(this.needs) || coord !== this.coordTerm) {
           this.needs = nd;
+          this.coordTerm = coord;
           cx.notify();
         }
       } finally {
@@ -65,7 +68,8 @@ export default class ForgeWindow extends View {
       const said = (r) => (r.stderr || r.stdout || "").trim().split("\n").pop()?.slice(0, 200) ?? "";
       let done = null;
       if (how !== "restart" && nd?.prefix) {
-        const r = await run(["config", how === "force" ? "force" : "allow", "exec", "bash", nd.prefix, "--main", mainOf(p.run)]);
+        // The phase whose agent is blocked (an allow under another phase does nothing for it).
+        const r = await run(["config", how === "force" ? "force" : "allow", nd.phase ?? "exec", "bash", nd.prefix, "--main", mainOf(p.run)]);
         if (r.code !== 0) done = { ok: false, text: `Could not allow ${nd.prefix}: ${said(r)}` };
       }
       if (!done) {
@@ -91,8 +95,9 @@ export default class ForgeWindow extends View {
       .when(!working, (e) => e.cursor_pointer().hover((s) => s.opacity(0.85)).on_click((_e, cx) => { cx.stop_propagation(); this.unblock(cx, how); }))
       .child(label);
     const floor = nd.floor ?? "none";
-    const allow = floor === "none" ? btn("fw-allow", "Allow for this repo", "allow", true)
-      : floor === "force" ? btn("fw-force", "Force allow", "force", true)
+    const allow = floor === "none" ? btn("fw-allow", `Allow "${nd.prefix}" in ${nd.phase ?? "exec"}`, "allow", true)
+      : floor === "force" ? btn("fw-force", `Force allow "${nd.prefix}"`, "force", true)
+      : floor === "unknown" ? div().flex_none().text_size(11).text_color(t.dim).tooltip("The block names no command forge can allow. Answer the coordinator, or edit the project SOURCES.md.").child("no command to allow")
       : div().flex_none().text_size(11).text_color(t.dim).tooltip("The deny floor never lifts this command.").child("never allowed");
     const what = `blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? "a tool"}${nd.command ? `: ${nd.command}` : ""}`;
     const result = this.fix && this.fix !== "working" ? this.fix : null;
@@ -153,7 +158,8 @@ export default class ForgeWindow extends View {
       .child(this.needs
         ? h_flex().flex_1().min_w(0).px(8).py(4).rounded(6).bg(alpha(t.blocked, 0.12)).child(this.needsStrip(t, true))
         : div().flex_1().min_w(0).truncate().text_color(t.muted).child(p.title ?? ""))
-      .when(Boolean(p.run), (e) => e.child(h_flex().flex_none().rounded(6).overflow_hidden().border_1().border_color(t.border)
+      // Only while a coordinator runs: without one, the Coordinator side shows the chat anyway, so both would match.
+      .when(Boolean(p.run) && terminals().some((x) => x.address === this.coordTerm && x.state === "live"), (e) => e.child(h_flex().flex_none().rounded(6).overflow_hidden().border_1().border_color(t.border)
         .child(seg("fw-view-coord", "Coordinator", view === "coord", "Left side: the coordinator while one runs", "coord"))
         .child(seg("fw-view-chat", "Chat", view === "chat", "Left side: your chat about this run", "chat"))))
       .child(div().id("fw-close").w(26).h(26).flex().items_center().justify_center().rounded(6).text_color(t.muted).cursor_pointer()

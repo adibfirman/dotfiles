@@ -49,6 +49,15 @@ export function projectForced(main: string, phase: string): Forced[] {
 }
 
 /** The repo's default grill mode for new runs: "auto" (agents decide) or "me" (the user answers in the coordinator). */
+/**
+ * A bash allow value: a program (a plain name, or a ./path to a repo script) and then plain words. Free text such
+ * as "kubectl/helm not allowed" is refused, so a note can never become an allow rule.
+ */
+export const commandLike = (v: string) => {
+  const [first, ...rest] = v.trim().split(/\s+/);
+  return /^(\.\/[\w./-]+|[A-Za-z0-9][\w.+-]*)$/.test(first ?? "") && rest.every((w) => /^[\w:./=@-]+$/.test(w));
+};
+
 export function projectGrill(main: string): GrillMode {
   const v = readConfig(main).grill;
   return (GRILL_MODES as readonly string[]).includes(v) ? v : "auto";
@@ -143,6 +152,7 @@ export function force(main: string, phase: string, key: string, value: string): 
   if (!PHASES.includes(phase)) throw new Refused(`phase must be grill, verify, or exec, not "${phase}"`);
   if (!["tools", "bash", "mcp"].includes(key)) throw new Refused("force works for tools, bash, or mcp");
   if (!v || v.includes(",") || v.includes("\n")) throw new Refused("give one value, with no comma");
+  if (key === "bash" && !commandLike(v)) throw new Refused(`"${v}" is not a command prefix: give a program and its subcommands`);
   const rule = ruleFor(key as Key, v)!;
   const lifts = blockersOf(rule, denyFloor(join(forgeHome(), "deny-floor.json")));
   const locked = lifts.filter((r) => NEVER_LIFT.includes(r));
@@ -178,6 +188,7 @@ export function allow(main: string, phase: string, key: string, value: string) {
   if (!PHASES.includes(phase)) throw new Refused(`phase must be grill, verify, or exec, not "${phase}"`);
   if (!(ADD_KEYS as string[]).includes(key)) throw new Refused(`key must be one of ${ADD_KEYS.join(", ")}`);
   if (!v || v.includes(",") || v.includes("\n")) throw new Refused("give one value, with no comma");
+  if (key === "bash" && !commandLike(v)) throw new Refused(`"${v}" is not a command prefix: give a program and its subcommands, like "kubectl get pods" or "./scripts/gen.sh"`);
   const rule = ruleFor(key as Key, v);
   if (rule && deniedBy(rule, denyFloor(join(forgeHome(), "deny-floor.json")))) throw new Refused(`${v} is blocked by the deny floor, so it would never apply`);
   if (key === "mcp" && isConnector(mcpServerName(v))) findConnector(mcpServerName(v));

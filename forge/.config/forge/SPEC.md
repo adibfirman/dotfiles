@@ -442,4 +442,6 @@ Incident: a workspace run's exec cycle stopped with "unit needs pnpm". Two cause
 - **Needs blocks are state.** A coordinator writes `blocked: <role> needs <tool>: <exact command>`. `forge status` and `forge runs` carry `needs` (role, tool, command, allow prefix, floor: none, force, or never) until a coordinator or node starts after it. The sidebar shows "you" and notifies; the run window offers "Allow for this repo" (or "Force allow" when the deny floor blocks it; nothing for NEVER_LIFT) and "Restart coordinator".
 - **Lessons.** `forge lesson "<text>"` adds one line to `<main>/.forge/lessons.md` when a retry gets past a block. Every node's task points at the file. The Start dialog's Settings shows it.
 
-Tests: 146 pass (`test/checks.test.ts`).
+- **Fix after the first real use.** A grill fact-finder was blocked, and "Allow for this repo" wrote the rule under `## exec` (the button had the phase fixed) and also allowed a note as a rule ("kubectl/helm not", from a free-text comment). Now `needs` carries the phase of the blocked agent and the button allows there; the allow prefix takes up to 2 subcommands (`kubectl get pods`, not `kubectl`, which would also allow its write commands); a block whose command is not a program on the agent PATH gets floor `unknown` and no button; `forge config allow|force` refuses a bash value that is not a command prefix (`commandLike`).
+
+Tests: 147 pass (`test/checks.test.ts`).

@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from
 import { basename, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadState, readLines, type Run } from "./append";
-import { projectForced } from "./config";
+import { commandLike, projectForced } from "./config";
 import { agentPath, onAgentPath } from "./env";
 import { childRepos, isRepo, listRepos } from "./repos";
 import { blockersOf, deniedBy, denyFloor, effectiveDeny, forgeHome, NEVER_LIFT, safeScript } from "./sources";
@@ -93,12 +93,20 @@ export function doctor(checks: Checks[]): { ok: boolean; path: string; items: Do
   return { ok: items.every((i) => i.ok), path, items };
 }
 
-export interface Needs { role: string; tool: string; command: string; prefix: string; floor: "none" | "force" | "never"; text: string; at: string }
+export interface Needs { role: string; tool: string; command: string; prefix: string; phase: string; floor: "none" | "force" | "never" | "unknown"; text: string; at: string }
 
-/** The command prefix an allow rule would name: the program, plus its subcommand when there is one. */
+/**
+ * The command prefix an allow rule would name: the program and up to 2 subcommands ("kubectl get pods", not "kubectl",
+ * which would also allow its write commands). Arguments, paths, and flags end it.
+ */
 export function allowPrefix(command: string): string {
-  const [a, b] = command.trim().replace(/^`|`$/g, "").split(/\s+/);
-  return b && /^[A-Za-z][\w:-]*$/.test(b) ? `${a} ${b}` : a;
+  const words = command.trim().replace(/^`|`$/g, "").split(/\s+/);
+  const out = [words[0]];
+  for (const w of words.slice(1, 3)) {
+    if (!/^[A-Za-z][\w:-]*$/.test(w)) break;
+    out.push(w);
+  }
+  return out.join(" ");
 }
 
 /**
@@ -107,8 +115,11 @@ export function allowPrefix(command: string): string {
  */
 export function needsOf(run: Run): Needs | null {
   let cycleDir: string;
+  let phase: string;
   try {
-    cycleDir = loadState(run).cycleDir;
+    const s = loadState(run);
+    cycleDir = s.cycleDir;
+    phase = s.state.phase;
   } catch {
     return null;
   }
@@ -127,8 +138,12 @@ export function needsOf(run: Run): Needs | null {
   const deny = effectiveDeny(denyFloor(join(forgeHome(), "deny-floor.json")), projectForced(run.main, "exec").flatMap((f) => f.lifts));
   const rule = `Bash(${prefix}:*)`;
   // NEVER_LIFT rules count even when this floor file lacks them: nobody may allow them from a button.
-  const floor = deniedBy(rule, NEVER_LIFT) || blockersOf(rule, deny).some((r) => NEVER_LIFT.includes(r)) ? "never" : deniedBy(rule, deny) ? "force" : "none";
-  return { role: m?.[1] ?? "agent", tool: m?.[2] ?? command, command, prefix, floor, text, at: String(e.ts ?? i) };
+  // A note that is not a command ("cluster access", "kubectl/helm not allowed") gets no allow button: "unknown".
+  const floor = !commandLike(prefix) || (!onAgentPath(prefix.split(" ")[0]) && !prefix.startsWith("./")) ? "unknown"
+    : deniedBy(rule, NEVER_LIFT) || blockersOf(rule, deny).some((r) => NEVER_LIFT.includes(r)) ? "never"
+    : deniedBy(rule, deny) ? "force" : "none";
+  // The phase whose agents need it: an allow in another phase's section does nothing for them.
+  return { role: m?.[1] ?? "agent", tool: m?.[2] ?? command, command, prefix, phase, floor, text, at: String(e.ts ?? i) };
 }
 
 /** <main>/.forge/lessons.md: one line per block that was solved, read by every agent of later runs. */
