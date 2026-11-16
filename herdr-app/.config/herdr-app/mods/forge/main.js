@@ -1,7 +1,7 @@
 // forge: the run graph, the spec graphs, the gate, and the buttons for a forge run.
 // The forge CLI owns the state; this mod reads `forge status` and calls forge commands.
 import { View, div, PathBuilder } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView, Popover } from "gpui-base";
+import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView, Popover, v_resizable, resizable_panel } from "gpui-base";
 import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, setShared, closeOverlay, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
@@ -256,16 +256,21 @@ export default class Forge extends View {
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .child(this.header(t, cx))
       .when(Boolean(this.st), (el) => el.child(this.viewRow(t)))
-      .child(div().id("forge-body").flex_1().min_h(0).relative()
-        .on_size_change((s, cx) => {
-          const n = { width: s.width / this.zoom, height: s.height / this.zoom };
-          if (Math.abs(n.width - this.size.width) > 1 || Math.abs(n.height - this.size.height) > 1) {
-            this.size = n;
-            cx.notify();
-          }
-        })
-        .child(this.body(t, cx)))
-      .when(Boolean(this.detail), (el) => el.child(this.detailView(t)))
+      // The graph on top, a node's detail below: the user drags the line between them. The window keeps the
+      // size under the group id while herdr-app runs; the hidden detail panel keeps its place for next time.
+      .child(v_resizable("forge-detail-split").flex_1().min_h(0)
+        .child(resizable_panel().size_range(120)
+          .child(div().id("forge-body").size_full().min_h(0).relative()
+            .on_size_change((s, cx) => {
+              const n = { width: s.width / this.zoom, height: s.height / this.zoom };
+              if (Math.abs(n.width - this.size.width) > 1 || Math.abs(n.height - this.size.height) > 1) {
+                this.size = n;
+                cx.notify();
+              }
+            })
+            .child(this.body(t, cx))))
+        .child(resizable_panel().size(220).size_range(120).visible(Boolean(this.detail))
+          .child(this.detail ? this.detailView(t) : div())))
       .when(!this.st, (el) => el.child(this.footer(t, cx)));
   }
 
@@ -427,7 +432,7 @@ export default class Forge extends View {
 
   detailView(t) {
     const d = this.detail;
-    return v_flex().h(220).flex_none().border_t(1).border_color(t.border)
+    return v_flex().size_full().min_h(0).border_t(1).border_color(t.border)
       .child(h_flex().h(30).flex_none().px(12).gap(8).items_center().bg(t.surface)
         .child(div().flex_1().min_w(0).truncate().text_size(12).font_semibold().text_color(d.blocked ? t.blocked : t.foreground).child(d.title))
         // A blocked node waits for the user: try again (fresh count) or skip it (counts as done).
