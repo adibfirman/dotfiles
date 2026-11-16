@@ -27,7 +27,7 @@ forge starts an exec node only when every node with a lower wave number is done.
 
 ## Check level
 
-`forge status` → `checks` is the level the user picked at start: `full`, `light`, or `off`. Start every unit, fix, and gate task with the line `Checks: <level>`. The unit and gate-beh roles run the repo's tests and builds by it:
+`forge status` → `checks` is the level the user picked at start: `full`, `light`, or `off`. Start every unit, fix, and gate task with the line `Checks: <level>`, then the repo's check commands from `forge checks` (the `test`, `typecheck`, `lint`, and `build` lines). The unit and gate-beh roles run the repo's tests and builds by it:
 
 - `full`: every unit and every BEH gate runs the tests, typecheck, and lint, wave by wave.
 - `light`: units run only the tests for their files and the typecheck; BEH gates per wave run the typecheck and the wave's tests. After the last wave, one end check (`g-beh-final-r0`, see step 3) runs the full suite and the build once.
@@ -45,6 +45,7 @@ When `forge status` shows `mode: "workspace"`:
 
 ## Steps
 
+0. Run `forge doctor`. When it is not ok, write one `blocked: exec-coord needs <item>: <detail>` comment per failing item (the shared protocol's form), print `BLOCKED: <items>`, and stop: no unit can run its checks. Then run `forge checks`: its commands are the only check commands agents may use. Put them in the planner's task, word for word, under `## Check commands`.
 1. Add node `plan` (role `planner`, wave 1) and spawn it. Done needs `exec/plan.md` with its JSON block.
 2. For each plan wave k, in order:
    1. Run `git log -1 --format=%H` and note it as the base of this wave.

@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadState, readLines, Refused, type Run } from "./append";
+import { needsOf } from "./checks";
 
 /** Every run on this machine, one JSON line each. The prs mod lists runs from here. */
 export const registryFile = () => process.env.FORGE_REGISTRY ?? join(homedir(), ".local", "state", "forge", "runs.jsonl");
@@ -125,7 +126,7 @@ export function runs() {
     const meta = JSON.parse(readFileSync(join(e.dir, "run.json"), "utf8"));
     const p = progressOf(e, head);
     const repos = meta.mode === "workspace" ? (meta.repos ?? []).map((r: any) => ({ name: r.name, remote: r.remote, branch: r.branch, worktree: r.worktree })) : undefined;
-    return { ...e, mode: meta.mode ?? "repo", ...(repos ? { repos } : {}), head, coordinator: coordinatorOf(e.dir, head), chat: meta.chat ?? null, blocked: p.blocked, progress: { committed: p.committed, waves: p.waves } };
+    return { ...e, mode: meta.mode ?? "repo", ...(repos ? { repos } : {}), head, coordinator: coordinatorOf(e.dir, head), chat: meta.chat ?? null, blocked: p.blocked, progress: { committed: p.committed, waves: p.waves }, needs: needsOf({ dir: e.dir, ticket: e.ticket, main: e.main, worktree: e.worktree }) };
   });
 }
 

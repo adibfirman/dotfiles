@@ -10,6 +10,8 @@ import { isWorkspace, repoWorktree } from "./repos";
 import { allowRules, deniedBy, denyFloor, effectiveDeny, expandPath, forgeHome, mcpServerName, mergeSources, modelFor, toolchainPreset } from "./sources";
 import { projectForced } from "./config";
 import { findConnector, isConnector, knownServers, toolPrefix } from "./mcp";
+import { agentPath } from "./env";
+import { lessonsFile } from "./checks";
 
 const hcBin = () => process.env.FORGE_HC ?? "hc";
 export const isCoordinator = (role: string) => role.endsWith("-coord") || role === "classifier";
@@ -160,9 +162,8 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   // Deny floor + the run address for the agent's shell (forge commands find the run with it).
   // An env wrapper would hide claude from hc, which then shows no agent status.
   const settings = join(spawnDir, `${id}-settings.json`);
-  // hc terminals start with a short PATH (no ~/.bun/bin), so the agent gets the caller's PATH.
-  const bunBin = join(homedir(), ".bun", "bin");
-  const path = [...new Set([...(existsSync(bunBin) ? [bunBin] : []), ...(process.env.PATH ?? "").split(":").filter(Boolean)])].join(":");
+  // hc terminals start with a short PATH, and a caller started from Herdr has a short one too: the login shell's.
+  const path = agentPath();
   // No co-author trailer: commits follow the repo's own format (tested: the attribution keys turn it off).
   writeFileSync(settings, JSON.stringify({
     permissions: { deny: [...deny, ...mcpDeny] },
@@ -279,7 +280,9 @@ function taskText(run: Run, cycle: number, phase: string, node: string, gen: num
   const report = reportTo ? `When you are done or stuck, report by running exactly one of these commands, alone:\nhc send ${reportTo} "${node}: done"\nhc send ${reportTo} "${node}: failed: <short reason>"` : "When you are done or stuck, say so on screen.";
   const refs = refsIndexPath(run);
   const refLine = refs ? `\nReferences for this run: ${refs} (read it first; open only the refs you need).` : "";
-  return `${task}\n\n---\nforge: run ${run.ticket}, cycle ${cycle}, phase ${phase}, node ${node} (generation ${gen}).${refLine}\nWrite your full output to ${out}. ${report}`;
+  const lessons = lessonsFile(run.main);
+  const lessonLine = existsSync(lessons) ? `\nLessons from earlier blocks in this repo: ${lessons} (read it first, and follow it).` : "";
+  return `${task}\n\n---\nforge: run ${run.ticket}, cycle ${cycle}, phase ${phase}, node ${node} (generation ${gen}).${refLine}${lessonLine}\nWrite your full output to ${out}. ${report}`;
 }
 
 export interface SpawnResult { status: "started" | "queued" | "failed"; node: string; terminal?: string; name?: string; reason?: string; trusted?: boolean; recovered?: boolean }

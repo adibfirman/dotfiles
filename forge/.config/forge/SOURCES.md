@@ -24,9 +24,10 @@ Format:
 ## all
 - tools: Read, Grep, Glob
 - bash: hc send, git status, git diff, git log, git show, git blame
+- bash: forge checks, forge lessons
 
 ## coordinator (grill-coord, grill-me-coord, verify-coord, exec-coord, classifier: they delegate, never change code)
-- bash: forge append, forge spawn, forge status, forge coord, forge reconcile, forge followup, forge repo, forge refs list, forge allowed, forge history
+- bash: forge append, forge spawn, forge status, forge coord, forge reconcile, forge followup, forge repo, forge refs list, forge allowed, forge history, forge doctor, forge lesson
 - bash: hc read, hc wait, hc get, hc ls, hc interrupt
 - !tools: Edit, Write
 - !bash: git add, git commit, git mv, git rm

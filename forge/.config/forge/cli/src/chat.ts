@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { Refused, type Run } from "./append";
 import { listRepos, runMeta, updateMeta } from "./repos";
 import { forgeHome } from "./sources";
+import { agentPath } from "./env";
 import { hc, isLive } from "./spawn";
 import { status } from "./status";
 
@@ -64,8 +65,7 @@ export function chatArgs(run: Run): { args: string[]; cwd: string; session: stri
   const { session, resume } = chatSession(run);
   const brief = chatBrief(run);
   // FORGE_RUN so `forge followup` and `forge status` find this run; PATH because hc terminals start with a short one.
-  const bunBin = join(homedir(), ".bun", "bin");
-  const path = [...new Set([...(existsSync(bunBin) ? [bunBin] : []), ...(process.env.PATH ?? "").split(":").filter(Boolean)])].join(":");
+  const path = agentPath();
   const settings = join(run.dir, "chat-settings.json");
   writeFileSync(settings, JSON.stringify({ env: { FORGE_RUN: run.dir, PATH: path } }, null, 2) + "\n");
   const dirs = [...new Set([run.dir, ...listRepos(run).map((r) => r.worktree)])].filter((d) => d !== run.worktree && existsSync(d));

@@ -2,8 +2,9 @@
 // the color of the space it belongs to. Click opens the run window (a popup over the main area); right-click
 // offers Rename and Remove; the "+" in the header starts a run in the active space.
 // The run window follows its run: when the terminal it should show changes, the window is reopened in place.
-// It also posts a notification when a run needs you or moves on (gate, blocked node, your turn in a "With me"
-// grill, done, a wave committed, a TLA+ counterexample), and publishes the run list in shared "forge.runs".
+// It also posts a notification when a run needs you or moves on (gate, blocked node, a coordinator blocked on a
+// tool, your turn in a "With me" grill, done, a wave committed, a TLA+ counterexample), and publishes the run
+// list in shared "forge.runs".
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
@@ -50,6 +51,8 @@ const leftTerminal = (f, view) => (view === "chat" ? liveChat(f) : liveCoord(f) 
 const viewOf = (v) => (v === "chat" ? "chat" : "coord");
 // Blocked node ids: `forge runs` gives them at the top level (older CLIs only in HEAD).
 const blockedOf = (f) => f.blocked ?? f.head?.blocked ?? [];
+// A coordinator's "blocked: <role> needs <tool>: <command>" that nothing has acted on yet (forge runs → needs).
+const needsOf = (f) => (f.needs && typeof f.needs === "object" ? f.needs : null);
 // A terminal's agent status as terminals() reports it (a string, or {state}).
 const statusOf = (a) => {
   const t = a ? terminals().find((x) => x.address === a) : null;
@@ -119,7 +122,7 @@ export default class ForgeRuns extends View {
   init(_props, cx) {
     this.forge = [];
     this.prev = null; // the last poll's state per run, for the notifications
-    this.turn = new Map(); // a "With me" grill coordinator's last status, per run
+    this.turn = new Map(); // each forge chat's and coordinator's last status, per terminal address
     this.openAt = shared("forge.open")?.at ?? null; // a request from before this mod loaded is not acted on
     this.renameIn = InputState.new({ placeholder: "Title" });
     this.renameIn.on("submit", (_e, cx) => this.saveRename(cx));
@@ -133,8 +136,8 @@ export default class ForgeRuns extends View {
   // end, a chat opened or ended), reopen it in place. Herdr closes a window whose terminal ends, so this also
   // brings it back after a handoff. Only the window's × (it clears forge.window) stops this.
   followWindow(cx) {
-    this.openRequested();
-    this.yourTurn();
+    this.openRequested(cx);
+    this.finished();
     const win = shared("forge.window");
     if (!win?.run || this.following) return;
     this.following = true;
@@ -157,8 +160,9 @@ export default class ForgeRuns extends View {
       if (r?.code !== 0) return;
       const next = JSON.parse(r.stdout);
       this.announce(next);
-      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused, blockedOf(f), f.coordinator?.terminal, f.chat?.terminal, f.progress?.committed]));
+      const key = JSON.stringify(next.map((f) => [f.dir, f.title, f.head?.phase, f.head?.cycle, f.head?.paused, blockedOf(f), needsOf(f)?.at ?? null, f.coordinator?.terminal, f.chat?.terminal, f.progress?.committed]));
       this.forge = next;
+      this.openWaiting = false;
       this.publish();
       if (key === this.forgeKey) return;
       this.forgeKey = key;
@@ -177,31 +181,53 @@ export default class ForgeRuns extends View {
   }
 
   // shared "forge.open" = {dir, view, at}: another mod (the PR panel, the agents list, cmd-escape) asks for a run window.
-  openRequested() {
+  openRequested(cx) {
     const o = shared("forge.open");
     if (!o?.at || o.at === this.openAt) return;
-    this.openAt = o.at;
     const f = this.forge.find((x) => x.dir === o.dir);
+    // A run started a moment ago is not in the list until the next poll: keep the request for up to 30 s.
+    if (!f && Date.now() - o.at < 30_000) {
+      if (!this.openWaiting) {
+        this.openWaiting = true;
+        this.loadForge(cx);
+      }
+      return;
+    }
+    this.openAt = o.at;
+    this.openWaiting = false;
     if (f) openRunWindow(f, o.view);
   }
 
-  // A notification on a click switches to the run's space.
-  tell(f, text, level = "info") {
-    const space = ownerOf(f, spaces(), panes());
-    notify({ title: `${f.title || f.ticket}: ${text}`, level, ...(space ? { action: { name: "space.select", args: { id: space } } } : {}) });
+  // A click switches to the run's space, else to the active one: every notification needs an action, because
+  // agent-notify sends only those to the system (while Herdr is not in front).
+  tell(f, text, level = "info", action = null) {
+    const sp = spaces();
+    const space = ownerOf(f, sp, panes()) ?? sp.find((s) => s.active)?.id ?? sp[0]?.id;
+    notify({ title: `${f.title || f.ticket}: ${text}`, level, ...(action ? { action } : space ? { action: { name: "space.select", args: { id: space } } } : {}) });
   }
 
   // Compare this poll with the last one. Never on the first poll, and never for a run seen for the first time.
   announce(next) {
-    const snap = (f) => ({ phase: f.head?.phase ?? null, cycle: f.head?.cycle ?? null, dir: f.head?.dir ?? "", blocked: blockedOf(f), committed: f.progress?.committed ?? [] });
-    const prev = this.prev;
+    const snap = (f) => ({ phase: f.head?.phase ?? null, cycle: f.head?.cycle ?? null, dir: f.head?.dir ?? "", blocked: blockedOf(f), committed: f.progress?.committed ?? [], needs: needsOf(f)?.at ?? null });
+    // After a reload this.prev is empty: compare with the poll saved in shared state, so no event is lost.
+    const saved = shared("forge.lastPoll");
+    const prev = this.prev ?? (saved && typeof saved === "object" ? new Map(Object.entries(saved)) : null);
     this.prev = new Map(next.map((f) => [f.dir, snap(f)]));
+    const keep = JSON.stringify(Object.fromEntries(this.prev));
+    if (keep !== this.savedPoll) {
+      this.savedPoll = keep;
+      setShared("forge.lastPoll", Object.fromEntries(this.prev));
+    }
     if (!prev) return;
     for (const f of next) {
       const was = prev.get(f.dir), now = this.prev.get(f.dir);
       if (!was) continue;
       if (now.phase === "gate" && was.phase !== "gate") this.tell(f, "spec ready, approve or comment", "warning");
       for (const n of now.blocked) if (!was.blocked.includes(n)) this.tell(f, `${n} blocked, retry or skip`, "error");
+      if (now.needs && now.needs !== (was.needs ?? null)) {
+        const nd = needsOf(f);
+        this.tell(f, `blocked, ${nd.role ?? "an agent"} needs ${nd.tool ?? nd.command ?? "a tool"}`, "error");
+      }
       if (now.phase === "done" && was.phase !== "done") this.tell(f, "done, push and create the PR", "success");
       const waves = f.progress?.waves;
       for (const k of now.committed) if (!was.committed.includes(k)) this.tell(f, `wave ${k} committed${waves ? ` of ${waves}` : ""}`, "success");
@@ -209,16 +235,29 @@ export default class ForgeRuns extends View {
     }
   }
 
-  // "With me": the grill coordinator stopped working, so it waits for the user's answers.
-  yourTurn() {
-    for (const f of this.forge) {
-      const c = f.coordinator;
-      const asking = f.head?.phase === "grill" && c?.id?.startsWith("grill-me-coord") && live(c.terminal);
-      const st = asking ? statusOf(c.terminal) : null;
-      const was = this.turn.get(f.dir);
-      this.turn.set(f.dir, st);
-      if (was === "working" && (st === "idle" || st === "done" || st === "blocked")) this.tell(f, "your turn in the grill", "warning");
+  // A forge chat or coordinator finished its turn (working → idle or done): Herdr alerts only for agents in panes,
+  // and these run in the background. Not while that terminal is on screen in the run window. Nodes and classifiers
+  // report to their coordinator, so they are left out. A "With me" grill coordinator that stops waits for the user.
+  finished() {
+    const shown = shared("forge.window")?.terminal ?? null;
+    const seen = new Set();
+    for (const t of terminals()) {
+      const label = t.labels?.forge;
+      if (typeof label !== "string" || t.state !== "live") continue;
+      const id = label.split("/").pop();
+      const chat = label.endsWith("/chat");
+      if (!chat && !/-coord-\d+$/.test(id)) continue;
+      seen.add(t.address);
+      const st = statusOf(t.address);
+      const was = this.turn.get(t.address);
+      this.turn.set(t.address, st);
+      if (was !== "working" || !(st === "idle" || st === "done" || st === "blocked") || t.address === shown) continue;
+      const f = this.forge.find((x) => x.ticket === label.split("/")[0]);
+      if (!f) continue;
+      const text = id.startsWith("grill-me-coord") ? "your turn in the grill" : chat ? "chat finished" : `${id.replace(/-\d+$/, "")} finished`;
+      this.tell(f, text, id.startsWith("grill-me-coord") ? "warning" : "info", { name: "terminal.peek", args: { terminal: t.address } });
     }
+    for (const a of [...this.turn.keys()]) if (!seen.has(a)) this.turn.delete(a);
   }
 
   // Rename: `forge rename` changes only the title this list shows (not the ticket or the folder).
@@ -285,14 +324,16 @@ export default class ForgeRuns extends View {
 
   row(f, t, owners, sp, collapsed) {
     const h = f.head ?? {};
-    // Waiting for you: the gate, or a node blocked by the retry cap (Retry or Skip in the run window).
-    const blocked = blockedOf(f).length;
+    // Waiting for you: the gate, a node blocked by the retry cap (Retry or Skip in the run window), or a
+    // coordinator blocked on a tool (Allow or Restart in the run window).
+    const nd = needsOf(f);
+    const blocked = blockedOf(f).length + (nd ? 1 : 0);
     const you = h.phase === "gate" || blocked > 0;
     const [mark, color] = blocked ? ["◆", t.blocked] : h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
     const open = shared("forge.window")?.run === f.dir;
     const owner = sp.find((s) => s.id === owners.get(f.dir));
     const swatch = owner ? t[(shared("space.colors") ?? {})[owner.id]] ?? t.dim : t.dim;
-    const tip = `${f.ticket} · ${owner ? `space ${owner.name}` : "no space"} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blocked ? ` · ${blocked} blocked: Retry or Skip in the run window` : ""}`;
+    const tip = `${f.ticket} · ${owner ? `space ${owner.name}` : "no space"} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blockedOf(f).length ? ` · ${blockedOf(f).length} blocked: Retry or Skip in the run window` : ""}${nd ? ` · blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? nd.command}: Allow or Restart in the run window` : ""}`;
     if (collapsed) {
       return div().id(`run-${f.dir}`).size(30).flex_none().flex().items_center().justify_center().border(1)
         .border_color(open ? t.accent : t.border).text_color(color).tooltip(`${f.title || f.ticket} · ${tip}`)

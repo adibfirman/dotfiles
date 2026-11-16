@@ -6,6 +6,7 @@ import { appendEvent, findRun, Refused } from "./append";
 import { HUMAN_KINDS, KINDS, type Data, type Kind } from "./events";
 import { init, setRunOptions } from "./init";
 import { chatHere, openChat } from "./chat";
+import { addLesson, doctor, folderChecks, lessons, runChecks } from "./checks";
 import { allowedFor, closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, assertClean, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
 import { registerExisting, rename, runs } from "./registry";
@@ -42,6 +43,11 @@ const USAGE = `forge: guard and spawner for forge coordinators
                                               your own claude in the run's worktree, with the run as context
                                               (--open: in its own hc terminal, printed as JSON; --message: its next prompt)
   forge rename <title> [--run <dir>]          the title the run shows in lists
+  forge checks [--repo <name>] [--run <dir>]  the repo's allowed test, typecheck, lint, and build commands (agents use only these)
+  forge doctor [--main <dir>] [--repo <name>]... [--run <dir>]
+                                              can agents work here: programs on their PATH, gh login, docker (exit 1 when not)
+  forge lesson <text> [--run <dir>] | forge lessons [--main <dir>]
+                                              add a line to / read <main>/.forge/lessons.md (every agent reads it first)
   forge history [--run <dir>]                 every cycle: why it opened, where it came from, its nodes' final state
   forge remove --run <dir> [--purge]          end its agents and chat, take it off the list, remove the worktrees forge made
                                               (branches and the .forge/tickets folder stay; --purge deletes the folder too)
@@ -289,6 +295,41 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         }
         return chatHere(run);
+      }
+      case "checks": {
+        const repo = takeFlag(rest, "--repo");
+        if (rest.length) throw new UsageError("forge checks [--repo <name>] [--run <dir>]");
+        print(runFlag || process.env.FORGE_RUN ? runChecks(findRun(runFlag), repo) : folderChecks(process.cwd(), repo ? [repo] : []));
+        return 0;
+      }
+      case "doctor": {
+        const main = takeFlag(rest, "--main");
+        const repos: string[] = [];
+        for (let r = takeFlag(rest, "--repo"); r !== undefined; r = takeFlag(rest, "--repo")) repos.push(r);
+        if (rest.length) throw new UsageError("forge doctor [--main <dir>] [--repo <name>]... [--run <dir>]");
+        const checks = runFlag || process.env.FORGE_RUN ? runChecks(findRun(runFlag)).filter((c) => !repos.length || repos.includes(c.repo)) : folderChecks(main ?? process.cwd(), repos);
+        const report = doctor(checks);
+        print(report);
+        return report.ok ? 0 : 1;
+      }
+      case "lesson": {
+        if (rest.length !== 1) throw new UsageError("forge lesson <text> [--run <dir>]");
+        print(addLesson(findRun(runFlag).main, rest[0]));
+        return 0;
+      }
+      case "lessons": {
+        const main = takeFlag(rest, "--main");
+        if (rest.length) throw new UsageError("forge lessons [--main <dir>]");
+        let root = main ?? (runFlag || process.env.FORGE_RUN ? findRun(runFlag).main : null);
+        if (!root) {
+          try {
+            root = mainCheckout(process.cwd());
+          } catch {
+            root = process.cwd(); // a workspace root keeps its own .forge/
+          }
+        }
+        print(lessons(root));
+        return 0;
       }
       case "rename": {
         if (rest.length !== 1 || !rest[0].trim()) throw new UsageError("forge rename <title> --run <dir>");

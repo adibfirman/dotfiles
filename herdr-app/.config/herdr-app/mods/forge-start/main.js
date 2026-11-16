@@ -3,7 +3,7 @@
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { space, folder } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, terminals, shared, setShared } from "herdr";
+import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, terminals, shared, setShared, settings as appSettings } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -26,6 +26,14 @@ const prefixOf = (v) => v.replace(/\(.*$/, "").trim().replace(/[^A-Za-z0-9_-]/g,
 const forge = async (args, cwd) => {
   const r = await exec(forgeBin(), args, { cwd, timeout: 120_000 }).catch((e) => ({ code: 1, stdout: "", stderr: String(e?.message ?? e) }));
   return { ok: r.code === 0, out: r.stdout, err: (r.stderr || r.stdout || "").trim() };
+};
+// stdout as JSON, also when the command exited 1 (forge doctor prints its report either way), else null.
+const jsonOf = (r) => {
+  try {
+    return JSON.parse(r.out);
+  } catch {
+    return null;
+  }
 };
 
 // The Pull request panel shows only when there is something to do with a PR: the run is done, and it is a
@@ -124,6 +132,8 @@ export default class ForgeStart extends View {
         const st = await forge(["settings", "--main", this.repo.main], this.repo.main);
         if (st.ok) this.settings = JSON.parse(st.out);
         else this.settingsError = st.err;
+        const ls = await forge(["lessons", "--main", this.repo.main], this.repo.main);
+        if (ls.ok) this.lessons = jsonOf(ls);
         cx.notify();
         // A run whose PR is merged continues in a new run (Q44), not as a follow-up on a merged branch.
         for (const x of this.runs.filter((y) => y.repo && y.branch)) {
@@ -176,6 +186,37 @@ export default class ForgeStart extends View {
     });
   }
 
+  // The repo's lessons (.forge/lessons.md): what earlier runs learned about its tools. Editing creates the file.
+  editLessons() {
+    const file = this.lessons?.file;
+    if (!file) return;
+    run("pane.split", { direction: "down", argv: ["sh", "-c", '${EDITOR:-nvim} "$1"', "edit", file] });
+    this.close();
+  }
+
+  // forge doctor: the tools agents need (the check and build commands' programs on the agent PATH, gh auth, docker)
+  // before anything starts. Returns the report, or null when this forge has no doctor yet (then nothing blocks).
+  async doctor() {
+    // In a workspace, only the repos named for this run: another repo's toolchain (or Docker being off) must not
+    // stop a run that never touches it.
+    const named = this.workspace ? this.repoIn.value().split(/[\s,]+/).map((x) => x.trim()).filter(Boolean) : [];
+    const r = await forge(["doctor", "--main", this.repo.main, ...named.flatMap((n) => ["--repo", n.replace(/@.*$/, "")])], this.repo.top);
+    const d = jsonOf(r);
+    this.doc = d && Array.isArray(d.items) ? d : null;
+    return this.doc;
+  }
+
+  checkAgain(cx) {
+    if (this.busy || !this.repo) return;
+    this.busy = "checking tools";
+    cx.notify();
+    cx.spawn(async (cx) => {
+      await this.doctor();
+      this.busy = null;
+      cx.notify();
+    });
+  }
+
   // A new run that starts from a finished run: its approved spec becomes a ref.
   continueFrom(cx, r) {
     cx.spawn(async (cx) => {
@@ -210,6 +251,38 @@ export default class ForgeStart extends View {
         chip("fs-checks-light", "Light", checks === "light", "Only the changed files' tests and typecheck per wave; the full suite and build once at the end.", (cx) => this.config(cx, ["checks", "light"])),
         chip("fs-checks-off", "Off", checks === "off", "No tests or builds. The PR says checks were not run.", (cx) => this.config(cx, ["checks", "off"])),
       ]));
+  }
+
+  // What forge doctor found missing, with the agents' PATH, and a link to check again.
+  doctorView(t) {
+    const d = this.doc;
+    return v_flex().id("fs-doctor").gap(4).p(8).rounded(6).bg(alpha(t.blocked, 0.10)).border_1().border_color(alpha(t.blocked, 0.4))
+      .child(h_flex().justify_between().items_center()
+        .child(div().text_size(11.5).font_semibold().text_color(t.blocked).child("Missing for the agents"))
+        .child(div().id("fs-doctor-again").text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
+          .on_click((_e, cx) => this.checkAgain(cx)).child("Check again")))
+      .children(d.items.filter((x) => !x.ok).map((x, i) => h_flex().id(`fs-doc-${i}`).gap(6).items_start().text_size(11.5)
+        .child(div().flex_none().text_color(t.blocked).child("✕"))
+        .child(div().flex_none().font_semibold().text_color(t.foreground).child(String(x.name)))
+        .child(div().flex_1().min_w(0).text_color(t.blocked).child(String(x.detail ?? "")))))
+      .when(Boolean(d.path), (e) => e.child(div().id("fs-doc-path").text_size(10.5).text_color(t.dim).truncate().tooltip(String(d.path)).child(`Agent PATH: ${d.path}`)));
+  }
+
+  // .forge/lessons.md, shown in Settings: one line per block an earlier run got past (the planner, units, and
+  // gates read it first).
+  lessonsView(t, heading) {
+    const l = this.lessons;
+    const mono = appSettings()?.font_family ?? "JetBrains Mono";
+    const lines = String(l?.text ?? "").split("\n").filter((x) => x.trim());
+    return v_flex().gap(4)
+      .child(h_flex().justify_between().items_end()
+        .child(heading("Lessons"))
+        .when(Boolean(l?.file), (e) => e.child(div().id("fs-lessons-edit").text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
+          .on_click(() => this.editLessons()).child("Edit"))))
+      .child(lines.length
+        ? v_flex().id("fs-lessons").max_h(12 * 16 + 12).overflow_y_scrollbar().p(6).rounded(6).bg(t.raised).font_family(mono).text_size(11).text_color(t.dim)
+          .children(lines.map((x, i) => div().id(`fs-lesson-${i}`).min_h(16).child(x)))
+        : div().text_size(11.5).text_color(t.dim).child(l ? "None yet. A coordinator adds one when it gets past a blocked tool." : "Not loaded."));
   }
 
   settingsView(t, button) {
@@ -290,6 +363,7 @@ export default class ForgeStart extends View {
         .child(div().w(20).flex().justify_center().text_size(12).child(String(s.cap.value)))
         .child(chip("fs-cap-up", "+", false, (cx) => this.config(cx, ["cap", String(Math.min(8, s.cap.value + 1))])))
         .child(div().text_size(11).text_color(s.cap.from === "project" ? t.accent : t.dim).child(s.cap.from)))
+      .when(editable, (e) => e.child(this.lessonsView(t, heading)))
       .child(heading("Allowed tools"))
       .children(phases)
       .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map((r) => (s.neverLift?.includes(r) ? `${short(r)}  (never liftable)` : short(r))).join("\n"))
@@ -366,6 +440,9 @@ export default class ForgeStart extends View {
     if (!goal || !this.repo) return;
     const ticket = this.ticket.value().trim();
     this.task(cx, "new run", async () => {
+      // A missing tool found now costs seconds; found in exec it costs an hour of grill, TLA+, and the gate.
+      const doc = await this.doctor();
+      if (doc && !doc.ok) throw new Error(`Not started: ${doc.items.filter((x) => !x.ok).length} missing for the agents (see the list above Start).`);
       const inbox = `${this.repo.main}/.forge/inbox`;
       // A run without a ticket is named after the file: use the goal's first words, plus a short suffix.
       const slug = goal.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").split("-").slice(0, 4).join("-") || "run";
@@ -388,10 +465,15 @@ export default class ForgeStart extends View {
         await forge(["remove", "--purge", "--run", st.run], this.repo.main);
         throw new Error(coord.err);
       }
-      // Remember the space this run was started from: the spaces sidebar shows it there. The forge and prs
-      // panes open only when you click the run's row (or Open), not on Start.
+      // Remember the space this run was started from: its notifications switch to it.
       if (this.space) setShared("forge.spaces", { ...(shared("forge.spaces") ?? {}), [st.run]: this.space });
-      return `${st.ticket}: the grill coordinator is running. Click its row under the space to watch it.`;
+      // "With me": the run window opens now, so round 1 shows up in front of you. An Auto run opens only when you
+      // click its row in projects (a long run should not cover your work).
+      if (opts[1] === "me") {
+        setShared("forge.open", { dir: st.run, view: "coord", at: Date.now() });
+        return `${st.ticket}: the grill coordinator is starting in the run window. Answer its rounds there.`;
+      }
+      return `${st.ticket}: the grill coordinator is running. Click the run in projects to watch it.`;
     });
   }
 
@@ -455,6 +537,7 @@ export default class ForgeStart extends View {
             .child(areaField(this.goal))
             .child(label("References", "one per line · or drop files"))
             .child(areaField(this.refs))
+            .when(Boolean(this.doc && !this.doc.ok), (y) => y.child(this.doctorView(t)))
             .child(this.runOptions(t))
             .child(h_flex().justify_between().items_center().pt(2)
               .child(div().text_size(11).text_color(t.dim).child(this.settings?.grill?.value === "me" ? "You answer the grill, TLA+ checks it, then you approve." : "Agents grill it, TLA+ checks it, then you approve."))

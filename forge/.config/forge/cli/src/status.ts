@@ -5,6 +5,7 @@ import { queued } from "./spawn";
 import { coordinators, followups, specs } from "./agents";
 import { listRefs } from "./refs";
 import { isWorkspace, reposWithHead, runMeta, runOptions } from "./repos";
+import { needsOf } from "./checks";
 import { coordinatorOf } from "./registry";
 
 /** The current cycle as plain JSON, rebuilt from events.jsonl alone. */
@@ -44,6 +45,8 @@ export function status(run: Run) {
     mode: isWorkspace(run) ? "workspace" : "repo",
     ...runOptions(run),
     chat: runMeta(run).chat ?? null,
+    main: run.main,
+    needs: needsOf(run),
     repos: isWorkspace(run) ? reposWithHead(run).map((r) => ({ name: r.name, base: r.base, branch: r.branch, worktree: r.worktree, head: r.head, remote: r.remote })) : [],
     refs: listRefs(run).map((e) => ({ n: e.n, file: e.file, title: e.title, kind: e.kind, binary: e.binary })),
   };

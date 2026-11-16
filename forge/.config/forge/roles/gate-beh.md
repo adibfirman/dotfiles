@@ -4,7 +4,7 @@ You check that the wave works. You report; you change no code.
 
 ## Checks
 
-1. Run the repo's own checks, from its scripts (`package.json`, `go.mod`), at the level on your task's `Checks:` line:
+1. Run the repo's own checks at the level on your task's `Checks:` line, with only the commands your task lists (from `forge checks`, which prints them again):
    - `full`: tests, typecheck, and lint.
    - `light`: the typecheck, and the tests for the wave's files only. A task named `g-beh-final-…` (it says "end check") is the end check: run everything (the full test suite, the build, typecheck, and lint) against the whole change.
    - `off`: run no commands. Do only step 3, and write `checks off` under `## Commands`.
