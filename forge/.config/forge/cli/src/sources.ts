@@ -87,6 +87,13 @@ export function toolchainPreset(worktree: string): string {
       if (statSync(join(d, f.name)).mode & 0o111) own.push(`./${dir}/${f.name}`);
     }
   }
+  // A repo that ships a Dockerfile (at the root or beside its scripts, often for codegen) needs to rebuild that
+  // image when it goes stale. Only the local build is allowed: push and run are not.
+  const dockerfile = ["", "script", "scripts"].some((dir) => {
+    const d = join(worktree, dir);
+    return existsSync(d) && readdirSync(d).some((f) => /^Dockerfile(\..+)?$/.test(f));
+  });
+  if (dockerfile) own.push("docker build");
   const make = join(worktree, "Makefile");
   if (existsSync(make)) {
     for (const m of readFileSync(make, "utf8").matchAll(/^([A-Za-z0-9_.-]+):(?!=)/gm)) if (safeScript(m[1])) own.push(`make ${m[1]}`);

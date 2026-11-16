@@ -105,6 +105,8 @@ describe("toolchain preset", () => {
     }
     writeFileSync(join(dir, "Makefile"), "test:\n\tgo test\nbuild:\n\tgo build\ndeploy-prod:\n\tx\nVAR:=1\n");
     expect(toolchainPreset(dir)).toBe("## exec\n- bash: ./script/check-coverage.sh, ./script/gen, make test, make build\n");
+    writeFileSync(join(dir, "script", "Dockerfile.codegen"), "FROM x\n");
+    expect(toolchainPreset(dir)).toBe("## exec\n- bash: ./script/check-coverage.sh, ./script/gen, docker build, make test, make build\n");
     expect(safeScript("gen-proto.sh")).toBe(true);
     expect(safeScript("trigger_setup_dev.py")).toBe(false);
   });
