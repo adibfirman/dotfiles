@@ -15,7 +15,7 @@ import { addRepos, branchRepos, reposWithHead } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
 import { dirname, resolve } from "node:path";
-import { status } from "./status";
+import { history, status } from "./status";
 import { tlc } from "./tlc";
 
 const USAGE = `forge: guard and spawner for forge coordinators
@@ -34,6 +34,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
+  forge history [--run <dir>]                 every cycle: why it opened, where it came from, its nodes' final state
   forge remove --run <dir>                    end its agents, take it off the list, delete its .forge/tickets folder (code stays)
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
   forge config model <role>=<opus|sonnet|haiku|default>... | forge config cap <1-8> [--main <dir>]
@@ -259,6 +260,11 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
         print(settings(main));
+        return 0;
+      }
+      case "history": {
+        if (rest.length) throw new UsageError("forge history takes no arguments");
+        print(history(findRun(runFlag)));
         return 0;
       }
       case "status": {

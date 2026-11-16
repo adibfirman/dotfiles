@@ -243,3 +243,25 @@ describe("retry cap", () => {
     expect(loadState(run).state.nodes.get("a")!.blocked).toBe(true);
   });
 });
+
+describe("one-graph history", () => {
+  test("cycle_open records where it came from; an unknown from.node is refused; history lists every cycle", async () => {
+    const { run } = setup();
+    add(run, "node_add", "a");
+    add(run, "node_start", "a");
+    add(run, "node_done", "a");
+    add(run, "phase_done");
+    add(run, "node_add", "tla-x");
+    add(run, "node_start", "tla-x");
+    add(run, "node_done", "tla-x");
+    refused(() => appendEvent(run, { kind: "cycle_open", data: { start: "grill", slug: "cex x", reason: "x fails", from: { node: "nope" } } }), /not a node of cycle 1/);
+    appendEvent(run, { kind: "cycle_open", data: { start: "grill", slug: "cex x", reason: "x fails", from: { node: "tla-x" } } });
+    const { history } = await import("../src/status");
+    const h = history(run);
+    expect(h.map((c) => [c.cycle, c.slug, c.phase])).toEqual([[1, "initial", "verify"], [2, "cex-x", "grill"]]);
+    expect(h[1].from).toEqual({ cycle: 1, phase: "verify", node: "tla-x" });
+    expect(h[1].reason).toBe("x fails");
+    expect(h[0].nodes.map((n) => [n.id, n.status])).toEqual([["a", "done"], ["tla-x", "done"]]);
+    expect(h[0].from).toBeNull();
+  });
+});

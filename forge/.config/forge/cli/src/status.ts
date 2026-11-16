@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
-import { loadState, readLines, type Run } from "./append";
-import { running } from "./events";
+import { cycleDirs, loadState, readLines, type Run } from "./append";
+import { replay, running } from "./events";
 import { queued } from "./spawn";
 import { coordinators, followups, specs } from "./agents";
 import { listRefs } from "./refs";
@@ -45,4 +45,30 @@ export function status(run: Run) {
     repos: isWorkspace(run) ? reposWithHead(run).map((r) => ({ name: r.name, base: r.base, branch: r.branch, worktree: r.worktree, head: r.head, remote: r.remote })) : [],
     refs: listRefs(run).map((e) => ({ n: e.n, file: e.file, title: e.title, kind: e.kind, binary: e.binary })),
   };
+}
+
+/**
+ * Every cycle of the run, oldest first, for the one-graph view: why it opened (start, slug, reason, the
+ * follow-up it handles), where it came from (from: cycle, phase, and node when known), the phase it reached,
+ * and each node's final state. Old cycles are never changed, so this is the whole history.
+ */
+export function history(run: Run) {
+  const fus = followups(run);
+  return cycleDirs(run).map((dir) => {
+    const lines = readLines(join(dir, "events.jsonl"));
+    const state = replay(lines);
+    const open = JSON.parse(lines[0] ?? "{}").data ?? {};
+    const fu = open.followup ? fus.find((f) => f.id === open.followup) : null;
+    return {
+      cycle: state.cycle, dir: basename(dir), start: open.start ?? null, slug: open.slug ?? null, reason: open.reason ?? null,
+      from: open.from ?? null, followup: fu ? { id: fu.id, source: fu.source, text: fu.text } : null,
+      phase: state.phase,
+      nodes: [...state.nodes.values()].map((n) => ({
+        id: n.id, phase: n.phase, gen: n.gen, status: n.status, fails: n.fails,
+        ...(n.blocked ? { blocked: true } : {}), ...(n.skipped ? { skipped: true } : {}),
+        ...(n.wave !== undefined ? { wave: n.wave } : {}), ...(n.role ? { role: n.role } : {}),
+        ...(n.files.length ? { files: n.files } : {}),
+      })),
+    };
+  });
 }

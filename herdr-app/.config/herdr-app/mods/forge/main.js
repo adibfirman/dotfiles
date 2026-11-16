@@ -5,8 +5,11 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView, P
 import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, setShared, closeOverlay, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
-import { agentDecisions, boxSize, parseTsGraph, runGraph, tsBlocks } from "./graph.js";
+import { agentDecisions, boxSize, historyGraph, parseTsGraph, tsBlocks } from "./graph.js";
 import { forge, listRuns, readJson, repoOf } from "./data.js";
+
+// The size of a back-arc label, in graph units (the layout keeps it off boxes and other labels).
+const arcLabelSize = (label) => ({ w: label.length * 6.4 + 18, h: 20 });
 
 // Herdr's zoom scales the px we give and paint_path geometry, not on_size_change sizes (see Blueprint).
 const zoomOf = (s) => (Number(s?.zoom) > 0 ? Number(s.zoom) : 1);
@@ -94,6 +97,11 @@ export default class Forge extends View {
     const r = await forge(["status"], { run: this.dir, cwd: this.repo.main });
     this.st = r.ok ? JSON.parse(r.out) : null;
     this.error = r.ok ? null : r.err;
+    // Every cycle, for the one-graph Run view (a later cycle adds to the graph and loops back to its cause).
+    if (this.st?.cycle > 1) {
+      const h = await forge(["history"], { run: this.dir, cwd: this.repo.main });
+      this.hist = h.ok ? JSON.parse(h.out) : null;
+    } else this.hist = null;
     const spec = this.st && (this.st.phase === "gate" ? this.st.spec.gate : this.st.spec.approved ?? this.st.spec.gate ?? this.st.spec.draft);
     this.specText = spec ? (await readTextFile(spec)) ?? "" : "";
     if (this.st?.phase === "gate" && this.lastPhase !== "gate") this.tab = "gate";
@@ -196,8 +204,10 @@ export default class Forge extends View {
   open(n, cx) {
     if (!n.node || !this.st) return;
     const { id, gen, phase, status } = n.node;
+    // An older cycle's node: its output is in its own cycle folder, and its agent is long gone.
+    const cyclePath = n.node.cycleDir ? `${this.dir}/cycles/${n.node.cycleDir}` : this.st.cyclePath;
     cx.spawn(async (cx) => {
-      const info = await readJson(`${this.st.cyclePath}/.spawn/${id}-g${gen}.json`);
+      const info = n.node.cycleDir ? null : await readJson(`${cyclePath}/.spawn/${id}-g${gen}.json`);
       if (status === "running" && info?.terminal) {
         const r = await hc(["get", info.terminal, "--json"]).catch(() => null);
         let live = false;
@@ -211,11 +221,11 @@ export default class Forge extends View {
           return;
         }
       }
-      const text = await readTextFile(`${this.st.cyclePath}/${phase}/${id}.md`);
+      const text = await readTextFile(`${cyclePath}/${phase}/${id}.md`);
       const blocked = Boolean(n.node.blocked);
       this.detail = {
-        title: blocked ? `${id} · blocked after ${n.node.fails} failures` : `${id} · ${status}${n.node.skipped ? " (skipped)" : ""}`,
-        text: text ?? "No output file yet.", node: id, blocked,
+        title: blocked ? `${id} · blocked after ${n.node.fails} failures` : `${n.label} · ${status}${n.node.skipped ? " (skipped)" : ""}`,
+        text: text ?? "No output file yet.", node: id, blocked: blocked && !n.node.cycleDir,
       };
       cx.notify();
     });
@@ -327,8 +337,16 @@ export default class Forge extends View {
         .tooltip(full ?? label)
         .on_click((_e, cx) => { this.tab = k; this.selected = null; this.viewOpen = false; cx.notify(); })
         .child(k === "gate" ? `● ${label}` : label)));
+    // With more than one cycle, the Run view shows them all as one graph; this switch shows the current one only.
+    const many = this.tab === "run" && (this.hist?.length ?? 0) > 1;
+    const scope = div().id("f-scope").h(24).flex_none().px(9).flex().items_center().rounded(6).border_1().border_color(t.input)
+      .bg(this.onlyCurrent ? t.raised : t.selected).text_color(t.foreground).cursor_pointer().hover((x) => x.bg(t.hover))
+      .tooltip(this.onlyCurrent ? "Show every cycle as one graph" : "Show only the current cycle")
+      .on_click((_e, cx) => { this.onlyCurrent = !this.onlyCurrent; cx.notify(); })
+      .child(this.onlyCurrent ? `Cycle ${this.st.cycle} only` : `All ${this.hist?.length ?? 0} cycles`);
     return h_flex().flex_none().px(12).py(5).gap(10).items_start().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
       .child(left)
+      .when(many, (e) => e.child(scope))
       .child(Popover.new("f-view").anchor("top_right").open(Boolean(this.viewOpen))
         .on_open_change((o, cx) => { this.viewOpen = o; cx.notify(); })
         .trigger(trigger).content(menu));
@@ -353,7 +371,7 @@ export default class Forge extends View {
       const b = this.graphs()[Number(this.tab.slice(1))];
       return b ? this.canvas(t, parseTsGraph(b.code), `spec:${this.tab}:${b.code.length}`) : this.note(t, "No graph.");
     }
-    return this.canvas(t, runGraph(this.st), "run");
+    return this.canvas(t, historyGraph(this.st, this.hist, { onlyCurrent: this.onlyCurrent }), "run");
   }
 
   note(t, text) {
@@ -415,11 +433,12 @@ export default class Forge extends View {
   canvas(t, g, key) {
     const W = this.size.width, H = this.size.height;
     if (!g.nodes.size) return this.note(t, "Nothing to draw yet.");
-    const dir = W > H * 1.3 ? "LR" : "TB";
+    // Always left to right: each step's nodes stack in one vertical column, whatever the pane's shape.
+    const dir = "LR";
     const sig = `${key}|${dir}|${[...g.nodes.values()].map((n) => `${n.id}:${n.label}:${n.sub}`).join(",")}|${g.edges.map((e) => `${e.from}>${e.to}`).join(",")}`;
     let L = this.layouts.get(key);
     if (!L || L.sig !== sig) {
-      L = { sig, ...layout(g, dir, (n) => boxSize(n), () => ({ w: 0, h: 0 })) };
+      L = { sig, ...layout(g, dir, (n) => boxSize(n), (e) => (e.label ? arcLabelSize(e.label) : { w: 0, h: 0 })) };
       this.layouts.set(key, L);
     }
     const b = L.bounds, pad = 24;
@@ -435,7 +454,24 @@ export default class Forge extends View {
 
     let lines = PathBuilder.stroke(1.25), arrows = PathBuilder.fill();
     const head = Math.max(4, 7 * Math.sqrt(z)), tips = new Set();
+    // Back-arcs (a later cycle looping back to its cause) get their own colour, thicker, with a label.
+    const arcs = new Map();
     for (const ed of L.edges) {
+      if (ed.e.arc) {
+        if (!arcs.has(ed.e.arc)) arcs.set(ed.e.arc, { lines: PathBuilder.stroke(2), arrows: PathBuilder.fill(), eds: [] });
+        const a = arcs.get(ed.e.arc);
+        a.eds.push(ed);
+        const segs = ed.segs, last = segs[segs.length - 1][3], d = ed.dir;
+        const end = { x: X(last.x), y: Y(last.y) }, stop = { x: end.x - d.x * head * 0.8, y: end.y - d.y * head * 0.8 };
+        a.lines = a.lines.move_to(X(segs[0][0].x), Y(segs[0][0].y));
+        segs.forEach(([, c1, c2, p], i) => {
+          const to = i === segs.length - 1 ? stop : { x: X(p.x), y: Y(p.y) };
+          a.lines = a.lines.cubic_bezier_to(to.x, to.y, X(c1.x), Y(c1.y), X(c2.x), Y(c2.y));
+        });
+        const side = { x: -d.y, y: d.x }, w = head * 0.55;
+        a.arrows = a.arrows.add_polygon([[end.x, end.y], [end.x - d.x * head + side.x * w, end.y - d.y * head + side.y * w], [end.x - d.x * head - side.x * w, end.y - d.y * head - side.y * w]], true);
+        continue;
+      }
       const segs = ed.segs, last = segs[segs.length - 1][3], d = ed.dir;
       const end = { x: X(last.x), y: Y(last.y) };
       const stop = { x: end.x - d.x * head * 0.8, y: end.y - d.y * head * 0.8 };
@@ -453,11 +489,14 @@ export default class Forge extends View {
     }
     const layer = (path, color) => div().absolute().left(0).top(0).w(W).h(H).child(window.paint_path(path.build(), color));
     const els = [layer(lines, alpha(t.muted, 0.75)), layer(arrows, alpha(t.muted, 0.9))];
+    const arcColor = (k) => (k === "cex" ? t.blocked : k === "gate" ? t.accent : k === "followup" ? t.working : t.muted);
+    for (const [k, a] of arcs) els.push(layer(a.lines, alpha(arcColor(k), 0.85)), layer(a.arrows, arcColor(k)));
 
     for (const item of L.nodes) {
       const n = g.nodes.get(item.node.id) ?? item.node;
       const w = item.w * z, h = item.h * z, left = X(item.x) - w / 2, top = Y(item.y) - h / 2;
-      const color = n.status ? this.statusColor(t, n.status) : t.input;
+      // An older cycle's node is dimmed: it is history, the current cycle is what runs.
+      const color = n.status ? alpha(this.statusColor(t, n.status), n.old ? 0.5 : 1) : t.input;
       const picked = this.selected === n.id;
       const mark = n.status === "done" ? "✓ " : n.status === "failed" ? "✕ " : n.status === "running" ? "● " : n.status === "waiting" || n.status === "blocked" ? "◆ " : "";
       els.push(v_flex().id(`f-n-${key}-${n.id}`).absolute().left(left).top(top).w(w).h(h).justify_center().px(8 * z).rounded(8 * z)
@@ -466,8 +505,20 @@ export default class Forge extends View {
         .on_click((_e, cx) => { if (this.dragged) return; this.selected = n.id; if (n.node) this.open(n, cx); else if (n.details.length || n.path) this.detail = { title: n.label, text: [n.sub, ...n.details].filter(Boolean).join("\n\n") }; cx.notify(); })
         .child(h_flex().min_w(0).text_size(12.5 * z).font_semibold()
           .when(Boolean(mark), (e) => e.child(div().flex_none().text_color(color).child(mark)))
-          .child(div().min_w(0).truncate().text_color(n.status === "pending" ? t.muted : t.foreground).child(n.label)))
-        .when(Boolean(n.sub), (e) => e.child(div().text_size(10.5 * z).truncate().text_color(t.muted).child(n.sub))));
+          .child(div().min_w(0).truncate().text_color(n.old ? t.dim : n.status === "pending" ? t.muted : t.foreground).child(n.label)))
+        .when(Boolean(n.sub), (e) => e.child(div().text_size(10.5 * z).truncate().text_color(n.old ? t.dim : t.muted).child(n.sub))));
+    }
+    // Each back-arc's label: why that cycle opened. A click shows the whole reason.
+    for (const [k, a] of arcs) {
+      for (const ed of a.eds) {
+        if (!ed.label) continue;
+        const sz = arcLabelSize(ed.e.label), w = sz.w * z, h = sz.h * z;
+        els.push(div().id(`f-arc-${key}-${ed.e.cycle}`).absolute().left(X(ed.label.x) - w / 2).top(Y(ed.label.y) - h / 2).w(w).h(h)
+          .flex().items_center().justify_center().rounded(h / 2).bg(t.popover).border_1().border_color(arcColor(k))
+          .text_size(10.5 * z).text_color(arcColor(k)).cursor_pointer().hover((x) => x.bg(t.hover)).tooltip(ed.e.reason || ed.e.label)
+          .on_click((_e, cx) => { if (this.dragged) return; this.detail = { title: ed.e.label, text: ed.e.reason || "No reason recorded." }; cx.notify(); })
+          .child(ed.e.label));
+      }
     }
     const ctl = (id, label, f, tip) => div().id(id).h(24).min_w(24).px(6).flex().items_center().justify_center().rounded(5).text_size(12).cursor_pointer()
       .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)

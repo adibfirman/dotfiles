@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { agentDecisions, boxSize, parseTsGraph, runGraph, tsBlocks } from "../graph.js";
+import { agentDecisions, boxSize, historyGraph, parseTsGraph, runGraph, tsBlocks } from "../graph.js";
 
 const spec = readFileSync(new URL("./spec-fixture.md", import.meta.url), "utf8");
 
@@ -71,4 +71,30 @@ test("agentDecisions reads the gate list", () => {
 test("boxSize grows with the label and has two lines with a sub", () => {
   assert.deepEqual(boxSize({ label: "x", sub: "" }), { w: 110, h: 36 });
   assert.equal(boxSize({ label: "a much longer label here", sub: "role" }).h, 50);
+});
+
+test("historyGraph: one graph for all cycles, old nodes kept, a back-arc from the node that caused the loop", () => {
+  const st = { cycle: 2, phase: "grill", nodes: [{ id: "ask-r1", phase: "grill", gen: 0, status: "running", role: "asker" }] };
+  const hist = [
+    { cycle: 1, dir: "001-initial", start: "grill", slug: "initial", reason: "start", from: null, phase: "verify",
+      nodes: [{ id: "ask-r1", phase: "grill", gen: 0, status: "done", role: "asker" }, { id: "tla-sample-ends", phase: "verify", gen: 0, status: "done", role: "tla-writer" }] },
+    { cycle: 2, dir: "002-cex-sample-ends", start: "grill", slug: "cex-sample-ends", reason: "sample-ends fails on Linux", from: null, phase: "grill", nodes: [] },
+  ];
+  const g = historyGraph(st, hist);
+  assert.equal(g.nodes.get("c1:node:ask-r1").old, true);
+  assert.equal(g.nodes.get("c1:node:ask-r1").label, "ask-r1 · c1");
+  assert.equal(g.nodes.get("c1:node:ask-r1").node.cycleDir, "001-initial");
+  assert.equal(g.nodes.get("node:ask-r1").old, undefined);
+  const arc = g.edges.find((e) => e.arc);
+  assert.deepEqual([arc.from, arc.to, arc.arc, arc.label], ["c1:node:tla-sample-ends", "phase:grill", "cex", "cycle 2: counterexample"]);
+  assert.equal(arc.reason, "sample-ends fails on Linux");
+  // A recorded from.node wins; without a node, the arc starts at the phase the earlier cycle was in.
+  hist[1].from = { cycle: 1, phase: "verify" };
+  hist[1].slug = "qa-fix";
+  hist[1].followup = { id: "1-1", source: "qa", text: "the CPU number is wrong" };
+  const g2 = historyGraph(st, hist);
+  const arc2 = g2.edges.find((e) => e.arc);
+  assert.deepEqual([arc2.from, arc2.arc, arc2.label, arc2.reason], ["phase:verify", "followup", "cycle 2: QA follow-up", "the CPU number is wrong"]);
+  // One cycle only: as before.
+  assert.equal(historyGraph(st, hist, { onlyCurrent: true }).nodes.has("c1:node:ask-r1"), false);
 });

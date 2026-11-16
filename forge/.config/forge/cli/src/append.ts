@@ -183,9 +183,15 @@ function reopen(run: Run, data: Data) {
   const slug = slugify(typeof data.slug === "string" ? data.slug : "followup");
   const reason = typeof data.reason === "string" ? data.reason : "";
   const followup = typeof data.followup === "string" ? { followup: data.followup } : {};
+  // Where the loop back came from, for the one-graph view: always the cycle and the phase it was in, and the
+  // node that caused it when the opener names one (a counterexample's TLA+ node, a failed gate node).
+  const named = (data.from as { node?: unknown } | undefined)?.node;
+  if (named !== undefined && (typeof named !== "string" || !state.nodes.has(named)))
+    throw new Refused(`from.node ${JSON.stringify(named)} is not a node of cycle ${state.cycle}`);
+  const from = { cycle: state.cycle, phase: state.phase, ...(typeof named === "string" ? { node: named } : {}) };
   // The project cap (forge config cap) applies from the next cycle.
   const cap = projectCapOf(run.main) ?? state.cap;
-  return openCycle(run, state.cycle + 1, start, slug, start === "exec" && state.approved, cap, reason, followup);
+  return openCycle(run, state.cycle + 1, start, slug, start === "exec" && state.approved, cap, reason, { ...followup, from });
 }
 
 function openCycle(run: Run, cycle: number, start: Phase, slug: string, approved: boolean, cap: number, reason: string, extra: Data = {}) {

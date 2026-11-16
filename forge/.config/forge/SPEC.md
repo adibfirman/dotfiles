@@ -381,3 +381,12 @@ Found while running forge in this repo:
 - `HEAD` and `forge status` list `blocked`. The sidebar row shows ◆ "you" in red when a node is blocked. The forge header shows "◆ N blocked: needs you". A blocked node shows ◆ and "blocked after N failures", and its panel has Retry and Skip.
 - The coordinator prompt: when a node is blocked, write a `blocked:` comment, print `BLOCKED: <id> needs you`, go on with nodes that do not need it, and stop when nothing is left.
 - TLA+ (`tla/Forge.tla`): `nfail`, `skipped`, `Blocked(n)`, `UserRetry`, `UserSkip`, and the action property `BlockedNeedsUser`. TLC passes (35,728 states). The mutation "Retry ignores the block" is caught by `BlockedNeedsUser`. Liveness now assumes the user decides on a blocked node sooner or later.
+
+## 25. One graph for the whole run (2026-11-16)
+
+- Like meta7, the Run view keeps every cycle in one graph. A loop back no longer looks like a reset. The phases show once. Every cycle's nodes sit under their phase: a later cycle adds nodes and never replaces them. Older cycles' nodes are dimmed and marked `· c<n>`. Clicking one reads its output from its own cycle folder.
+- Each later cycle draws a back-arc from what caused it to the phase it restarted at. The arc is coloured by kind (counterexample, gate comment, QA or PR follow-up, other) and labelled `cycle <n>: <kind>`. Clicking the label shows the full reason. Blueprint's layout draws it as a side arc.
+- `cycle_open` now always records `from: { cycle, phase }`, plus `node` when the opener names one. The verify coordinator passes `from.node: tla-<slug>` for a counterexample. Forge refuses a `from.node` that is not a node of the current cycle. For old runs without `from`, a `cex-<slug>` cycle is linked to node `tla-<slug>` when it exists, else to the phase the earlier cycle was in.
+- `forge history` lists every cycle: start, slug, reason, follow-up, from, the phase it reached, and each node's final state.
+- The switch next to the view dropdown ("All N cycles" / "Cycle N only") shows the current cycle alone.
+- The TLA+ model does not change: cycles stay forward-only inside, and only the view joins them.

@@ -126,6 +126,62 @@ export function runGraph(st) {
   return { nodes, edges };
 }
 
+// Why a later cycle opened, as a short arc label and an arc kind (it picks the arc's colour).
+function arcKind(c) {
+  if (String(c.slug ?? "").startsWith("cex")) return ["counterexample", "cex"];
+  const src = c.followup?.source;
+  if (src === "gate") return ["gate comment", "gate"];
+  if (src === "qa" || src === "pr") return [`${src.toUpperCase()} follow-up`, "followup"];
+  if (src) return ["follow-up", "followup"];
+  return ["reopened", "other"];
+}
+
+/**
+ * The whole run as one graph, like meta7: the phases once; every cycle's nodes under their phase (a later
+ * cycle adds nodes and never replaces them); and for each later cycle a back-arc from what caused it to the
+ * phase it restarted at, labelled with why. Older cycles' nodes are marked old (drawn dimmed), and clicking
+ * one reads its output from its own cycle folder. hist is `forge history`; onlyCurrent shows one cycle.
+ */
+export function historyGraph(st, hist, { onlyCurrent = false } = {}) {
+  const g = runGraph(st);
+  if (onlyCurrent || !Array.isArray(hist) || hist.length < 2) return g;
+  const idOf = (cycle, node) => (cycle === st.cycle ? `node:${node}` : `c${cycle}:node:${node}`);
+  for (const c of hist) {
+    if (c.cycle === st.cycle) continue;
+    const waves = [...new Set(c.nodes.filter((n) => n.phase === "exec" && n.wave !== undefined).map((n) => n.wave))].sort((x, y) => x - y);
+    waves.forEach((w, i) => {
+      const id = `c${c.cycle}:wave:${w}`;
+      g.nodes.set(id, { id, label: `wave ${w} · c${c.cycle}`, sub: "", status: groupStatus(c.nodes.filter((n) => n.wave === w)), details: [], path: null, kind: "wave", old: true });
+      g.edges.push({ from: i ? `c${c.cycle}:wave:${waves[i - 1]}` : "phase:exec", to: id, arrow: true });
+    });
+    for (const n of c.nodes) {
+      const id = idOf(c.cycle, n.id);
+      g.nodes.set(id, {
+        id, label: `${n.id}${n.gen > 0 ? ` · g${n.gen}` : ""} · c${c.cycle}`,
+        sub: n.blocked ? `blocked after ${n.fails} failures` : n.skipped ? `${n.role ?? ""} · skipped` : n.role ?? "",
+        status: n.blocked ? "blocked" : n.status, details: n.files?.length ? [`files: ${n.files.join(", ")}`] : [], path: null,
+        kind: "node", node: { ...n, cycleDir: c.dir }, old: true, cycle: c.cycle,
+      });
+      const parent = n.phase === "exec" && n.wave !== undefined ? `c${c.cycle}:wave:${n.wave}` : `phase:${n.phase}`;
+      if (g.nodes.has(parent)) g.edges.push({ from: parent, to: id, arrow: true });
+    }
+  }
+  // One back-arc per later cycle. Old runs have no `from`: a counterexample cycle "cex-<slug>" came from the
+  // node tla-<slug> when it exists, else the arc starts at the phase the earlier cycle was in.
+  hist.forEach((c, i) => {
+    if (!i) return;
+    const prev = hist[i - 1];
+    const guess = String(c.slug ?? "").startsWith("cex-") ? `tla-${c.slug.slice(4)}` : null;
+    const node = c.from?.node ?? (guess && prev.nodes.some((n) => n.id === guess) ? guess : null);
+    const from = node && g.nodes.has(idOf(prev.cycle, node)) ? idOf(prev.cycle, node) : `phase:${c.from?.phase ?? prev.phase}`;
+    const to = `phase:${c.start ?? "grill"}`;
+    if (!g.nodes.has(from) || !g.nodes.has(to)) return;
+    const [word, kind] = arcKind(c);
+    g.edges.push({ from, to, arrow: true, arc: kind, label: `cycle ${c.cycle}: ${word}`, reason: c.followup?.text ?? c.reason ?? "", cycle: c.cycle });
+  });
+  return g;
+}
+
 /** The bullets of "## Agent decisions to confirm" in the gate spec: [{ id, text }]. */
 export function agentDecisions(markdown) {
   const m = /^## Agent decisions to confirm\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(markdown);

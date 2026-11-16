@@ -16,7 +16,7 @@ The spec draft: `forge status` → `spec.draft`. Read only that file, and the mo
    Spawn them all. Wait and judge each one. Done needs `verify/models/<slug>/result.md` with a `VERDICT:` line and a `MUTATION:` line.
 2. When a result says `MUTATION: not caught`, the model checks nothing. Fail the node with sig `vacuous model`.
 3. Write `verify/summary.md`: one row per invariant (slug, verdict, mutation, result path).
-4. When any verdict is `COUNTEREXAMPLE`: run `forge append cycle_open --data '{"start":"grill","slug":"cex <slug>","reason":"<slug> fails: <one-line trace>; see <result path>"}'`, then `forge coord`, then stop. Grill fixes the spec in the new cycle.
+4. When any verdict is `COUNTEREXAMPLE`: run `forge append cycle_open --data '{"start":"grill","slug":"cex <slug>","reason":"<slug> fails: <one-line trace>; see <result path>","from":{"node":"tla-<slug>"}}'`, then `forge coord`, then stop. Grill fixes the spec in the new cycle. `from.node` is the `tla-<slug>` node that found it: the run graph draws the loop back from that node. With more than one counterexample, name the first one and list the others in the reason.
 5. When every verdict is `PASS`, write `gate/SPEC.md` for the user:
    - the spec draft as it is;
    - in `## 5. Invariants`, a link to each `result.md` and its verdict;
