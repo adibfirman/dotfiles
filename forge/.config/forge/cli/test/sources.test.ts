@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { currentCycleDir } from "../src/append";
-import { allowRules, deniedBy, mergeSources, modelFor, parseSources, toolchainPreset } from "../src/sources";
+import { allowRules, deniedBy, mergeSources, modelFor, parseSources, safeScript, toolchainPreset } from "../src/sources";
 import { claudeArgs } from "../src/spawn";
 import { setup } from "./helpers";
 
@@ -54,7 +54,7 @@ describe("toolchain preset", () => {
     mkdirSync(dir);
     writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { lint: "x", typecheck: "y" } }));
     writeFileSync(join(dir, "bun.lock"), "");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: bun run lint, bun run typecheck, bun test, npx tsc --noEmit\n");
+    expect(toolchainPreset(dir)).toBe("## exec\n- bash: bun run lint, bun run typecheck, bun lint, bun typecheck, bun install, bun test, npx tsc --noEmit\n");
   });
 
   test("go module", () => {
@@ -62,7 +62,7 @@ describe("toolchain preset", () => {
     const dir = join(root, "gorepo");
     mkdirSync(dir);
     writeFileSync(join(dir, "go.mod"), "module x\n");
-    expect(toolchainPreset(dir)).toBe("## exec\n- bash: go build, go vet, go test\n");
+    expect(toolchainPreset(dir)).toBe("## exec\n- bash: go build, go vet, go test, go generate, go mod download, go mod tidy, gofmt\n");
   });
 
   test("test files with no package.json: the plain test runners", () => {
@@ -79,7 +79,34 @@ describe("toolchain preset", () => {
     writeFileSync(join(repo, "bun.lock"), "");
     writeFileSync(join(repo, "a.test.ts"), "");
     spawnSync("git", ["add", "."], { cwd: repo });
-    expect(toolchainPreset(repo)).toBe("## exec\n- bash: bun test, npx tsc --noEmit\n- bash: node --test\n");
+    expect(toolchainPreset(repo)).toBe("## exec\n- bash: bun install, bun test, npx tsc --noEmit\n- bash: node --test\n");
+  });
+
+  test("pnpm: the short script form and install; npm: ci, and no short form", () => {
+    const { root } = setup();
+    const dir = join(root, "pnpmrepo");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { lint: "x" } }));
+    writeFileSync(join(dir, "pnpm-lock.yaml"), "");
+    expect(toolchainPreset(dir)).toBe("## exec\n- bash: pnpm run lint, pnpm lint, pnpm install, pnpm test, npx tsc --noEmit\n");
+    const npm = join(root, "npmrepo");
+    mkdirSync(npm);
+    writeFileSync(join(npm, "package.json"), JSON.stringify({ scripts: { lint: "x" } }));
+    expect(toolchainPreset(npm)).toBe("## exec\n- bash: npm run lint, npm install, npm ci, npm test, npx tsc --noEmit\n");
+  });
+
+  test("repo scripts and make targets: build and check names only, never ones that reach outside", () => {
+    const { root } = setup();
+    const dir = join(root, "scripted");
+    mkdirSync(join(dir, "script"), { recursive: true });
+    for (const name of ["gen", "check-coverage.sh", "trigger_setup_dev.py", "deploy.sh", "gen-user-insert.sh", "notes.txt"]) {
+      writeFileSync(join(dir, "script", name), "#!/bin/sh\n");
+      if (name !== "notes.txt") chmodSync(join(dir, "script", name), 0o755);
+    }
+    writeFileSync(join(dir, "Makefile"), "test:\n\tgo test\nbuild:\n\tgo build\ndeploy-prod:\n\tx\nVAR:=1\n");
+    expect(toolchainPreset(dir)).toBe("## exec\n- bash: ./script/check-coverage.sh, ./script/gen, make test, make build\n");
+    expect(safeScript("gen-proto.sh")).toBe(true);
+    expect(safeScript("trigger_setup_dev.py")).toBe(false);
   });
 
   test("nothing to add", () => {

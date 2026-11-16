@@ -28,7 +28,7 @@ test("ciSummary counts", () => {
 
 test("ticketOf reads branch names", () => {
   assert.equal(ticketOf("fix/INTR-123"), "INTR-123");
-  assert.equal(ticketOf("feat/INT-45-retry"), "INT-45");
+  assert.equal(ticketOf("feat/ABC-45-retry"), "ABC-45");
   assert.equal(ticketOf("main"), null);
 });
 

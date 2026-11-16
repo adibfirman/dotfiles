@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -65,11 +65,33 @@ export function toolchainPreset(worktree: string): string {
     const pm = existsSync(join(worktree, "bun.lock")) || existsSync(join(worktree, "bun.lockb")) ? "bun"
       : existsSync(join(worktree, "pnpm-lock.yaml")) ? "pnpm"
       : existsSync(join(worktree, "yarn.lock")) ? "yarn" : "npm";
-    const scripts = Object.keys(JSON.parse(readFileSync(pkg, "utf8")).scripts ?? {});
-    const cmds = [...scripts.map((s) => `${pm} run ${s}`), `${pm} test`, "npx tsc --noEmit"];
-    lines.push(`- bash: ${cmds.join(", ")}`);
+    const scripts = Object.keys(JSON.parse(readFileSync(pkg, "utf8")).scripts ?? {}).filter((s) => /^[A-Za-z0-9:_.-]+$/.test(s));
+    // A fresh worktree has no node_modules, so install comes first. pnpm, yarn, and bun also run a script
+    // without "run" (`pnpm lint`), and agents use that form, so both are allowed.
+    const cmds = [
+      ...scripts.map((s) => `${pm} run ${s}`), ...(pm === "npm" ? [] : scripts.map((s) => `${pm} ${s}`)),
+      `${pm} install`, ...(pm === "npm" ? ["npm ci"] : []), `${pm} test`, "npx tsc --noEmit",
+    ];
+    lines.push(`- bash: ${[...new Set(cmds)].join(", ")}`);
   }
-  if (existsSync(join(worktree, "go.mod"))) lines.push("- bash: go build, go vet, go test");
+  if (existsSync(join(worktree, "go.mod"))) lines.push("- bash: go build, go vet, go test, go generate, go mod download, go mod tidy, gofmt");
+  // The repo's own build and check scripts (codegen, coverage, lint): executable files in script/ or scripts/,
+  // and Makefile targets, kept only when the name says build or check and never when it says it reaches
+  // something outside (an environment, a deploy, a database, a service) or deletes.
+  const own: string[] = [];
+  for (const dir of ["script", "scripts"]) {
+    const d = join(worktree, dir);
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d, { withFileTypes: true }).sort((x, y) => x.name.localeCompare(y.name))) {
+      if (!f.isFile() || f.name.startsWith(".") || !/^[A-Za-z0-9._-]+$/.test(f.name) || !safeScript(f.name)) continue;
+      if (statSync(join(d, f.name)).mode & 0o111) own.push(`./${dir}/${f.name}`);
+    }
+  }
+  const make = join(worktree, "Makefile");
+  if (existsSync(make)) {
+    for (const m of readFileSync(make, "utf8").matchAll(/^([A-Za-z0-9_.-]+):(?!=)/gm)) if (safeScript(m[1])) own.push(`make ${m[1]}`);
+  }
+  if (own.length) lines.push(`- bash: ${[...new Set(own)].join(", ")}`);
   // Test files with no package.json to run them (like mods in a dotfiles repo): allow the plain test runners.
   if (hasTestFiles(worktree)) {
     const cmds = ["node --test", "bun test"].filter((c) => !lines.some((l) => l.includes(c))); // a bun repo has bun test already
@@ -83,6 +105,11 @@ function hasTestFiles(worktree: string): boolean {
   const r = spawnSync("git", ["ls-files", "--", "*.test.mjs", "*.test.js", "*.test.ts"], { cwd: worktree, encoding: "utf8" });
   return r.status === 0 && r.stdout.trim().length > 0;
 }
+
+const BUILD_WORDS = /(^|[^a-z])(gen|generate|codegen|build|test|tests|check|lint|fmt|format|coverage|proto|typecheck|compile|vet)/i;
+const OUTSIDE_WORDS = /(dev|prod|staging|stage|deploy|release|publish|delet|drop|destroy|trigger|push|sync|upload|sonar|insert|seed|migrat|onboard)/i;
+/** A repo script or make target an agent may run: a build or check name, with no word that reaches outside. */
+export const safeScript = (name: string) => BUILD_WORDS.test(name) && !OUTSIDE_WORDS.test(name);
 
 /** Role → model from models.md lines `- role: model`. A project file overrides single roles. */
 export function modelFor(role: string, texts: string[]): string {

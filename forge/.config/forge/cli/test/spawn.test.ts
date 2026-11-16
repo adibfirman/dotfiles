@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { loadState } from "../src/append";
 import { main } from "../src/main";
-import { drainQueue, spawnNode, terminalName } from "../src/spawn";
+import { allowedFor, drainQueue, spawnNode, terminalName } from "../src/spawn";
 import { status } from "../src/status";
 import { add, hcCalls, setup, toExec } from "./helpers";
 
@@ -173,4 +173,14 @@ describe("CLI", () => {
     expect(s).toMatchObject({ cycle: 1, cycleDir: "001-initial", phase: "grill", approved: false, cap: 4, running: 0 });
     expect(s.nodes).toEqual([{ id: "a", phase: "grill", gen: 0, status: "pending", sameErr: 0, fails: 0, role: "asker" }]);
   });
+});
+
+test("allowedFor: a node's command against its allow list and the deny floor", () => {
+  const env = setup({ sources: "## exec\n- bash: git commit\n## unit\n- bash: pnpm lint\n" });
+  toExec(env.run);
+  add(env.run, "node_add", "u1", { role: "unit", wave: 1 });
+  expect(allowedFor(env.run, "u1", "pnpm   lint --fix")).toMatchObject({ allowed: true, rule: "Bash(pnpm lint:*)", command: "pnpm lint --fix" });
+  expect(allowedFor(env.run, "u1", "pnpm install").allowed).toBe(false);
+  expect(allowedFor(env.run, "u1", "git push origin main")).toMatchObject({ allowed: false, deniedBy: "Bash(git push:*)" });
+  expect(() => allowedFor(env.run, "nope", "ls")).toThrow("unknown node");
 });

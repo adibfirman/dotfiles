@@ -390,3 +390,12 @@ Found while running forge in this repo:
 - `forge history` lists every cycle: start, slug, reason, follow-up, from, the phase it reached, and each node's final state.
 - The switch next to the view dropdown ("All N cycles" / "Cycle N only") shows the current cycle alone.
 - The TLA+ model does not change: cycles stay forward-only inside, and only the view joins them.
+
+## 26. Repo toolchains that do not block exec (2026-11-16)
+
+- First real workspace run (2 repos): both exec units were blocked at once. The JS repo needed `pnpm install --frozen-lockfile` (a fresh worktree has no `node_modules`) and `pnpm lint` (the short form). The Go repo needed its own codegen script and `gofmt`.
+- Repo detection (`toolchainPreset`) now adds:
+  - JS: `<pm> install`, `npm ci` for npm, and the short script form `<pm> <script>` for pnpm, yarn, and bun.
+  - Go: `go generate`, `go mod download`, `go mod tidy`, `gofmt`.
+  - Any repo: the build and check scripts in `script/` or `scripts/` (executable files), and the matching Makefile targets. A name must contain a build or check word (gen, build, test, check, lint, fmt, format, coverage, proto, typecheck, compile, vet). It must not contain a word that reaches outside or deletes (dev, prod, staging, deploy, release, publish, delete, drop, destroy, trigger, push, sync, upload, sonar, insert, seed, migrate, onboard). So `gen` and `check-coverage.sh` are allowed, while `trigger_setup_dev.py` and `deploy.sh` are not.
+- `forge allowed <node> "<command>"` says whether that node's agent may run the command now, from the same rules the agent gets (`toolRules`, which `claudeArgs` now uses too). A coordinator runs it before it treats a `needs <tool>` node as blocked. A restart then retries nodes whose tool became allowed, and does not trust an old "blocked" note.

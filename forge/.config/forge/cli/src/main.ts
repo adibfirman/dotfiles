@@ -5,7 +5,7 @@ import { join as pathJoin } from "node:path";
 import { appendEvent, findRun, Refused } from "./append";
 import { HUMAN_KINDS, KINDS, type Data, type Kind } from "./events";
 import { init } from "./init";
-import { closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
+import { allowedFor, closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
 import { registerExisting, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
@@ -34,6 +34,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
+  forge allowed <node> "<command>"           whether that node's agent may run the command now (allow list and deny floor)
   forge history [--run <dir>]                 every cycle: why it opened, where it came from, its nodes' final state
   forge remove --run <dir>                    end its agents, take it off the list, delete its .forge/tickets folder (code stays)
   forge settings [--main <dir>]               models, cap, allowed tools, deny floor (default or project)
@@ -260,6 +261,11 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         } else throw new UsageError("forge config model <role>=<model>... | forge config cap <n> | forge config allow|disallow <phase> <key> <value> | forge config force|unforce <phase> <key> <value> | forge config sources-file");
         print(settings(main));
+        return 0;
+      }
+      case "allowed": {
+        if (rest.length < 2) throw new UsageError('forge allowed <node> "<command>"');
+        print(allowedFor(findRun(runFlag), rest[0], rest.slice(1).join(" ")));
         return 0;
       }
       case "history": {

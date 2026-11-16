@@ -82,6 +82,35 @@ export interface ClaudeCommand { args: string[]; model: string; mcpConfig: strin
  * A node writes only its phase folder; a coordinator writes the whole cycle folder. The run's state
  * files (events, queue, HEAD, run.json) are never writable.
  */
+/** The allow and deny rules an agent of this role and phase gets in this folder (no files written). */
+export function toolRules(run: Run, phase: string, role: string, cwd = run.worktree) {
+  const home = forgeHome();
+  const sections = [phase, "all", ...(isCoordinator(role) ? ["coordinator"] : []), role];
+  const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(cwd), read(join(run.main, ".forge", "SOURCES.md"))], sections);
+  const forced = projectForced(run.main, phase);
+  const deny = effectiveDeny(denyFloor(join(home, "deny-floor.json")), forced.flatMap((f) => f.lifts));
+  const allow = [...new Set([...allowRules(src), ...forced.map((f) => f.rule)])].filter((r) => !deniedBy(r, deny));
+  return { allow, deny };
+}
+
+/**
+ * Whether a node's agent may run one shell command now: on its allow list (a Bash rule whose command it
+ * starts with) and not denied. A coordinator checks this before it treats a "needs <tool>" node as blocked.
+ */
+export function allowedFor(run: Run, nodeId: string, command: string) {
+  const { state } = loadState(run);
+  const node = state.nodes.get(nodeId);
+  if (!node) throw new Refused(`unknown node ${nodeId}`);
+  const cwd = node.repo ? repoWorktree(run, node.repo) ?? run.worktree : run.worktree;
+  const { allow, deny } = toolRules(run, node.phase, node.role ?? "unit", cwd);
+  const cmd = command.trim().replace(/\s+/g, " ");
+  const body = (r: string) => /^Bash\((.*?)(?::\*)?\)$/.exec(r)?.[1];
+  const covers = (r: string) => { const b = body(r); return b !== undefined && (cmd === b || cmd.startsWith(b + " ")); };
+  const denied = deny.find(covers);
+  const rule = allow.find(covers);
+  return { node: nodeId, command: cmd, allowed: Boolean(rule) && !denied, ...(rule ? { rule } : {}), ...(denied ? { deniedBy: denied } : {}) };
+}
+
 export function claudeArgs(run: Run, phase: string, role: string, id: string, cycleDir: string, cwd = run.worktree): ClaudeCommand {
   const home = forgeHome();
   const spawnDir = join(cycleDir, ".spawn");
@@ -89,17 +118,15 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
   const prompt = promptFile(home, role, spawnDir, id);
   const sections = [phase, "all", ...(isCoordinator(role) ? ["coordinator"] : []), role];
   const src = mergeSources([read(join(home, "SOURCES.md")), toolchainPreset(cwd), read(join(run.main, ".forge", "SOURCES.md"))], sections);
-  const denyFile = join(home, "deny-floor.json");
-  // The repo's force-allowed entries for this phase: their rules join the allow list, and the floor rules
-  // they lift leave the deny list (never the NEVER_LIFT ones; HARD_DENY is always added).
-  const forced = projectForced(run.main, phase);
-  const deny = effectiveDeny(denyFloor(denyFile), forced.flatMap((f) => f.lifts));
+  // SOURCES layers, the repo's toolchain, and its force-allowed entries (which lift floor rules, never the
+  // NEVER_LIFT ones; HARD_DENY is always added). The same rules `forge allowed` checks.
+  const rules = toolRules(run, phase, role, cwd);
+  const deny = rules.deny;
 
   const outDir = isCoordinator(role) ? cycleDir : join(cycleDir, phase);
   mkdirSync(outDir, { recursive: true });
   // Edit(path) rules cover every file tool, Write included; Write(path) rules are not matched.
-  const wanted = [...new Set([...allowRules(src), ...forced.map((f) => f.rule)])];
-  const allow = [...wanted.filter((r) => !deniedBy(r, deny)), `Read(${abs(join(run.dir, "**"))})`, `Edit(${abs(join(outDir, "**"))})`];
+  const allow = [...rules.allow, `Read(${abs(join(run.dir, "**"))})`, `Edit(${abs(join(outDir, "**"))})`];
   const stateDeny = ["**/events.jsonl", "**/queue.jsonl", "run.json", "HEAD"].map((f) => `Edit(${abs(join(run.dir, f))})`);
 
   const registryFile = process.env.FORGE_MCP_REGISTRY ?? join(homedir(), ".claude", "mcp-servers.json");

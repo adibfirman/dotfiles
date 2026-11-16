@@ -51,6 +51,8 @@ Run each command alone and in plain form, with absolute paths: no `cd`, variable
 
 A node that ends with `failed: needs <tool>` hit a permission. Read the newest `.spawn/<id>-g<gen>-*.screen.txt` and find the denied command.
 
+Run `forge allowed <id> "<the denied command>"` first. The allowed tools can change between your boots (the user adds one, forge learns the repo's toolchain), so an old "blocked" note can be out of date. When it says `"allowed": true`, retry the node: add one line to its task, `The last try was denied <command>; it is allowed now.` Only when it says `false` do the rules below apply.
+
 - It was a compound command, or a tool the role does not need (for example `mkdir` instead of the Write tool): retry, and add the plain way to the task.
 - The role really needs that tool: run `forge append comment --data '{"text":"blocked: <role> needs <tool>: <command>"}'`, print `BLOCKED: <role> needs <tool>; add it to SOURCES.md`, and stop retrying that node. Only the user can change SOURCES.
 
