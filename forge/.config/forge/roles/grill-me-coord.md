@@ -25,6 +25,7 @@ These forge rules override those files:
 - First cycle: `<cycle folder>/context.md`.
 - A later cycle: the `reason` of this cycle's `cycle_open`, the follow-up text it points at (`forge status` → `followups`), and the newest spec (`forge status` → `spec.gate`, else `spec.approved`, else `spec.draft`).
 - A cycle whose slug starts with `cex`: the counterexample result named in the reason. Ask the user whether the spec changes so the invariant holds, or the invariant changes.
+- A restart (rounds exist in `grill/`): when the newest `grill/round-<n>.md` has no answers, read the newest `.spawn/grill-me-coord-*-*.screen.txt` in the cycle folder for them. Show the user what you found and ask them to confirm it (a line in the input box may not have been sent). Found nothing: post round `n` again.
 
 ## Workspace runs
 

@@ -59,6 +59,30 @@ const statusOf = (a) => {
   const s = t?.status;
   return typeof s === "object" ? s?.state ?? null : s ?? null;
 };
+// The run's live coordinator terminal for its row: the one `forge runs` names, else any live coordinator labeled
+// for this ticket (`forge runs` is polled every 8 s, so at a handoff the new one shows here first).
+const rowCoord = (f) => liveCoord(f) ?? terminals().find((t) => t.state === "live" && typeof t.labels?.forge === "string"
+  && t.labels.forge.startsWith(`${f.ticket}/`) && /-coord-\d+$/.test(t.labels.forge))?.address ?? null;
+
+// What a run's row shows: the phase and blocks first, then the coordinator's live status. you: the run waits for
+// you; note: a line for the tooltip.
+function runState(f, t) {
+  const h = f.head ?? {};
+  const blocked = blockedOf(f).length + (needsOf(f) ? 1 : 0);
+  const show = (mark, color, you, note = "") => ({ mark, color, you, blocked, note });
+  if (blocked) return show("◆", t.blocked, true);
+  if (h.phase === "gate") return show("◆", t.accent, true);
+  if (h.phase === "done") return show("✓", t.done, false);
+  const coord = rowCoord(f);
+  if (!coord) return show("○", t.dim, false, h.paused ? "" : "stopped: Restart in the run window");
+  const st = statusOf(coord);
+  // No status yet: the agent is starting.
+  if (st === "working" || st == null) return show("●", t.working, false);
+  if (st === "blocked") return show("◆", t.blocked, true, "the coordinator waits for an answer in its terminal");
+  const label = terminals().find((x) => x.address === coord)?.labels?.forge ?? "";
+  if (/grill-me-coord-\d+$/.test(label)) return show("◆", t.accent, true, "your turn in the grill");
+  return show("○", t.dim, false, "coordinator idle: open the run window");
+}
 
 // A forge run opens in one floating window (not a tab). shared "forge.window" tells this list which run is open
 // and which terminal it shows.
@@ -138,6 +162,12 @@ export default class ForgeRuns extends View {
   followWindow(cx) {
     this.openRequested(cx);
     this.finished();
+    // The row marks follow each coordinator's live status: redraw when one changes.
+    const marks = JSON.stringify(this.forge.map((f) => { const c = rowCoord(f); return [f.dir, c, statusOf(c)]; }));
+    if (marks !== this.marks) {
+      this.marks = marks;
+      cx.notify();
+    }
     const win = shared("forge.window");
     if (!win?.run || this.following) return;
     this.following = true;
@@ -324,16 +354,14 @@ export default class ForgeRuns extends View {
 
   row(f, t, owners, sp, collapsed) {
     const h = f.head ?? {};
-    // Waiting for you: the gate, a node blocked by the retry cap (Retry or Skip in the run window), or a
-    // coordinator blocked on a tool (Allow or Restart in the run window).
+    // Waiting for you: the gate, a node blocked by the retry cap (Retry or Skip in the run window), a coordinator
+    // blocked on a tool (Lift or Restart in the run window), or your turn in a "With me" grill.
     const nd = needsOf(f);
-    const blocked = blockedOf(f).length + (nd ? 1 : 0);
-    const you = h.phase === "gate" || blocked > 0;
-    const [mark, color] = blocked ? ["◆", t.blocked] : h.phase === "gate" ? ["◆", t.accent] : h.phase === "done" ? ["✓", t.done] : ["●", t.working];
+    const { mark, color, you, blocked, note } = runState(f, t);
     const open = shared("forge.window")?.run === f.dir;
     const owner = sp.find((s) => s.id === owners.get(f.dir));
     const swatch = owner ? t[(shared("space.colors") ?? {})[owner.id]] ?? t.dim : t.dim;
-    const tip = `${f.ticket} · ${owner ? `space ${owner.name}` : "no space"} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blockedOf(f).length ? ` · ${blockedOf(f).length} blocked: Retry or Skip in the run window` : ""}${nd ? ` · blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? nd.command}: Allow or Restart in the run window` : ""}`;
+    const tip = `${f.ticket} · ${owner ? `space ${owner.name}` : "no space"} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blockedOf(f).length ? ` · ${blockedOf(f).length} blocked: Retry or Skip in the run window` : ""}${nd ? ` · blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? nd.command}: Lift or Restart in the run window` : ""}${note ? ` · ${note}` : ""}`;
     if (collapsed) {
       return div().id(`run-${f.dir}`).size(30).flex_none().flex().items_center().justify_center().border(1)
         .border_color(open ? t.accent : t.border).text_color(color).tooltip(`${f.title || f.ticket} · ${tip}`)
