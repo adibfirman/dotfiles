@@ -492,3 +492,11 @@ Run INT-6 could not read Jira, Confluence, or Slack: the floor denied the Slack 
 - **PR edit.** `gh pr edit` left the floor. The default SOURCES denies it under `## all` and removes the deny under `## exec-coord`. At cycle end, exec-coord updates its branch's open PR (per repo in a workspace run): it keeps the current body, adds a `## Cycle <dir>` section, keeps the title unless the goal changed, and runs `gh pr edit <n> --title … --body-file …` with no other flag. With no open PR it skips, and the user creates the PR as before.
 - **Old keys.** `ignoredLines` lists the `tools`, `bash`, and `mcp` lines of the repo's SOURCES.md. `forge settings` returns them as `ignored`, `forge checks` prints them on stderr, and the Settings dialog shows them under "Denied commands".
 - **Risks accepted.** A new write tool on Slack or Atlassian runs until the floor names it. Only the prompt limits the `gh pr edit` flags. The PR body can describe commits that are not pushed yet. The `claude_ai_Atlassian_MCP` tool names are copied from `claude_ai_Atlassian` until that connector is signed in.
+
+## 34. Default models by one rule, no model picker in the dialog (2026-11-17)
+
+- `models.md` picks each role's model by one rule: fable when the role assumes or decides (scope, invariants); opus when it writes, judges, or routes from one fixed input; sonnet when it checks against clear rules; haiku when it follows exact steps. Each role has a one-line purpose under it.
+- The asker and grill-me-coord write the invariants, so they decide how much formal verification a run gets: both are fable. The tla-writer is opus. Units and commits are haiku, because the planner (fable) writes exact tasks.
+- The Start dialog no longer has a Models section. Every repo and workspace uses `~/.config/forge/models.md`. `forge config model` still writes a project override for a rare case, and `forge settings` still reports it.
+- Checked on 2026-11-17: no repo or workspace had a project `models.md`.
+

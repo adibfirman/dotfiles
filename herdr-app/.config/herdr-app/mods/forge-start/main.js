@@ -9,18 +9,6 @@ import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, not
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
 
-// Model settings by role group (Q45). A group shows "mixed" when its roles differ.
-const GROUPS = [
-  ["Coordinators", ["grill-coord", "grill-me-coord", "verify-coord", "exec-coord"]],
-  ["Asker, decider", ["asker", "decider"]],
-  ["Fact-finders", ["fact-finder"]],
-  ["TLA+ writers", ["tla-writer"]],
-  ["Planner", ["planner"]],
-  ["Units", ["unit"]],
-  ["Gates", ["gate-beh", "gate-spec", "gate-sec"]],
-  ["Review", ["gate-review"]],
-  ["Classifier, commit", ["classifier", "commit"]],
-];
 const short = (rule) => rule.replace(/^Bash\((.*?):\*\)$/, "$1").replace(/^mcp__/, "mcp:");
 // A `- deny:` value as forge's rule (sources.ts denyRule), to tell this repo's entries from the defaults.
 const denyRuleOf = (v) => /^mcp__/.test(v) || /^[A-Z][A-Za-z]*(\(.*\))?$/.test(v) ? v
@@ -288,18 +276,6 @@ export default class ForgeStart extends View {
       .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted)
       .when(editable && !this.busy, (e) => e.cursor_pointer().hover((x) => x.bg(t.hover)).on_click((_e, cx) => f(cx))).child(label);
     const heading = (text) => div().pt(6).text_size(11.5).font_semibold().text_color(t.muted).child(text);
-    const rows = GROUPS.map(([label, rs], i) => {
-      const known = rs.filter((r) => s.models[r]);
-      const values = [...new Set(known.map((r) => s.models[r].value))];
-      const value = values.length === 1 ? values[0] : "mixed";
-      const project = known.some((r) => s.models[r].from === "project");
-      return h_flex().id(`fs-model-${i}`).gap(6).items_center()
-        .child(div().w(130).text_size(12).truncate().child(label))
-        .children(["fable", "opus", "sonnet", "haiku"].map((m) => chip(`fs-m-${i}-${m}`, m, value === m, (cx) => this.config(cx, ["model", ...known.map((r) => `${r}=${m}`)]))))
-        .child(div().text_size(11).text_color(project ? t.accent : t.dim).child(project ? "project" : value === "mixed" ? "mixed" : "default"))
-        .when(project, (e) => e.child(div().id(`fs-reset-${i}`).text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
-          .on_click((_e, cx) => this.config(cx, ["model", ...known.map((r) => `${r}=default`)])).child("reset")));
-    });
     // Agents run in bypass mode: everything runs except these. Per phase: the default denies (dotfiles SOURCES.md),
     // this repo's own (accent, × removes), and the floor rules this repo lifted (red ⚠, × puts them back).
     const floor = new Set(s.deny);
@@ -339,10 +315,8 @@ export default class ForgeStart extends View {
     });
     return v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)
       .child(div().text_size(11.5).text_color(t.dim).child(editable
-        ? `Saved in ${this.workspace ? "this workspace's" : "this repo's"} .forge/, kept for every later run here. Models and denies apply from the next agent, the cap from the next cycle.`
+        ? `Saved in ${this.workspace ? "this workspace's" : "this repo's"} .forge/, kept for every later run here. Denies apply from the next agent, the cap from the next cycle. Models are the same for every repo: ~/.config/forge/models.md.`
         : "The defaults. They can be changed per repo or workspace."))
-      .child(heading("Models"))
-      .children(rows)
       .child(heading("Agents at once"))
       .child(h_flex().gap(6).items_center()
         .child(chip("fs-cap-dn", "−", false, (cx) => this.config(cx, ["cap", String(Math.max(1, s.cap.value - 1))])))
