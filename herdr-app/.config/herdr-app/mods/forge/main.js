@@ -1,12 +1,15 @@
 // forge: the run graph, the spec graphs, the gate, and the buttons for a forge run.
 // The forge CLI owns the state; this mod reads `forge status` and calls forge commands.
-import { View, div, PathBuilder } from "gpui-kit";
+import { View, div, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, TextView, Popover, v_resizable, resizable_panel } from "gpui-base";
 import { theme, settings, focused, exec, readTextFile, writeTextFile, watchFolder, notify, run, hc, appHome, shared, setShared, closeOverlay, props as given } from "herdr";
 import * as fs from "fs/promises";
 import { layout } from "./layout.js";
 import { agentDecisions, boxSize, parseTsGraph, stageDetail, stageGraph, tsBlocks, verdictCounts } from "./graph.js";
 import { forge, listRuns, readJson, repoOf } from "./data.js";
+
+// A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
+const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
 
 // The size of an arrow label, in graph units (the layout keeps it off boxes and other labels).
 const arcLabelSize = (label) => ({ w: label.length * 6.4 + 18, h: 20 });
@@ -332,8 +335,8 @@ export default class Forge extends View {
       .child(div().text_size(12).text_color(t.dim).child(`cycle ${st.cycle}`))
       .child(this.pill(t, st.paused ? `${st.phase} · paused` : st.phase, st.paused ? t.blocked : phaseColor))
       .child(div().text_size(12).text_color(t.dim).child(`${st.running}/${st.cap} running`))
-      .when(Boolean(st.blocked?.length), (e) => e.child(div().text_size(12).text_color(t.blocked).tooltip("Stopped after too many failures: click the node, then Retry or Skip")
-        .child(`◆ ${st.blocked.length} blocked: needs you`)))
+      .when(Boolean(st.blocked?.length), (e) => e.child(h_flex().gap(4).items_center().text_size(12).text_color(t.blocked).tooltip("Stopped after too many failures: click the node, then Retry or Skip")
+        .child(ico("circle-alert", 12)).child(`${st.blocked.length} blocked: needs you`)))
       .when(st.queue.length > 0, (e) => e.child(div().text_size(12).text_color(t.dim).child(`${st.queue.length} queued`)))
       .child(div().flex_1())
       .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
@@ -362,7 +365,7 @@ export default class Forge extends View {
     const gateWaiting = this.st.phase === "gate" && this.tab !== "gate";
     const left = h_flex().id("f-cycle-line").flex_1().min_w(0).gap(6).items_start()
       .when(Boolean(text), (e) => e.cursor_pointer().on_click((_e, cx) => { this.cycleOpen = !this.cycleOpen; cx.notify(); }))
-      .child(div().flex_none().text_color(t.dim).child(text ? (open ? "▾" : "▸") : " "))
+      .child(div().flex_none().w(12).h(16).flex().items_center().text_color(t.dim).when(Boolean(text), (x) => x.child(ico(open ? "chevron-down" : "chevron-right", 12))))
       .child(div().flex_none().font_semibold().text_color(t.accent).child(`Cycle ${this.st.cycle}`))
       .when(Boolean(text), (e) => e.child(open
         ? div().id("f-cycle-full").flex_1().min_w(0).max_h(160).overflow_y_scrollbar().text_color(t.foreground).child(text)
@@ -371,13 +374,13 @@ export default class Forge extends View {
       .cursor_pointer().hover((x) => x.bg(t.hover)).tooltip(cur[2] ?? cur[1])
       .when(gateWaiting, (e) => e.child(div().w(7).h(7).flex_none().rounded_full().bg(t.blocked)))
       .child(div().min_w(0).truncate().text_color(t.foreground).child(cur[1]))
-      .child(div().flex_none().text_color(t.dim).child("▾"));
+      .child(div().flex_none().flex().items_center().text_color(t.dim).child(ico("chevron-down", 12)));
     const menu = v_flex().id("f-view-menu").w(340).max_h(360).overflow_y_scrollbar().p(4).gap(2).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_md()
       .children(items.map(([k, label, full]) => div().id(`f-view-${k}`).h(26).px(8).flex().items_center().rounded(5).text_size(12).truncate().cursor_pointer()
         .bg(this.tab === k ? t.selected : t.popover).text_color(this.tab === k ? t.foreground : t.muted).hover((x) => x.bg(t.hover).text_color(t.foreground))
         .tooltip(full ?? label)
         .on_click((_e, cx) => { this.tab = k; this.selected = null; this.stage = null; this.viewOpen = false; cx.notify(); })
-        .child(k === "gate" ? `● ${label}` : label)));
+        .when(k === "gate", (x) => x.gap(6).child(ico("circle-dot", 11))).child(label)));
     // With more than one cycle, the stage summary shows them all; this switch shows the current one only.
     const many = this.tab === "run" && !this.stage && (this.hist?.length ?? 0) > 1;
     const scope = div().id("f-scope").h(24).flex_none().px(9).flex().items_center().rounded(6).border_1().border_color(t.input)
@@ -389,7 +392,7 @@ export default class Forge extends View {
     const back = div().id("f-stage-back").h(24).flex_none().px(9).flex().items_center().rounded(6).border_1().border_color(t.input).bg(t.raised)
       .text_color(t.foreground).cursor_pointer().hover((x) => x.bg(t.hover)).tooltip("Back to the stage summary")
       .on_click((_e, cx) => { this.stage = null; this.selected = null; this.detail = null; cx.notify(); })
-      .child("← All stages");
+      .gap(4).child(ico("arrow-left", 12)).child("All stages");
     return h_flex().flex_none().px(12).py(5).gap(10).items_start().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
       .child(left)
       .when(this.tab === "run" && Boolean(this.stage), (e) => e.child(back))
@@ -549,7 +552,7 @@ export default class Forge extends View {
       // An older cycle's node is dimmed: it is history, the current cycle is what runs.
       const color = n.status ? alpha(this.statusColor(t, n.status), n.old ? 0.5 : 1) : t.input;
       const picked = this.selected === n.id;
-      const mark = n.status === "done" ? "✓ " : n.status === "failed" ? "✕ " : n.status === "running" ? "● " : n.status === "waiting" || n.status === "blocked" ? "◆ " : "";
+      const mark = n.status === "done" ? "check" : n.status === "failed" ? "x" : n.status === "running" ? "circle-dot" : n.status === "waiting" || n.status === "blocked" ? "circle-alert" : "";
       // A stage box is filled with its status colour; a stage the run went through gets the blue path border.
       const stage = n.kind === "stage";
       const fill = stage ? this.statusFill(t, n.status) : n.kind === "phase" ? t.surface : t.background;
@@ -569,8 +572,8 @@ export default class Forge extends View {
           else if (n.details.length || n.path) this.detail = { title: n.label, text: [n.sub, ...n.details].filter(Boolean).join("\n\n") };
           cx.notify();
         })
-        .child(h_flex().min_w(0).text_size(12.5 * z).font_semibold()
-          .when(Boolean(mark), (e) => e.child(div().flex_none().text_color(color).child(mark)))
+        .child(h_flex().min_w(0).gap(4 * z).items_center().text_size(12.5 * z).font_semibold()
+          .when(Boolean(mark), (e) => e.child(div().flex_none().flex().items_center().text_color(color).child(ico(mark, 12 * z))))
           .child(div().min_w(0).truncate().text_color(n.old ? t.dim : n.status === "pending" ? t.muted : t.foreground).child(n.label)))
         .when(Boolean(n.sub), (e) => e.child(div().text_size(10.5 * z).truncate().text_color(n.old ? t.dim : t.muted).child(n.sub))));
     }
@@ -598,9 +601,9 @@ export default class Forge extends View {
       .text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { f(); cx.notify(); }).child(label);
     els.push(h_flex().absolute().right(10).bottom(10).gap(2).p(3).rounded(7).bg(t.popover).border_1().border_color(t.border)
-      .child(ctl("f-zoom-out", "−", () => this.zoomBy(0.8), "Zoom out (⌘/Ctrl + scroll)"))
+      .child(ctl("f-zoom-out", ico("minus", 12), () => this.zoomBy(0.8), "Zoom out (⌘/Ctrl + scroll)"))
       .child(ctl("f-zoom-fit", `${Math.round(z * 100)}%`, () => delete this.views[key], "Fit the graph to the pane"))
-      .child(ctl("f-zoom-in", "+", () => this.zoomBy(1.25), "Zoom in (⌘/Ctrl + scroll)")));
+      .child(ctl("f-zoom-in", ico("plus", 12), () => this.zoomBy(1.25), "Zoom in (⌘/Ctrl + scroll)")));
     return div().id(`f-canvas-${key}`).size_full().relative().overflow_hidden().bg(t.canvas)
       .on_scroll_wheel((e, cx) => {
         const p = this.pointer(e);

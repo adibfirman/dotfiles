@@ -11,6 +11,9 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, terminals, openOverlay, closeOverlay, notify, exec, theme, shared, setShared, layout, home, checking } from "herdr";
 
+// A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
+const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
+
 const forgeBin = () => `${home()}/.local/bin/forge`;
 
 function find(node, id) {
@@ -52,23 +55,23 @@ const rowCoord = (f) => liveCoord(f) ?? terminals().find((t) => t.state === "liv
   && t.labels.forge.startsWith(`${f.ticket}/`) && /-coord-\d+$/.test(t.labels.forge))?.address ?? null;
 
 // What a run's row shows: the phase and blocks first, then the coordinator's live status. you: the run waits for
-// you; note: a line for the tooltip.
+// you; note: a line for the tooltip; mark: the name of its icon in omarchy-chrome/.
 function runState(f, t) {
   const h = f.head ?? {};
   const blocked = blockedOf(f).length + (needsOf(f) ? 1 : 0);
   const show = (mark, color, you, note = "") => ({ mark, color, you, blocked, note });
-  if (blocked) return show("◆", t.blocked, true);
-  if (h.phase === "gate") return show("◆", t.accent, true);
-  if (h.phase === "done") return show("✓", t.done, false);
+  if (blocked) return show("circle-alert", t.blocked, true);
+  if (h.phase === "gate") return show("circle-alert", t.accent, true);
+  if (h.phase === "done") return show("check", t.done, false);
   const coord = rowCoord(f);
-  if (!coord) return show("○", t.dim, false, h.paused ? "" : "stopped: Restart in the run window");
+  if (!coord) return show("circle", t.dim, false, h.paused ? "" : "stopped: Restart in the run window");
   const st = statusOf(coord);
   // No status yet: the agent is starting.
-  if (st === "working" || st == null) return show("●", t.working, false);
-  if (st === "blocked") return show("◆", t.blocked, true, "the coordinator waits for an answer in its terminal");
+  if (st === "working" || st == null) return show("circle-dot", t.working, false);
+  if (st === "blocked") return show("circle-alert", t.blocked, true, "the coordinator waits for an answer in its terminal");
   const label = terminals().find((x) => x.address === coord)?.labels?.forge ?? "";
-  if (/grill-me-coord-\d+$/.test(label)) return show("◆", t.accent, true, "your turn in the grill");
-  return show("○", t.dim, false, "coordinator idle: open the run window");
+  if (/grill-me-coord-\d+$/.test(label)) return show("circle-alert", t.accent, true, "your turn in the grill");
+  return show("circle", t.dim, false, "coordinator idle: open the run window");
 }
 
 // A forge run opens in one floating window (not a tab). shared "forge.window" tells this list which run is open,
@@ -389,7 +392,7 @@ export default class ForgeRuns extends View {
     if (collapsed) {
       return div().id(`run-${f.dir}`).size(30).flex_none().flex().items_center().justify_center().border(1)
         .border_color(open ? t.accent : t.border).text_color(color).tooltip(`${f.title || f.ticket} · ${tip}`)
-        .hover((s) => s.bg(t.foreground + "14")).on_click(() => openRunWindow(f)).child(h.paused ? "Ⅱ" : mark);
+        .hover((s) => s.bg(t.foreground + "14")).on_click(() => openRunWindow(f)).child(ico(h.paused ? "pause" : mark, 14));
     }
     return h_flex().id(`run-${f.dir}`).h(24).flex_none().px(8).gap(7).items_center().text_size(12)
       .text_color(open ? t.foreground : t.muted).when(open, (e) => e.bg(t.accent + "26").border_l(2).border_color(t.accent))
@@ -404,7 +407,7 @@ export default class ForgeRuns extends View {
       // Right-click: Rename and Remove, in place of the phase.
       .on_mouse_down("right", (_e, cx) => { this.menuFor = this.menuFor === f.dir ? null : f.dir; this.confirm = null; cx.notify(); })
       .child(div().size(8).flex_none().bg(swatch))
-      .child(div().flex_none().text_color(color).child(h.paused ? "Ⅱ" : mark))
+      .child(div().flex_none().flex().items_center().text_color(color).child(ico(h.paused ? "pause" : mark, 12)))
       .child(this.renaming === f.dir
         ? div().flex_1().min_w(0).h(20).px(4).flex().items_center().rounded(4).border_1().border_color(t.accent).bg(t.background)
             .on_key_down((e, cx) => { if (e.key === "escape") { cx.stop_propagation(); this.renaming = null; cx.notify(); } })

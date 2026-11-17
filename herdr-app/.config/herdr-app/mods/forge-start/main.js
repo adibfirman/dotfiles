@@ -2,9 +2,12 @@
 // its repo, and its .forge runs: open a run, or start a new run in this folder (forge init --here --space <id>).
 // Follow-ups go through the run chat.
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { spaces: [{ id, name, folder }] } }).
-import { View, div } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, setShared, settings as appSettings } from "herdr";
+
+// A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
+const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -245,7 +248,7 @@ export default class ForgeStart extends View {
         .child(div().id("fs-doctor-again").text_size(11).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => this.checkAgain(cx)).child("Check again")))
       .children(d.items.filter((x) => !x.ok).map((x, i) => h_flex().id(`fs-doc-${i}`).gap(6).items_start().text_size(11.5)
-        .child(div().flex_none().text_color(t.blocked).child("✕"))
+        .child(div().flex_none().h(16).flex().items_center().text_color(t.blocked).child(ico("x", 12)))
         .child(div().flex_none().font_semibold().text_color(t.foreground).child(String(x.name)))
         .child(div().flex_1().min_w(0).text_color(t.blocked).child(String(x.detail ?? "")))))
       .when(Boolean(d.path), (e) => e.child(div().id("fs-doc-path").text_size(10.5).text_color(t.dim).truncate().tooltip(String(d.path)).child(`Agent PATH: ${d.path}`)));
@@ -296,17 +299,17 @@ export default class ForgeStart extends View {
           .children(mine.map((v, i) => h_flex().id(`fs-mine-${ph}-${i}`).h(22).px(8).gap(6).items_center().rounded(5).bg(alpha(t.accent, 0.14)).text_size(11.5).text_color(t.accent)
             .child(v)
             .when(editable, (c) => c.child(div().id(`fs-rm-${ph}-${i}`).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.blocked))
-              .tooltip("Remove from this repo: agents may run it again").on_click((_e, cx) => this.config(cx, ["undeny", ph, v])).child("×")))))))
+              .tooltip("Remove from this repo: agents may run it again").on_click((_e, cx) => this.config(cx, ["undeny", ph, v])).child(ico("x", 12))))))))
         // Lifted: past the deny floor, this repo and phase only. Red, so it is never missed.
         .when(forced.length > 0, (e) => e.child(h_flex().flex_wrap().gap(6).pl(60)
           .children(forced.map((m, i) => h_flex().id(`fs-forced-${ph}-${i}`).h(22).px(8).gap(6).items_center().rounded(5).bg(alpha(t.blocked, 0.14)).text_size(11.5).text_color(t.blocked)
             .tooltip(`Lifted: ${m.lifts.map(short).join(", ")} runs in ${ph} for this repo`)
-            .child(`⚠ lifted: ${m.value}`)
+            .child(ico("triangle-alert", 12)).child(`lifted: ${m.value}`)
             .when(editable, (c) => c.child(div().id(`fs-unforce-${ph}-${i}`).text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
-              .tooltip("Remove: the deny floor applies again").on_click((_e, cx) => this.config(cx, ["unforce", ph, m.key, m.value])).child("×")))))))
+              .tooltip("Remove: the deny floor applies again").on_click((_e, cx) => this.config(cx, ["unforce", ph, m.key, m.value])).child(ico("x", 12))))))))
         .when(Boolean(blocked), (e) => e.child(h_flex().gap(8).items_center().ml(60).p(6).rounded(5).bg(alpha(t.blocked, 0.10))
           .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.blocked).child(blocked))
-          .child(div().id(`fs-blocked-x-${ph}`).text_size(11.5).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.blocked[ph] = null; cx.notify(); }).child("×"))))
+          .child(div().id(`fs-blocked-x-${ph}`).text_size(11.5).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.blocked[ph] = null; cx.notify(); }).child(ico("x", 12)))))
         .when(editable, (e) => e.child(h_flex().gap(6).items_center().pl(60)
           .child(div().flex_1().h(26).px(8).flex().items_center().rounded(5).border_1().border_color(t.input).bg(t.popover)
             .child(Input.new(this.toolIn[ph]).h_full().text_size(11.5)))
@@ -319,9 +322,9 @@ export default class ForgeStart extends View {
         : "The defaults. They can be changed per repo or workspace."))
       .child(heading("Agents at once"))
       .child(h_flex().gap(6).items_center()
-        .child(chip("fs-cap-dn", "−", false, (cx) => this.config(cx, ["cap", String(Math.max(1, s.cap.value - 1))])))
+        .child(chip("fs-cap-dn", ico("minus", 12), false, (cx) => this.config(cx, ["cap", String(Math.max(1, s.cap.value - 1))])))
         .child(div().w(20).flex().justify_center().text_size(12).child(String(s.cap.value)))
-        .child(chip("fs-cap-up", "+", false, (cx) => this.config(cx, ["cap", String(Math.min(8, s.cap.value + 1))])))
+        .child(chip("fs-cap-up", ico("plus", 12), false, (cx) => this.config(cx, ["cap", String(Math.min(8, s.cap.value + 1))])))
         .child(div().text_size(11).text_color(s.cap.from === "project" ? t.accent : t.dim).child(s.cap.from)))
       .when(editable, (e) => e.child(this.lessonsView(t, heading)))
       .child(heading("Denied commands"))
@@ -445,15 +448,15 @@ export default class ForgeStart extends View {
       .when(!this.busy, (e) => e.on_click((_e, cx) => f(cx))).child(text);
     const phase = (r) => {
       const h = r.head ?? {};
-      if (r.removed) return ["removed", t.dim];
-      return h.phase === "gate" ? ["◆ waiting for you", t.accent] : h.phase === "done" ? ["✓ done", t.done] : [`● ${h.phase ?? "?"}`, t.working];
+      if (r.removed) return [null, "removed", t.dim];
+      return h.phase === "gate" ? ["circle-alert", "waiting for you", t.accent] : h.phase === "done" ? ["check", "done", t.done] : ["circle-dot", h.phase ?? "?", t.working];
     };
     const where = this.workspace ? "workspace" : "repo";
     return v_flex().id("forge-start").size_full().min_h(0).bg(t.popover).text_color(t.foreground).text_size(13)
       .on_drop((e, cx) => this.dropped(e.paths ?? [], cx))
       .child(h_flex().h(44).flex_none().px(16).items_center().justify_between().border_b(1).border_color(t.border)
         .child(div().font_semibold().child(`Forge · ${name}`))
-        .child(div().id("fs-close").text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground)).on_click(() => this.close()).child("×")))
+        .child(div().id("fs-close").text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground)).on_click(() => this.close()).child(ico("x", 14))))
       .child(v_flex().id("fs-body").flex_1().min_h(0).overflow_y_scrollbar().p(16).gap(14)
           .child(v_flex().gap(6)
             .child(label("Space", this.space ? null : "pick one to start"))
@@ -475,13 +478,13 @@ export default class ForgeStart extends View {
               .child(div().text_size(12).font_semibold().child(`Runs in this ${where}`))
               .child(div().px(6).rounded(5).bg(t.raised).text_size(11).text_color(t.muted).child(String(this.runs.length))))
             .children(this.runs.map((r, i) => {
-              const [state, color] = phase(r);
+              const [mark, state, color] = phase(r);
               return v_flex().id(`fs-run-${i}`).gap(8).p(10).rounded(8).bg(t.surface).border_1().border_color(t.border)
                 .child(h_flex().gap(8).items_center()
                   .child(v_flex().flex_1().min_w(0)
                     .child(div().font_semibold().truncate().child(r.title || r.ticket))
                     .child(div().text_size(11.5).text_color(t.dim).truncate().child(`${r.ticket} · cycle ${r.head?.cycle ?? "?"} · ${r.branch ?? (r.repos?.length ? `${r.repos.length} repos` : "?")}`)))
-                  .child(div().flex_none().text_size(11.5).text_color(color).child(state)))
+                  .child(h_flex().flex_none().gap(4).items_center().text_size(11.5).text_color(color).when(Boolean(mark), (x) => x.child(ico(mark, 12))).child(state)))
                 .child(h_flex().gap(8).justify_end().items_center()
                   .when(this.merged.has(r.dir), (x) => x.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
                   .when(!r.removed, (x) => x.child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r); this.close(); })))
@@ -507,9 +510,9 @@ export default class ForgeStart extends View {
             .child(h_flex().justify_between().items_center().pt(2)
               .child(div().text_size(11).text_color(t.dim).child(this.settings?.grill?.value === "me" ? "You answer the grill, TLA+ checks it, then you approve." : "Agents grill it, TLA+ checks it, then you approve."))
               .child(button("fs-start", "Start", (cx) => this.start(cx), true)))))
-        .child(div().id("fs-settings-toggle").text_size(12).font_semibold().text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
+        .child(h_flex().id("fs-settings-toggle").gap(4).items_center().text_size(12).font_semibold().text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground))
           .on_click((_e, cx) => { this.settingsOpen = !this.settingsOpen; cx.notify(); })
-          .child(`${this.settingsOpen ? "▾" : "▸"} Settings`))
+          .child(ico(this.settingsOpen ? "chevron-down" : "chevron-right", 12)).child("Settings"))
         .when(this.settingsOpen, (e) => e.child(this.settingsView(t, button))));
   }
 }

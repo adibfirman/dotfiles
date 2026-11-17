@@ -4,12 +4,15 @@
 // The window mounts this mod only while its Pull request tab shows, so the list loads when the tab opens. The detail
 // data (commits, files, check times, required checks, reviewers asked) loads when a row opens. The last list, the
 // details, and where you were live in shared "prs.cache" for this run: a reopened window draws them at once.
-import { View, div } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as fs from "fs/promises";
 import { theme, terminals, exec, readTextFile, writeTextFile, notify, appHome, home, shared, setShared, props as given, window as host } from "herdr";
 import { ago, checkLine, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, timeline } from "./model.js";
 import { failedLog, fetchPrDetail, fetchRunPrs, openThreads } from "./github.js";
+
+// A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
+const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
 
 const REFRESH_MS = 120_000;
 const forgeBin = () => `${home()}/.local/bin/forge`;
@@ -307,8 +310,8 @@ export default class Prs extends View {
 
   stepIcon(t, status) {
     const c = status === "done" || status === "passed" ? t.done : status === "failed" ? t.blocked : status === "running" ? t.working : t.dim;
-    const ch = status === "done" || status === "passed" ? "✓" : status === "failed" ? "✕" : status === "running" ? "◌" : "○";
-    return div().w(18).h(18).flex_none().flex().items_center().justify_center().rounded_full().bg(alpha(c, 0.18)).text_color(c).text_size(11).child(ch);
+    const ch = status === "done" || status === "passed" ? "check" : status === "failed" ? "x" : status === "running" ? "loader-circle" : "circle";
+    return div().w(18).h(18).flex_none().flex().items_center().justify_center().rounded_full().bg(alpha(c, 0.18)).text_color(c).child(ico(ch, 11));
   }
 
   // The run's live forge agents, from their hc labels (null when none runs).
@@ -338,7 +341,7 @@ export default class Prs extends View {
         .child(div().flex_1())
         .child(div().id("prs-refresh").w(24).h(24).flex().items_center().justify_center().rounded(5).text_size(12).text_color(t.muted).cursor_pointer()
           .hover((s) => s.bg(t.hover)).tooltip(this.loading ? "Loading…" : this.at ? `Updated ${ago(this.at)}` : "Refresh").on_click((_e, cx) => this.refresh(cx))
-          .child(this.loading ? "…" : "↻")))
+          .child(ico(this.loading ? "spinner" : "refresh-cw", 13))))
       .when(Boolean(this.error), (e) => e.child(div().px(14).py(6).text_size(11).text_color(t.blocked).child(this.error)))
       .child(v_flex().id("prs-list").flex_1().min_h(0).overflow_y_scrollbar()
         .when(first, (e) => e.children([0, 1, 2].map((i) => v_flex().id(`prs-skel-${i}`).gap(6).px(14).py(10).border_b(1).border_color(t.border)
@@ -348,33 +351,34 @@ export default class Prs extends View {
   }
 
   // One list row, GitHub style: the state icon, the title and labels, then `#number · author opened X ago ·
-  // review · ✓ n/m`, and the comment count on the right. many: show the repo name (a workspace run).
+  // review · checks n/m`, and the comment count on the right. many: show the repo name (a workspace run).
   row(t, item, many) {
     const { pr, fr } = item, l = this.local.get(item.key);
     const line = h_flex().id(`row-${item.key}`).gap(10).px(14).py(9).items_start().border_b(1).border_color(t.border).cursor_pointer()
       .hover((st) => st.bg(t.hover)).on_click((_e, cx) => this.openRow(cx, item.key));
     if (!pr) {
       return line
-        .child(div().w(16).flex_none().text_color(t.dim).child("○"))
+        .child(div().w(16).h(18).flex_none().flex().items_center().text_color(t.dim).child(ico("circle", 14)))
         .child(v_flex().flex_1().min_w(0).gap(3)
           .child(div().font_semibold().truncate().child(fr.title || fr.ticket))
           .child(div().text_size(11.5).text_color(t.dim).truncate()
-            .child(`No PR yet · ${fr.repo?.split("/")[1] ?? "local repo"} · ${fr.branch ?? "?"}${l?.ahead ? ` · ↑${l.ahead} not pushed` : ""}`)));
+            .child(`No PR yet · ${fr.repo?.split("/")[1] ?? "local repo"} · ${fr.branch ?? "?"}${l?.ahead ? ` · ${l.ahead} not pushed` : ""}`)));
     }
     const icon = stateIcon(pr);
     const review = pr.state === "OPEN" ? reviewWord(pr) : "";
-    const ci = pr.ci.total ? `${pr.ci.status === "failed" ? "✕" : pr.ci.status === "running" ? "◌" : "✓"} ${pr.ci.passed}/${pr.ci.total}` : "";
+    const ci = pr.ci.total ? `${pr.ci.passed}/${pr.ci.total}` : "";
+    const ciIcon = pr.ci.status === "failed" ? "x" : pr.ci.status === "running" ? "loader-circle" : "check";
     const ciColor = pr.ci.status === "failed" ? t.blocked : pr.ci.status === "running" ? t.working : t.done;
     return line
-      .child(div().w(16).flex_none().text_color(this.color(t, icon.kind)).tooltip(icon.label).child(icon.icon))
+      .child(div().w(16).h(18).flex_none().flex().items_center().text_color(this.color(t, icon.kind)).tooltip(icon.label).child(ico(icon.icon, 14)))
       .child(v_flex().flex_1().min_w(0).gap(3)
         .child(h_flex().gap(6).items_center().min_w(0)
           .child(div().font_semibold().truncate().child(pr.title))
           .children(pr.labels.map((lb, i) => this.label(t, `lb-${item.key}-${i}`, lb))))
         .child(h_flex().gap(4).items_center().min_w(0).text_size(11.5).text_color(t.dim)
           .child(div().truncate().child(`${many ? `${pr.repo.split("/")[1]} ` : ""}#${pr.number}${pr.author ? ` · ${pr.author}` : ""} opened ${ago(pr.createdAt)}${review ? ` · ${review}` : ""}`))
-          .when(Boolean(ci), (e) => e.child(div().flex_none().text_color(ciColor).child(`· ${ci}`)))))
-      .when(pr.comments > 0, (e) => e.child(div().flex_none().text_size(11.5).text_color(t.muted).child(`💬 ${pr.comments}`)));
+          .when(Boolean(ci), (e) => e.child(h_flex().flex_none().gap(3).items_center().text_color(ciColor).child("·").child(ico(ciIcon, 11)).child(ci)))))
+      .when(pr.comments > 0, (e) => e.child(h_flex().flex_none().gap(4).items_center().text_size(11.5).text_color(t.muted).child(ico("message-square", 12)).child(String(pr.comments))));
   }
 
   label(t, id, lb) {
@@ -405,7 +409,7 @@ export default class Prs extends View {
     const head = v_flex().flex_none().gap(4).px(14).pt(12).pb(8)
       .child(div().text_size(15).font_semibold().child(pr?.title ?? (fr.title || fr.ticket)))
       .child(h_flex().gap(8).items_center().min_w(0).text_size(11.5).text_color(t.dim)
-        .when(Boolean(icon), (e) => e.child(div().flex_none().text_color(this.color(t, icon.kind)).child(`${icon.icon} ${icon.label}`)))
+        .when(Boolean(icon), (e) => e.child(h_flex().flex_none().gap(4).items_center().text_color(this.color(t, icon.kind)).child(ico(icon.icon, 12)).child(icon.label)))
         .child(div().truncate().child(pr ? `${pr.repo} #${pr.number}${pr.author ? ` · ${pr.author}` : ""} · ${pr.head} → ${pr.base}` : `${fr.repo ?? "no GitHub remote"} · ${fr.branch ?? "?"}`)));
     const body = v_flex().id("prs-detail").flex_1().min_h(0).overflow_y_scrollbar().p(14).gap(8);
     const progress = (p) => timeline(p, Date.now(), { ahead: l?.ahead ?? null, base: l?.base ?? "main", action: this.actions.get(item.key) ?? null });
@@ -426,9 +430,9 @@ export default class Prs extends View {
       .text_color(ticketUrl ? t.accent : t.foreground).when(Boolean(ticketUrl), (x) => x.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)));
     return v_flex().size_full().min_h(0)
       .child(h_flex().h(40).flex_none().px(12).items_center().justify_between().border_b(1).border_color(t.border)
-        .child(div().id("prs-back").text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
-          .on_click((_e, cx) => { this.open = null; this.saveCache(); cx.notify(); }).child("‹ List"))
-        .when(Boolean(pr), (e) => e.child(div().id("prs-gh").text_size(12).text_color(t.muted).cursor_pointer().on_click(() => this.openUrl(pr.url)).child("GitHub ↗"))))
+        .child(h_flex().id("prs-back").gap(2).items_center().text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => { this.open = null; this.saveCache(); cx.notify(); }).child(ico("chevron-left", 13)).child("List"))
+        .when(Boolean(pr), (e) => e.child(h_flex().id("prs-gh").gap(4).items_center().text_size(12).text_color(t.muted).cursor_pointer().on_click(() => this.openUrl(pr.url)).child("GitHub").child(ico("external-link", 12)))))
       .child(head)
       .when(Boolean(pr), (e) => e.child(h_flex().flex_none().px(10).gap(2).border_b(1).border_color(t.border)
         .child(this.subTab(t, "overview", "Overview", null))
@@ -437,7 +441,7 @@ export default class Prs extends View {
       .child(body)
       .child(h_flex().h(44).flex_none().px(12).gap(8).items_center().justify_end().border_t(1).border_color(t.border)
         .when(Boolean(this.busy), (e) => e.child(div().flex_1().text_size(11.5).text_color(t.working).child(`${this.busy}…`)))
-        .when(canPush, (e) => e.child(this.button(t, "prs-push", l.ahead === null ? "Push" : `Push ↑${l.ahead}`, (cx) => this.push(cx, item, l))))
+        .when(canPush, (e) => e.child(this.button(t, "prs-push", l.ahead === null ? "Push" : `Push ${l.ahead}`, (cx) => this.push(cx, item, l))))
         .when(canCreate, (e) => e.child(this.button(t, "prs-create", "Create PR", (cx) => this.createPr(cx, item, l), true)))
         .when(canSend, (e) => e.child(div().id("prs-chat-tip").tooltip("Collects the failed checks and open review threads, and opens the run chat with them. You pick what to fix there.")
           .child(this.button(t, "prs-chat", "Send to chat", (cx) => this.sendToChat(cx, pr, l), true)))));
@@ -522,7 +526,7 @@ export default class Prs extends View {
   }
 
   // Progress: before a PR, the push and the draft PR to come; with one, its story. A clicked Push or Create PR
-  // shows as its step (◌ the command, ✓ the result, ✕ the error, the full output on hover).
+  // shows as its step (the command, the result, the error, the full output on hover).
   steps(t, body, steps) {
     body.when(steps.length > 0, (e) => e.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Progress"))
       .children(steps.map((st, i) => h_flex().id(`step-${i}`).gap(8).items_center().child(this.stepIcon(t, st.status))

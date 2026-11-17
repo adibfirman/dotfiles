@@ -11,9 +11,12 @@
 // The left side's view lives in shared "forge.window".view ("coord" or "chat"); the sidebar (forge-runs) reopens
 // the window when it changes. The window does not move: every part stops presses (a press that reaches a window
 // drags it).
-import { View, div } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, closeOverlay, exec, home, shared, setShared, notify, terminals } from "herdr";
+
+// A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
+const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -116,7 +119,7 @@ export default class ForgeWindow extends View {
     const what = `blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? "a tool"}${nd.command ? `: ${nd.command}` : ""}`;
     const result = this.fix && this.fix !== "working" ? this.fix : null;
     const row = h_flex().id(compact ? "fw-needs-bar" : "fw-needs").gap(8).items_center().min_w(0)
-      .child(div().flex_none().text_color(t.blocked).child("◆"))
+      .child(div().flex_none().flex().items_center().text_color(t.blocked).child(ico("circle-alert", 13)))
       .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.blocked).tooltip(nd.text ?? what).child(working ? "Working…" : compact && result && !result.ok ? result.text : what))
       .child(allow)
       .child(btn(compact ? "fw-restart-bar" : "fw-restart", "Restart coordinator", "restart", false));
@@ -188,7 +191,7 @@ export default class ForgeWindow extends View {
       .child(label);
     return h_flex().id("fw-bar").size_full().px(14).gap(10).items_center().bg(t.chrome).border_b(1).border_color(t.border).text_size(12.5)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .child(div().text_color(t.accent).child("⚒"))
+      .child(div().flex().items_center().text_color(t.accent).child(ico("forge", 15)))
       .child(div().font_semibold().child("Forge"))
       .child(this.needs
         ? h_flex().flex_1().min_w(0).px(8).py(4).rounded(6).bg(alpha(t.blocked, 0.12)).child(this.needsStrip(t, true))
@@ -205,6 +208,6 @@ export default class ForgeWindow extends View {
           if (w?.run) setShared("forge.lastWindow", { run: w.run, view: w.view ?? "coord" });
           setShared("forge.window", null);
           closeOverlay(p.overlay);
-        }).child("×"));
+        }).child(ico("x", 14)));
   }
 }

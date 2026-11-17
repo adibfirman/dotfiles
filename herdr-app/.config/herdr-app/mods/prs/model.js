@@ -107,8 +107,8 @@ export function ago(iso, now = Date.now()) {
 }
 
 /**
- * One step for a Push or Create PR the user clicked: running (◌, the command), done (✓, the result), or failed
- * (✕, the first error line; the full output as `tip`). `action`: { kind, status, cmd, out, result }.
+ * One step for a Push or Create PR the user clicked: running (the command), done (the result), or failed
+ * (the first error line; the full output as `tip`). `action`: { kind, status, cmd, out, result }.
  */
 export function actionStep(action, label) {
   if (action.status === "running") return { label, sub: action.cmd, status: "running" };
@@ -125,7 +125,7 @@ function beforePr(opts) {
   const { ahead = null, base = "main", action = null } = opts;
   const push = action?.kind === "push" ? actionStep(action, action.status === "done" ? "Pushed" : "Push")
     : ahead === 0 ? { label: "Pushed", sub: "everything is on GitHub", status: "done" }
-    : { label: "Push", sub: ahead ? `↑${ahead} not pushed` : "not pushed yet", status: "todo" };
+    : { label: "Push", sub: ahead ? `${ahead} not pushed` : "not pushed yet", status: "todo" };
   const open = action?.kind === "create" ? actionStep(action, action.status === "done" ? "Draft PR opened" : "Open draft PR")
     : { label: "Open draft PR", sub: "", status: "todo" };
   return [push, open, { label: "CI", sub: "", status: "todo" }, { label: "Review", sub: "", status: "todo" }, { label: `Merge into ${base}`, sub: "", status: "todo" }];
@@ -141,7 +141,7 @@ export function timeline(pr, now = Date.now(), opts = {}) {
   const steps = [{ label: "PR opened", sub: ago(pr.createdAt, now), status: "done" }];
   const { ahead = null, action = null } = opts;
   if (action?.kind === "push") steps.push(actionStep(action, action.status === "done" ? "Pushed" : "Push"));
-  else if (ahead) steps.push({ label: "Push", sub: `↑${ahead} not pushed`, status: "todo" });
+  else if (ahead) steps.push({ label: "Push", sub: `${ahead} not pushed`, status: "todo" });
   const ci = pr.ci;
   steps.push({
     label: ci.status === "failed" ? "CI failed" : ci.status === "running" ? "CI running" : ci.status === "passed" ? "CI passed" : "No CI",
@@ -180,12 +180,12 @@ export function duration(s) {
   return `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`;
 }
 
-/** A PR's state as a GitHub-style icon: kind picks the color (good, bad, idle, merged). */
+/** A PR's state as a GitHub-style icon (its name in omarchy-chrome/): kind picks the color (good, bad, idle, merged). */
 export function stateIcon(pr) {
-  if (pr.state === "MERGED") return { icon: "◆", kind: "merged", label: "Merged" };
-  if (pr.state === "CLOSED") return { icon: "✕", kind: "bad", label: "Closed" };
-  if (pr.draft) return { icon: "◌", kind: "idle", label: "Draft" };
-  return { icon: "◉", kind: "good", label: "Open" };
+  if (pr.state === "MERGED") return { icon: "git-merge", kind: "merged", label: "Merged" };
+  if (pr.state === "CLOSED") return { icon: "git-pull-request-closed", kind: "bad", label: "Closed" };
+  if (pr.draft) return { icon: "git-pull-request-draft", kind: "idle", label: "Draft" };
+  return { icon: "git-pull-request", kind: "good", label: "Open" };
 }
 
 /** The review decision as words for the list row ("" when there is none). */

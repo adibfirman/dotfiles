@@ -541,7 +541,7 @@ export default class Agents extends View {
         openRun(g);
         cx.notify();
       })
-      .child(div().w(16).flex_none().flex().justify_center().text_color(t.accent).child("⚒"))
+      .child(div().w(16).flex_none().flex().justify_center().text_color(t.accent).child(svg("mods/omarchy-chrome/forge.svg").size(14)))
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(g.title))
       .when(g.subs.length > 0, (el) => el.child(fold(g, g.subs)))
       .child(this.status(t, { status: g.status }, byPriority));
@@ -559,7 +559,7 @@ export default class Agents extends View {
       .hover((s) => s.bg(t.foreground + "14").border_color(t.foreground + "40"))
       .tooltip(g.title)
       .on_click(() => openRun(g))
-      .child("⚒");
+      .child(svg("mods/omarchy-chrome/forge.svg").size(16));
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
     // space are next to each other in agents(), so neighbours make a group.

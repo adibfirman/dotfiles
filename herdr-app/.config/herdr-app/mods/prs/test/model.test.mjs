@@ -81,7 +81,7 @@ test("ago and timeline", () => {
 test("timeline before a PR: push, open draft PR, then what comes after", () => {
   const steps = timeline(null, Date.now(), { ahead: 2, base: "develop" });
   assert.deepEqual(steps.map((s) => [s.label, s.status]), [["Push", "todo"], ["Open draft PR", "todo"], ["CI", "todo"], ["Review", "todo"], ["Merge into develop", "todo"]]);
-  assert.equal(steps[0].sub, "↑2 not pushed");
+  assert.equal(steps[0].sub, "2 not pushed");
   assert.deepEqual(timeline(null, Date.now(), { ahead: 0 })[0], { label: "Pushed", sub: "everything is on GitHub", status: "done" });
 });
 
@@ -98,7 +98,7 @@ test("timeline with a PR: a later push shows right after PR opened", () => {
   const pr = normalize(node());
   const t = timeline(pr, Date.parse("2026-11-15T12:00:00Z"), { action: { kind: "push", status: "done", result: "pushed 1 commit" } });
   assert.deepEqual(t.slice(0, 2).map((s) => [s.label, s.status]), [["PR opened", "done"], ["Pushed", "done"]]);
-  assert.equal(timeline(pr, Date.now(), { ahead: 3 })[1].sub, "↑3 not pushed");
+  assert.equal(timeline(pr, Date.now(), { ahead: 3 })[1].sub, "3 not pushed");
   assert.equal(timeline(pr, Date.now()).length, 4);
 });
 
