@@ -1,5 +1,5 @@
-// forge-runs: the "projects" section of the sidebar. Every forge run on this machine, one row each, marked with
-// the color of the space it belongs to. Click opens the run window (a popup over the main area); right-click
+// forge-runs: the "projects" section of the sidebar. Every forge run on this machine, one row each (its tooltip
+// names the space it belongs to). Click opens the run window (a popup over the main area); right-click
 // offers Rename and Remove; the "+" in the header opens the Start dialog, where you pick the space.
 // The run window follows its run: when the terminal it should show changes, the window is reopened in place.
 // Its right side has Graph | Pull request tabs; a tab click (shared "forge.window".tab) reopens it with the other mod.
@@ -387,7 +387,6 @@ export default class ForgeRuns extends View {
     const { mark, color, you, blocked, note } = runState(f, t);
     const open = shared("forge.window")?.run === f.dir;
     const owner = sp.find((s) => s.id === owners.get(f.dir));
-    const swatch = owner ? t[(shared("space.colors") ?? {})[owner.id]] ?? t.dim : t.dim;
     const tip = `${f.ticket} · ${owner ? `space ${owner.name}` : "no space"} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blockedOf(f).length ? ` · ${blockedOf(f).length} blocked: Retry or Skip in the run window` : ""}${nd ? ` · blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? nd.command}: Lift or Restart in the run window` : ""}${note ? ` · ${note}` : ""}`;
     if (collapsed) {
       return div().id(`run-${f.dir}`).size(30).flex_none().flex().items_center().justify_center().border(1)
@@ -406,7 +405,6 @@ export default class ForgeRuns extends View {
       })
       // Right-click: Rename and Remove, in place of the phase.
       .on_mouse_down("right", (_e, cx) => { this.menuFor = this.menuFor === f.dir ? null : f.dir; this.confirm = null; cx.notify(); })
-      .child(div().size(8).flex_none().bg(swatch))
       .child(div().flex_none().flex().items_center().text_color(color).child(ico(h.paused ? "pause" : mark, 12)))
       .child(this.renaming === f.dir
         ? div().flex_1().min_w(0).h(20).px(4).flex().items_center().rounded(4).border_1().border_color(t.accent).bg(t.background)
