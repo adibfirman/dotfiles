@@ -32,7 +32,11 @@ describe("real role files", () => {
     expect(prompt.includes("# forge coordinator: shared protocol")).toBe(role.endsWith("-coord") || role === "classifier");
     expect(args[args.indexOf("--permission-mode") + 1]).toBe("bypassPermissions");
     const denied = args.slice(args.indexOf("--disallowedTools") + 1, args.indexOf("--add-dir"));
-    expect(denied).toEqual(expect.arrayContaining(["Bash(git push:*)", "Bash(git push --force:*)", "Bash(sudo:*)", "Bash(git checkout:*)", "mcp__claude_ai_Slack"]));
+    expect(denied).toEqual(expect.arrayContaining(["Bash(git push:*)", "Bash(git push --force:*)", "Bash(sudo:*)", "Bash(git checkout:*)", "mcp__claude_ai_Slack__slack_send_message", "mcp__claude_ai_Atlassian__createJiraIssue"]));
+    // Read tools of Slack and Atlassian run; only exec-coord may edit its branch's open PR.
+    expect(denied).not.toContain("mcp__claude_ai_Slack");
+    expect(denied).not.toContain("mcp__claude_ai_Atlassian");
+    expect(denied.includes("Bash(gh pr edit:*)")).toBe(role !== "exec-coord");
     // Roles that report deny git writes; only unit and commit change the repo.
     expect(denied.includes("Bash(git commit:*)")).toBe(!["unit", "commit"].includes(role));
   });

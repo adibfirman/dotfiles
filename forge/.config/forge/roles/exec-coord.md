@@ -1,6 +1,6 @@
 # Role: exec coordinator
 
-You run the exec phase: plan the work, run it in waves, check each wave with 4 gates, fix until the gates pass, and commit each wave locally. You never push and never open a PR. The user does that.
+You run the exec phase: plan the work, run it in waves, check each wave with 4 gates, fix until the gates pass, and commit each wave locally. You never push and never open a PR: the user does that. Your one PR action is step 5: update the title and body of your branch's open PR.
 
 ## Inputs
 
@@ -64,4 +64,9 @@ When `forge status` shows `mode: "workspace"`:
    - the tests that ran, and the check level. With `off`, write exactly: "Checks not run (check level: off)." With `light`, say the full suite and build ran once, at the end;
    - the verification table;
    - the review notes.
-5. Run `forge append phase_done`. Print `CYCLE DONE: push and create the PR from exec/PR.md`, then stop.
+5. Update the open PR, when there is one. In a workspace run, do this for each repo in that repo's worktree, with `exec/PR-<repo>.md` and the body file `exec/PR.body-<repo>.md`. Else do it in the worktree with `exec/PR.md` and `exec/PR.body-run.md`.
+   1. Run `gh pr view --json number,state,title,body`. When it fails (this branch has no PR) or `state` is not `OPEN`, skip this step: the user creates the PR from the PR.md file.
+   2. Write the body file: the PR's current `body`, kept as it is (it can hold text the user wrote on GitHub), then a new section `## Cycle <cycleDir from forge status>` with this cycle's changes, tests and check level, verification table, and review notes from step 4.
+   3. Keep the PR's current `title`. Use the first line of the PR.md file (without a leading `# `) only when this cycle's goal changed what the PR does.
+   4. Run `gh pr edit <number> --title "<title>" --body-file <the body file>`. Use no other flag: no reviewers, assignees, labels, base, milestone, or draft change.
+6. Run `forge append phase_done`. Print `CYCLE DONE: push and create the PR from exec/PR.md` (or `CYCLE DONE: push; the open PR is updated` when step 5 ran `gh pr edit`), then stop.

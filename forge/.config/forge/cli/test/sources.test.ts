@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { currentCycleDir } from "../src/append";
-import { deniedBy, denyRule, denyRules, mergeSources, modelFor, parseSources, safeScript, scriptDenies } from "../src/sources";
+import { deniedBy, denyRule, denyRules, ignoredLines, mergeSources, modelFor, parseSources, safeScript, scriptDenies } from "../src/sources";
 import { claudeArgs } from "../src/spawn";
 import { setup } from "./helpers";
 
@@ -20,6 +20,17 @@ describe("SOURCES layers", () => {
     expect(() => parseSources("## all\n- tool: Read\n")).toThrow(/unknown key "tool"/);
   });
 
+  test("a role section removes a deny that `all` added in the same layer", () => {
+    const text = "## all\n- deny: gh pr edit\n## exec-coord\n- !deny: gh pr edit\n";
+    expect(mergeSources([text], ["exec", "all", "coordinator", "exec-coord"]).deny).toEqual([]);
+    expect(mergeSources([text], ["exec", "all", "unit"]).deny).toEqual(["gh pr edit"]);
+  });
+
+  test("old allow-key lines are listed as ignored, with their section", () => {
+    expect(ignoredLines("## grill\n- mcp: dbhub\n- deny: x\n## exec\n- bash: gcx logs query\n- !tools: Read\n"))
+      .toEqual(["## grill: - mcp: dbhub", "## exec: - bash: gcx logs query", "## exec: - !tools: Read"]);
+  });
+
   test("deny values: command prefixes, tool rules, MCP servers, and connectors by name", () => {
     expect(["kubectl delete", "WebFetch", "Edit(/x/**)", "mcp__sentry", "claude.ai Sentry", "./scripts/x.sh"].map(denyRule))
       .toEqual(["Bash(kubectl delete:*)", "WebFetch", "Edit(/x/**)", "mcp__sentry", "mcp__claude_ai_Sentry", "Bash(./scripts/x.sh:*)"]);
@@ -35,6 +46,15 @@ describe("deny floor", () => {
     expect(deniedBy("Bash(git pushy:*)", deny)).toBe(false);
     expect(deniedBy("Edit(~/.claude/**)", deny)).toBe(true);
     expect(deniedBy("Bash(git log:*)", deny)).toBe(false);
+  });
+
+  test("an MCP server rule covers its tools; a tool rule covers only that tool", () => {
+    const deny = ["mcp__claude_ai_Gmail", "mcp__sentry__*", "mcp__claude_ai_Slack__slack_send_message"];
+    expect(deniedBy("mcp__claude_ai_Gmail__send", deny)).toBe(true);
+    expect(deniedBy("mcp__sentry__update_issue", deny)).toBe(true);
+    expect(deniedBy("mcp__claude_ai_Slack__slack_send_message", deny)).toBe(true);
+    expect(deniedBy("mcp__claude_ai_Slack__slack_read_thread", deny)).toBe(false);
+    expect(deniedBy("mcp__claude_ai_Gmail_Other__x", deny)).toBe(false);
   });
 
   test("agents get the floor, HARD_DENY, and the SOURCES denies; no allow list", () => {

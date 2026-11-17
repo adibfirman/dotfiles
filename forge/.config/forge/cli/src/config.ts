@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { Refused } from "./append";
 import { toolPrefix } from "./mcp";
-import { blockersOf, denyFloor, denyRule, denyRules, effectiveDeny, forgeHome, mcpServerName, mergeSources, NEVER_LIFT, parseSources, scriptDenies } from "./sources";
+import { blockersOf, denyFloor, denyRule, denyRules, effectiveDeny, forgeHome, ignoredLines, mcpServerName, mergeSources, NEVER_LIFT, parseSources, scriptDenies } from "./sources";
 
 // Project settings live in <main>/.forge/ (models.md, SOURCES.md, config.json). The defaults in
 // ~/.config/forge/ are never written from here.
@@ -118,6 +118,8 @@ export function settings(main: string, worktree = main) {
     scripts,
     deny,
     neverLift: NEVER_LIFT,
+    // Old allow lines in this repo's SOURCES.md: read and ignored since bypass mode, shown so the user removes them.
+    ignored: ignoredLines(layers[1]),
     files: { models: join(projectDir(main), "models.md"), sources: join(projectDir(main), "SOURCES.md"), config: join(projectDir(main), "config.json") },
   };
 }

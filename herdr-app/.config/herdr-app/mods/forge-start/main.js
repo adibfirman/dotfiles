@@ -400,6 +400,9 @@ export default class ForgeStart extends View {
       .child(heading("Denied commands"))
       .child(div().text_size(11.5).text_color(t.dim).child("Agents run in bypass mode: every command, tool, and MCP server runs except what is denied here. Deny adds a command for this repo; Lift lets one deny floor rule run in that phase."))
       .children(phases)
+      .when((s.ignored ?? []).length > 0, (e) => e.child(div().id("fs-ignored").text_size(11.5).text_color(t.blocked)
+        .tooltip(s.ignored.join("\n"))
+        .child(`Ignored since bypass mode: ${s.ignored.length} old allow lines in .forge/SOURCES.md (hover to see). They allow nothing; remove them.`)))
       .child(div().id("fs-deny").text_size(11.5).text_color(t.dim).tooltip(s.deny.map((r) => (s.neverLift?.includes(r) ? `${short(r)}  (never liftable)` : short(r))).join("\n"))
         .child(`Deny floor: ${s.deny.length} rules for every phase (hover to see).${scripts.size ? ` This repo's outside scripts: ${scripts.size} rules.` : ""}`))
       .when(editable, (e) => e.child(h_flex().justify_end().child(button("fs-edit-sources", "Edit project SOURCES.md", (cx) => this.editSources(cx)))));

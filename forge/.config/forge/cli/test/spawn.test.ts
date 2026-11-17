@@ -215,3 +215,12 @@ test("allowedFor: anything a deny rule does not cover is allowed (bypass mode)",
   expect(allowedFor(env.run, "u1", "git push origin main")).toMatchObject({ allowed: false, deniedBy: "Bash(git push:*)" });
   expect(() => allowedFor(env.run, "nope", "ls")).toThrow("unknown node");
 });
+
+test("allowedFor: MCP tools and tool rules are checked as tools, not as shell commands", () => {
+  const env = setup({ sources: "## exec\n- deny: mcp__sentry, WebFetch\n" });
+  toExec(env.run);
+  add(env.run, "node_add", "u1", { role: "unit", wave: 1 });
+  expect(allowedFor(env.run, "u1", "mcp__sentry__search_issues")).toMatchObject({ allowed: false, deniedBy: "mcp__sentry" });
+  expect(allowedFor(env.run, "u1", "WebFetch")).toMatchObject({ allowed: false, deniedBy: "WebFetch" });
+  expect(allowedFor(env.run, "u1", "mcp__context7__query-docs")).toMatchObject({ allowed: true });
+});

@@ -42,6 +42,18 @@ export function parseSources(text: string): Map<string, Entry[]> {
   return out;
 }
 
+/** The old allow-key lines (`- tools:`, `- bash:`, `- mcp:`) of a SOURCES text, each with its section: ignored since bypass mode. */
+export function ignoredLines(text: string): string[] {
+  const out: string[] = [];
+  let head = "";
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (/^##\s+/.test(line)) head = line;
+    else if (/^-\s+!?(tools|bash|mcp):/.test(line)) out.push(head ? `${head}: ${line}` : line);
+  }
+  return out;
+}
+
 export type Resolved = Record<Key, string[]>;
 
 /** Merge the layers in order for the given sections. A later `!` entry removes an earlier one. */
@@ -137,9 +149,14 @@ export function effectiveDeny(floor: string[], lifted: string[]): string[] {
 
 const bashBody = (rule: string) => /^Bash\((.*?)(?::\*)?\)$/.exec(rule)?.[1];
 
-/** True when a deny rule covers an allow rule: same rule, or a Bash command that starts with a denied one. */
+/**
+ * True when a deny rule covers an allow rule: same rule, a Bash command that starts with a denied one, or a tool of
+ * a denied MCP server.
+ */
 export function deniedBy(allow: string, deny: string[]): boolean {
   if (deny.includes(allow)) return true;
+  // An MCP server rule (`mcp__x` or `mcp__x__*`) covers every tool of that server (`mcp__x__y`), not of `mcp__x_other`.
+  if (/^mcp__/.test(allow)) return deny.some((d) => /^mcp__/.test(d) && allow.startsWith(d.replace(/__\*$/, "") + "__"));
   const a = bashBody(allow);
   if (a === undefined) return false;
   return deny.some((d) => {

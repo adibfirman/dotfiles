@@ -51,7 +51,7 @@ Use absolute paths. Use `forge status` → `cyclePath` for the cycle folder. You
 
 A node that ends with `failed: needs <tool>` hit a deny rule or the environment. Agents run in bypass mode: everything that is not denied runs. Read the newest `.spawn/<id>-g<gen>-*.screen.txt` and find the command that failed.
 
-Run `forge allowed <id> "<the command>"` first. The user can lift a rule between your boots, so an old "blocked" note can be out of date. When it says `"allowed": true` and the program is there, retry the node: add one line to its task, `The last try was denied <command>; it is allowed now.` Only when it says `false` do the rules below apply.
+Run `forge allowed <id> "<the command>"` first (for an MCP tool or another tool, give its name, for example `mcp__claude_ai_Slack__slack_read_thread`). The user can lift a rule between your boots, so an old "blocked" note can be out of date. When it says `"allowed": true` and the program is there, retry the node: add one line to its task, `The last try was denied <command>; it is allowed now.` Only when it says `false` do the rules below apply.
 
 - A tool the role does not need, or another way exists that no rule denies (for example the Write tool instead of a shell write): retry, and add that way to the task.
 - The role really needs that command: run `forge append comment --data '{"text":"blocked: <role> needs <tool>: <exact command>"}'`, print `BLOCKED: <role> needs <tool>`, and stop retrying that node. Write the comment exactly in that form, one line: the run window reads it and offers the user "Lift for this repo" when the deny floor blocks it, and a restart. Only the user can lift a rule.

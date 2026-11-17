@@ -6,6 +6,7 @@ import { appendEvent, findRun, Refused } from "./append";
 import { HUMAN_KINDS, KINDS, type Data, type Kind } from "./events";
 import { init, setRunOptions } from "./init";
 import { chatHere, openChat } from "./chat";
+import { ignoredLines } from "./sources";
 import { addLesson, doctor, folderChecks, lessons, runChecks } from "./checks";
 import { allowedFor, closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
 import { approve, assertClean, coordinators, decide, followup, reconcile, removeRun, restoreRun, startCoordinator } from "./agents";
@@ -39,7 +40,7 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge repo add <name[@base]>... | forge repo branch | forge repo list
                                               workspace runs: repos in worktrees at <root>/worktrees/<ticket>/<repo>
   forge retry|skip <node> --run <dir>         the user's decision on a node blocked after FORGE_RETRY_CAP (4) failures
-  forge allowed <node> "<command>"           whether that node's agent may run the command now (true unless a deny rule covers it)
+  forge allowed <node> "<command|tool>"      whether that node's agent may run the command or tool now (true unless a deny rule covers it)
   forge chat [--open [--message <text>]] [--run <dir>]
                                               your own claude in the run's worktree, with the run as context
                                               (--open: in its own hc terminal, printed as JSON; --message: its next prompt)
@@ -312,7 +313,15 @@ export async function main(argv: string[]): Promise<number> {
       case "checks": {
         const repo = takeFlag(rest, "--repo");
         if (rest.length) throw new UsageError("forge checks [--repo <name>] [--run <dir>]");
-        print(runFlag || process.env.FORGE_RUN ? runChecks(findRun(runFlag), repo) : folderChecks(process.cwd(), repo ? [repo] : []));
+        const withRun = Boolean(runFlag || process.env.FORGE_RUN);
+        print(withRun ? runChecks(findRun(runFlag), repo) : folderChecks(process.cwd(), repo ? [repo] : []));
+        // Old allow lines in the repo's SOURCES.md go to stderr, so the JSON on stdout keeps its shape.
+        try {
+          const f = pathJoin(withRun ? findRun(runFlag).main : mainCheckout(process.cwd()), ".forge", "SOURCES.md");
+          if (existsSync(f)) for (const l of ignoredLines(readFileSync(f, "utf8"))) console.error(`forge: ignored since bypass mode (${f}): ${l}`);
+        } catch {
+          // no main checkout here: nothing to warn about
+        }
         return 0;
       }
       case "doctor": {

@@ -104,7 +104,9 @@ export function allowedFor(run: Run, nodeId: string, command: string) {
   const cwd = node.repo ? repoWorktree(run, node.repo) ?? run.worktree : run.worktree;
   const { deny } = toolRules(run, node.phase, node.role ?? "unit", cwd);
   const cmd = command.trim().replace(/\s+/g, " ");
-  const denied = deny.find((d) => deniedBy(`Bash(${cmd}:*)`, [d]));
+  // A tool rule (`mcp__server__tool`, `WebFetch`, `Edit(path)`) is checked as itself; anything else is a shell command.
+  const rule = /^mcp__[\w-]+$/.test(cmd) || /^[A-Z][A-Za-z]*(\(.*\))?$/.test(cmd) ? cmd : `Bash(${cmd}:*)`;
+  const denied = deny.find((d) => deniedBy(rule, [d]));
   return { node: nodeId, command: cmd, allowed: !denied, ...(denied ? { deniedBy: denied } : {}) };
 }
 
