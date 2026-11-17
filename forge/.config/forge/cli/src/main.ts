@@ -8,12 +8,12 @@ import { init, setRunOptions } from "./init";
 import { chatHere, openChat } from "./chat";
 import { addLesson, doctor, folderChecks, lessons, runChecks } from "./checks";
 import { allowedFor, closeTerminal, drainQueue, nodeSpawnId, spawnNode } from "./spawn";
-import { approve, assertClean, coordinators, decide, followup, reconcile, removeRun, startCoordinator } from "./agents";
+import { approve, assertClean, coordinators, decide, followup, reconcile, removeRun, restoreRun, startCoordinator } from "./agents";
 import { registerExisting, rename, runs } from "./registry";
 import { addRefs, fetchAll, listRefs, refreshRef, storeRefs } from "./refs";
 import { knownServers } from "./mcp";
 import { deny, ensureProjectSources, force, MODELS, projectCap, projectChecks, projectGrill, setCap, setModels, setRunDefault, settings, undeny, unforce } from "./config";
-import { addRepos, branchRepos, reposWithHead } from "./repos";
+import { addRepos, branchRepos, reposWithHead, updateMeta } from "./repos";
 import { mainCheckout } from "./append";
 import { frontMatterList } from "./init";
 import { dirname, resolve } from "node:path";
@@ -22,9 +22,10 @@ import { tlc } from "./tlc";
 
 const USAGE = `forge: guard and spawner for forge coordinators
 
-  forge init <context.md> [--here] [--grill auto|me] [--checks full|light|off]
+  forge init <context.md> [--here] [--grill auto|me] [--checks full|light|off] [--space <name>]
                                               start a run: ticket worktree (or this checkout with --here), cycle 001 at grill
                                               (grill and checks default to the repo's last pick: forge config grill|checks)
+                                              (--space: the herdr-app space the run belongs to, saved in run.json)
   forge append <kind> [--node <id>] [--data '<json>']
                                               add one checked event to the current cycle
   forge spawn <role> <node> <task>            start a node in an hc terminal (queues at the cap)
@@ -61,7 +62,9 @@ const USAGE = `forge: guard and spawner for forge coordinators
   forge config force|unforce <phase> <tools|bash|mcp> <value> [--main <dir>]   lift a deny floor rule (this repo only)
   forge mcp list [--refresh]                  MCP servers Claude Code knows here, claude.ai connectors marked
   forge reconcile                             at coordinator boot: fail lost nodes, close old coordinators
-  forge runs                                  every registered run on this machine, as JSON
+  forge runs [--removed]                      every registered run on this machine, as JSON (--removed: also the
+                                              removed runs whose folder stays, marked removed: true)
+  forge restore --run <dir> [--space <name>]  bring back a removed run: its worktrees on the kept branches, listed again
   forge register                              add a run made before the registry existed
   forge status                                the current cycle as JSON
   forge tlc <model dir>                       run TLC on one TLA+ model
@@ -97,9 +100,10 @@ export async function main(argv: string[]): Promise<number> {
       case "init": {
         const grillFlag = takeFlag(rest, "--grill");
         const checksFlag = takeFlag(rest, "--checks");
+        const spaceFlag = takeFlag(rest, "--space");
         const here = rest.includes("--here");
         const files = rest.filter((a) => a !== "--here");
-        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here] [--grill auto|me] [--checks full|light|off]");
+        if (files.length !== 1) throw new UsageError("forge init <context.md> [--here] [--grill auto|me] [--checks full|light|off] [--space <name>]");
         // refs: in the front matter are fetched first, relative to the context file. A failed ref
         // stops the start before anything is written.
         const fetched = await fetchAll(frontMatterList(readFileSync(files[0], "utf8"), "refs"), dirname(resolve(files[0])));
@@ -114,6 +118,7 @@ export async function main(argv: string[]): Promise<number> {
         // After init the run exists: a failure from here removes it again, so no half-made run stays listed.
         try {
           setRunOptions(run, grillFlag ?? projectGrill(capRoot), checksFlag ?? projectChecks(capRoot));
+          if (spaceFlag) updateMeta(run, { space: spaceFlag });
           storeRefs(run, fetched);
           // repos: in the context join a workspace run now (fetch base, worktree at origin/<base>).
           const repos = frontMatterList(readFileSync(files[0], "utf8"), "repos");
@@ -239,8 +244,15 @@ export async function main(argv: string[]): Promise<number> {
         return 0;
       }
       case "runs": {
-        if (rest.length) throw new UsageError("forge runs takes no arguments");
-        print(runs());
+        const removed = rest.includes("--removed");
+        if (rest.some((a) => a !== "--removed")) throw new UsageError("forge runs [--removed]");
+        print(runs({ removed }));
+        return 0;
+      }
+      case "restore": {
+        const space = takeFlag(rest, "--space");
+        if (rest.length || !runFlag) throw new UsageError("forge restore --run <dir> [--space <name>]");
+        print(restoreRun(findRun(runFlag), space));
         return 0;
       }
       case "register": {

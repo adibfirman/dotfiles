@@ -139,11 +139,14 @@ test("specs: draft, gate copy, and the approved one", async () => {
   mkdirSync(join(dir, "gate"), { recursive: true });
   writeFileSync(join(dir, "grill", "SPEC.draft.md"), "d");
   writeFileSync(join(dir, "gate", "SPEC.md"), "g");
-  expect(specs(env.run)).toEqual({ draft: join(dir, "grill/SPEC.draft.md"), gate: join(dir, "gate/SPEC.md"), approved: null });
+  expect(specs(env.run)).toEqual({ draft: join(dir, "grill/SPEC.draft.md"), gate: join(dir, "gate/SPEC.md"), approved: null, plan: null });
   add(env.run, "phase_done");
   add(env.run, "phase_done");
   add(env.run, "approved");
   expect(specs(env.run).approved).toBe(join(dir, "gate/SPEC.md"));
+  mkdirSync(join(dir, "exec"), { recursive: true });
+  writeFileSync(join(dir, "exec", "plan.md"), "p");
+  expect(specs(env.run).plan).toBe(join(dir, "exec/plan.md"));
 });
 
 test("retry, skip, and approve are the user's: an agent shell (FORGE_NODE) is refused", async () => {

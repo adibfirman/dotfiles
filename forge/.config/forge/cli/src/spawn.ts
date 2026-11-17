@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -76,7 +76,7 @@ function promptFile(home: string, role: string, spawnDir: string, id: string): s
   return file;
 }
 
-export interface ClaudeCommand { args: string[]; model: string; mcpConfig: string; outDir: string }
+export interface ClaudeCommand { args: string[]; model: string; mcpConfig: string; outDir: string; dirs: string[] }
 
 /**
  * The deny rules an agent of this role and phase gets in this folder (no files written). Agents run in bypass
@@ -155,41 +155,82 @@ export function claudeArgs(run: Run, phase: string, role: string, id: string, cy
     "--append-system-prompt-file", prompt,
     "--model", model,
   ];
-  return { args, model, mcpConfig, outDir };
+  return { args, model, mcpConfig, outDir, dirs };
+}
+
+export interface TrustResult { trusted: boolean; stuck: boolean; screen: string }
+
+// The start dialogs (their buttons), to tell "a dialog is still open" from "claude is still loading".
+const DIALOG = /No, exit|Yes, add it|Yes, I trust this folder|Yes, I accept|Allow external CLAUDE\.md file imports/;
+
+const realOf = (p: string) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+
+/** After keys, wait up to 3 s for the screen to change, so one dialog never gets two answers. */
+function waitChange(terminal: string, before: string) {
+  const until = Date.now() + 3_000;
+  while (Date.now() < until) {
+    if (hc(["read", "--lines", "0", terminal]).out !== before) return;
+    Bun.sleepSync(200);
+  }
 }
 
 /**
- * Claude asks to trust each new folder, and its default answer is "No, exit". Agents run only in the
- * worktree forge made for this run, so forge answers "Yes, I trust this folder" (down, enter).
- * Waits up to FORGE_TRUST_WAIT_MS (default 20 s) for either the dialog or claude's prompt.
+ * Claude asks at start: to trust a new folder ("Yes, I trust this folder"), to add each untrusted --add-dir
+ * folder ("Adding a new directory", Claude Code 2.1.326+), and to accept bypass mode. The folder dialogs
+ * default to "No, exit". forge answers yes (down, enter) for the worktree it made and for the folders it passed
+ * in --add-dir (dirs), never for another folder. Waits up to FORGE_TRUST_WAIT_MS (default 20 s) for claude's
+ * prompt. stuck: a dialog is still open (a folder forge did not pass, or the time ran out on one).
  */
-function acceptTrust(terminal: string): boolean {
+export function acceptTrust(terminal: string, dirs: string[] = []): TrustResult {
+  const allowed = new Set(dirs.map(realOf));
   const until = Date.now() + Number(process.env.FORGE_TRUST_WAIT_MS ?? 20_000);
+  let trusted = false;
+  let screen = "";
+  const answer = (keys: string[]) => {
+    hc(["keys", terminal, ...keys]);
+    waitChange(terminal, screen);
+  };
   while (Date.now() < until) {
-    const screen = hc(["read", "--lines", "0", terminal]).out;
-    if (/Yes, I trust this folder/.test(screen)) return hc(["keys", terminal, "down", "enter"]).code === 0;
-    // A project CLAUDE.md that imports outside files asks first; its default ("No, disable external imports") is the safe answer.
+    screen = hc(["read", "--lines", "0", terminal]).out;
+    const added = /Adding a new directory:\s*\n\s*([^\n]+?)\s*\n/.exec(screen);
+    if (added) {
+      if (!allowed.has(realOf(added[1]))) return { trusted, stuck: true, screen };
+      answer(["down", "enter"]);
+      continue;
+    }
+    if (/Yes, I trust this folder/.test(screen)) {
+      answer(["down", "enter"]);
+      trusted = true;
+      continue;
+    }
     // Bypass mode asks once to accept it when the setting that skips the question is not loaded: "Yes, I accept".
     if (/Yes, I accept/.test(screen)) {
-      hc(["keys", terminal, "down", "enter"]);
+      answer(["down", "enter"]);
       continue;
     }
+    // A project CLAUDE.md that imports outside files asks first; its default ("No, disable external imports") is the safe answer.
     if (/Allow external CLAUDE\.md file imports/.test(screen)) {
-      hc(["keys", terminal, "enter"]);
+      answer(["enter"]);
       continue;
     }
-    if (/^\s*❯ \s*$/m.test(screen) || /esc to interrupt|⏺/.test(screen)) return false;
+    if (/^\s*❯ \s*$/m.test(screen) || /esc to interrupt|⏺/.test(screen)) return { trusted, stuck: false, screen };
     Bun.sleepSync(500);
   }
-  return false;
+  return { trusted, stuck: DIALOG.test(screen), screen };
 }
 
-export interface Launched { terminal: string; name: string; model: string; trusted: boolean; recovered: boolean }
+export interface Launched { terminal: string; name: string; model: string; trusted: boolean; stuck: boolean; recovered: boolean }
 
 /** Run claude in a new hc terminal. Writes .spawn/<id>.json with the address. */
-export function launch(run: Run, opts: { role: string; id: string; name: string; phase: string; cycle: number; cycleDir: string; task: string; label: string; cwd?: string; onFail?: (detail: string) => void }): Launched {
+export function launch(run: Run, opts: { role: string; id: string; name: string; phase: string; cycle: number; cycleDir: string; task: string; label: string; cwd?: string; onFail?: (sig: string, detail: string) => void }): Launched {
   const cwd = opts.cwd ?? run.worktree;
-  const { args, model } = claudeArgs(run, opts.phase, opts.role, opts.id, opts.cycleDir, cwd);
+  const { args, model, dirs } = claudeArgs(run, opts.phase, opts.role, opts.id, opts.cycleDir, cwd);
   // A coordinator outlives whoever started it, and its end types no note into that terminal (the Agents list
   // finds forge terminals by their forge= label, and forge-runs posts its own notifications). A node stays a
   // child of its coordinator, which hears from it.
@@ -199,7 +240,7 @@ export function launch(run: Run, opts: { role: string; id: string; name: string;
     "claude", ...args, opts.task,
   ]);
   if (r.code !== 0) {
-    opts.onFail?.((r.err || r.out).slice(0, 500));
+    opts.onFail?.("spawn: hc run failed", (r.err || r.out).slice(0, 500));
     throw new Refused(`hc run failed for ${opts.id}: ${r.err || r.out}`);
   }
   let info: Record<string, any> = {};
@@ -209,14 +250,16 @@ export function launch(run: Run, opts: { role: string; id: string; name: string;
     /* hc printed text: keep the name as the address */
   }
   const terminal = String(info.id ?? info.terminal ?? info.address ?? opts.name);
-  const trusted = acceptTrust(terminal);
+  const { trusted, stuck, screen } = acceptTrust(terminal, dirs);
+  // A dialog forge did not answer: the agent cannot start. Fail the node, so its coordinator sees it.
+  if (stuck) opts.onFail?.("spawn: dialog not answered", screen.slice(-500));
   let recovered = false;
-  if (info.first_message?.sent === false) {
+  if (!stuck && info.first_message?.sent === false) {
     // hc manual: read first; send again only when the task did not arrive.
     if (!hc(["read", "--lines", "80", terminal]).out.includes(opts.task.slice(0, 40))) recovered = hc(["send", terminal, opts.task]).code === 0;
   }
-  writeFileSync(join(opts.cycleDir, ".spawn", `${opts.id}.json`), JSON.stringify({ role: opts.role, name: opts.name, terminal, model, hc: info, trusted, recovered }, null, 2) + "\n");
-  return { terminal, name: opts.name, model, trusted, recovered };
+  writeFileSync(join(opts.cycleDir, ".spawn", `${opts.id}.json`), JSON.stringify({ role: opts.role, name: opts.name, terminal, model, hc: info, trusted, stuck, recovered }, null, 2) + "\n");
+  return { terminal, name: opts.name, model, trusted, stuck, recovered };
 }
 
 export function spawnInfo(cycleDir: string, id: string): { terminal: string; name: string; role: string } | null {
@@ -257,7 +300,7 @@ function taskText(run: Run, cycle: number, phase: string, node: string, gen: num
   return `${task}\n\n---\nforge: run ${run.ticket}, cycle ${cycle}, phase ${phase}, node ${node} (generation ${gen}).${refLine}${lessonLine}\nWrite your full output to ${out}. ${report}`;
 }
 
-export interface SpawnResult { status: "started" | "queued" | "failed"; node: string; terminal?: string; name?: string; reason?: string; trusted?: boolean; recovered?: boolean }
+export interface SpawnResult { status: "started" | "queued" | "failed"; node: string; terminal?: string; name?: string; reason?: string; trusted?: boolean; stuck?: boolean; recovered?: boolean }
 
 const queueable = (msg: string) => /^cap reached|^wave \d+ waits/.test(msg);
 
@@ -305,9 +348,9 @@ export function spawnNode(run: Run, role: string, nodeId: string, task: string, 
     task: taskText(run, state.cycle, state.phase, nodeId, node.gen, task, outDir, reportTo),
     label: `${run.ticket}/${state.cycle}/${nodeId}`,
     cwd,
-    onFail: (detail) => appendEvent(run, { kind: "node_fail", node: nodeId, data: { sig: "spawn: hc run failed", detail } }),
+    onFail: (sig, detail) => appendEvent(run, { kind: "node_fail", node: nodeId, data: { sig, detail } }),
   });
-  return { status: "started", node: nodeId, terminal: l.terminal, name: l.name, trusted: l.trusted, recovered: l.recovered };
+  return { status: "started", node: nodeId, terminal: l.terminal, name: l.name, trusted: l.trusted, stuck: l.stuck, recovered: l.recovered };
 }
 
 interface Queued { role: string; node: string; task: string; reportTo?: string }

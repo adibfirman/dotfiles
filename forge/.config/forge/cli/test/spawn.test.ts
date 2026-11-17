@@ -99,6 +99,36 @@ describe("spawn", () => {
     expect(hcCalls(env).map((c) => c[0])).toEqual(["run", "read"]);
   });
 
+  const addDir = (path: string) => `Adding a new directory:\n\n${path}\n\nThis session hasn't worked here before. Is this a directory you created or one you trust?\n\n❯ No, exit\n  Yes, add it`;
+
+  test("an --add-dir folder forge passed gets yes", async () => {
+    const env = setup();
+    add(env.run, "node_add", "a");
+    process.env.FAKE_HC_SCREENS = JSON.stringify([addDir(env.run.dir)]);
+    const r = spawnNode(env.run, "fact-finder", "a", "x");
+    expect(r.stuck).toBe(false);
+    expect(hcCalls(env).filter((c) => c[0] === "keys")).toEqual([["keys", "t-f-local-task-1-a-g0", "down", "enter"]]);
+  });
+
+  test("an --add-dir folder forge did not pass gets no answer, and the node fails", async () => {
+    const env = setup();
+    add(env.run, "node_add", "a");
+    process.env.FAKE_HC_SCREENS = JSON.stringify([addDir("/somewhere/else")]);
+    const r = spawnNode(env.run, "fact-finder", "a", "x");
+    expect(r.stuck).toBe(true);
+    expect(hcCalls(env).map((c) => c[0])).not.toContain("keys");
+    expect(loadState(env.run).state.nodes.get("a")?.status).toBe("failed");
+  });
+
+  test("the folder trust dialog, then an --add-dir dialog: both get yes", async () => {
+    const env = setup();
+    add(env.run, "node_add", "a");
+    process.env.FAKE_HC_SCREENS = JSON.stringify([" ❯ No, exit\n   Yes, I trust this folder", addDir(env.run.dir)]);
+    const r = spawnNode(env.run, "fact-finder", "a", "x");
+    expect(r).toMatchObject({ trusted: true, stuck: false });
+    expect(hcCalls(env).filter((c) => c[0] === "keys")).toHaveLength(2);
+  });
+
   test("a retry ends the old terminal before it reuses the name", async () => {
     const env = setup();
     add(env.run, "node_add", "a");

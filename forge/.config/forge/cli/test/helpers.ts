@@ -24,8 +24,13 @@ if (args[0] === "run") {
 } else if (args[0] === "keys") {
   appendFileSync(process.env.FAKE_HC_LOG + ".trusted", "1");
 } else if (args[0] === "read") {
-  const trusted = require("node:fs").existsSync(process.env.FAKE_HC_LOG + ".trusted");
-  if (mode === "trust" && !trusted) console.log(" ❯ No, exit\\n   Yes, I trust this folder");
+  const fs = require("node:fs");
+  const trusted = fs.existsSync(process.env.FAKE_HC_LOG + ".trusted");
+  // FAKE_HC_SCREENS: a JSON list of screens; each hc keys call moves to the next one, then the prompt shows.
+  const screens = process.env.FAKE_HC_SCREENS ? JSON.parse(process.env.FAKE_HC_SCREENS) : null;
+  const answered = trusted ? fs.readFileSync(process.env.FAKE_HC_LOG + ".trusted", "utf8").length : 0;
+  if (screens) console.log(answered < screens.length ? screens[answered] : "❯ ");
+  else if (mode === "trust" && !trusted) console.log(" ❯ No, exit\\n   Yes, I trust this folder");
   else if (mode === "unsent") console.log("Welcome to Claude Code");
   else console.log("❯ ");
 }
@@ -62,6 +67,7 @@ export function setup(opts: { cap?: number; sources?: string; registry?: Record<
   Object.assign(process.env, { FORGE_PLUGIN_DIR: join(root, "plugin"), FORGE_SKILLS_ROOT: join(root, "skills"), FORGE_REF_RETRY_MS: "0,0", FORGE_REGISTRY: join(root, "runs.jsonl"), FORGE_TRUST_WAIT_MS: "300", FORGE_HOME: home, FORGE_HC: hc, FAKE_HC_LOG: log, FAKE_HC_MODE: "ok", FORGE_MCP_REGISTRY: registry, FORGE_NO_SHELL_ENV: "1" });
   delete process.env.FORGE_RUN;
   delete process.env.HC_TERMINAL_ID;
+  delete process.env.FAKE_HC_SCREENS;
 
   const ctx = join(root, "task.md");
   writeFileSync(ctx, "---\nticket: none\n---\nBuild the thing.\n");

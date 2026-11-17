@@ -1,9 +1,10 @@
-// forge-start: the dialog behind a space's "+". It reads the space folder's repo and its .forge runs:
-// open a run, or start a new run in this folder (forge init --here). Follow-ups go through the run chat.
-// Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { space, folder } }).
+// forge-start: the dialog behind the projects "+". You pick a space first; then it reads that space's work folder,
+// its repo, and its .forge runs: open a run, or start a new run in this folder (forge init --here --space <id>).
+// Follow-ups go through the run chat.
+// Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { spaces: [{ id, name, folder }] } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, terminals, shared, setShared, settings as appSettings } from "herdr";
+import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, terminals, setShared, settings as appSettings } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -88,7 +89,8 @@ async function openRunWindow(f) {
 export default class ForgeStart extends View {
   init(_props, cx) {
     const p = props() ?? {};
-    Object.assign(this, { space: p.space ?? null, folder: p.folder ?? null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, settings: null, settingsOpen: false, merged: new Set() });
+    // Nothing is picked at the start: the run goes to the space you pick, never to the active one on its own.
+    Object.assign(this, { spaces: p.spaces ?? [], space: null, folder: null, overlay: p.overlay, repo: null, runs: [], error: null, busy: null, settings: null, settingsOpen: false, merged: new Set() });
     this.ticket = InputState.new({ placeholder: "Ticket, like ABC-123 (empty: none)" });
     this.goal = TextareaState.new({ placeholder: "The goal, the rules, and the files it should touch", rows: 5 });
     // References: one per line (a doc URL, a Confluence page, a Jira key, a GitHub link, a file or image path).
@@ -100,19 +102,37 @@ export default class ForgeStart extends View {
     this.toolIn = Object.fromEntries(["grill", "verify", "exec"].map((ph) => [ph, InputState.new({ placeholder: "kubectl delete" })]));
     // The last refusal per phase ("not a command prefix", "never lift"), shown under the row.
     this.blocked = {};
+  }
+
+  // A click on a space chip: forget what the last space loaded, then load this one.
+  pick(cx, s) {
+    if (this.busy || s.id === this.space) return;
+    Object.assign(this, { space: s.id, folder: s.folder ?? null, repo: null, runs: [], error: null, settings: null, settingsError: null, lessons: null, notRepo: false, workspace: false, childRepos: [], merged: new Set(), doc: null });
+    cx.notify();
+    this.load(cx);
+  }
+
+  // The picked space's folder: its repo (or workspace), runs, settings, and lessons. Each pick makes the loads
+  // before it stale, so a slow load never writes over a space picked after it.
+  load(cx) {
+    const token = (this.loadToken = (this.loadToken ?? 0) + 1);
+    const stale = () => token !== this.loadToken;
     cx.spawn(async (cx) => {
       // Settings load on their own, so the defaults show even outside a git repo.
       if (this.folder) {
         const st = await forge(["settings", "--main", this.folder], this.folder);
+        if (stale()) return;
         if (st.ok && !this.settings) this.settings = JSON.parse(st.out);
         cx.notify();
       }
       try {
         if (!this.folder) throw new Error("This space has no folder.");
         const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: this.folder }).catch(() => ({ code: 1 }));
+        if (stale()) return;
         if (common.code !== 0) {
           // Not a git repo: a workspace when it holds repos (each repo keeps its own git), else offer git init.
           const kids = await exec("sh", ["-c", 'for d in "$1"/*/; do [ -e "$d.git" ] && basename "$d"; done; true', "forge-start", this.folder]).catch(() => null);
+          if (stale()) return;
           this.childRepos = (kids?.stdout ?? "").split("\n").filter((x) => x && x !== "worktrees");
           if (!this.childRepos.length) {
             this.notRepo = true;
@@ -122,23 +142,30 @@ export default class ForgeStart extends View {
           this.repo = { main: this.folder, top: this.folder };
         } else {
           const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: this.folder });
+          if (stale()) return;
           this.repo = { main: common.stdout.trim().replace(/\/\.git\/?$/, ""), top: top.stdout.trim() };
         }
-        const r = await forge(["runs"], this.repo.main);
+        // --removed: also the runs taken off the list whose folder stayed (Restore brings them back).
+        const r = await forge(["runs", "--removed"], this.repo.main);
+        if (stale()) return;
         if (!r.ok) throw new Error(r.err);
         this.runs = JSON.parse(r.out).filter((x) => x.main === this.repo.main);
         const st = await forge(["settings", "--main", this.repo.main], this.repo.main);
+        if (stale()) return;
         if (st.ok) this.settings = JSON.parse(st.out);
         else this.settingsError = st.err;
         const ls = await forge(["lessons", "--main", this.repo.main], this.repo.main);
+        if (stale()) return;
         if (ls.ok) this.lessons = jsonOf(ls);
         cx.notify();
         // A run whose PR is merged continues in a new run (Q44), not as a follow-up on a merged branch.
-        for (const x of this.runs.filter((y) => y.repo && y.branch)) {
+        for (const x of this.runs.filter((y) => y.repo && y.branch && !y.removed)) {
           const pr = await exec("gh", ["pr", "list", "--repo", x.repo, "--head", x.branch, "--state", "merged", "--json", "number", "--limit", "1"], { timeout: 30_000 }).catch(() => null);
+          if (stale()) return;
           if (pr?.code === 0 && JSON.parse(pr.stdout || "[]").length) this.merged.add(x.dir);
         }
       } catch (e) {
+        if (stale()) return;
         this.error = String(e?.message ?? e);
       }
       cx.notify();
@@ -215,15 +242,32 @@ export default class ForgeStart extends View {
     });
   }
 
-  // A new run that starts from a finished run: its approved spec becomes a ref.
+  // A new run that starts from an earlier run (live or removed): its best spec and its newest plan become refs.
   continueFrom(cx, r) {
     cx.spawn(async (cx) => {
       const st = await forge(["status", "--run", r.dir], r.main);
       const spec = st.ok ? JSON.parse(st.out).spec : {};
-      const path = spec.approved ?? spec.gate ?? spec.draft;
-      if (path) this.refs.set_value([...this.refList().filter((x) => x !== path), path].join("\n"));
+      const paths = [spec.approved ?? spec.gate ?? spec.draft, spec.plan].filter(Boolean);
+      if (paths.length) this.refs.set_value([...this.refList().filter((x) => !paths.includes(x)), ...paths].join("\n"));
       this.goal.set_value(`Continue from ${r.ticket} (${r.title}): `);
       cx.notify();
+    });
+  }
+
+  // A removed run comes back: listed again, its worktrees made again on the kept branches, in the picked space.
+  // It starts no agent: open it, then continue in its Chat.
+  restore(cx, r) {
+    if (this.busy || !this.space || !this.repo) return;
+    this.busy = `restoring ${r.ticket}`;
+    this.error = null;
+    cx.notify();
+    cx.spawn(async (cx) => {
+      const res = await forge(["restore", "--run", r.dir, "--space", this.space], this.repo.main);
+      this.busy = null;
+      if (res.ok) notify({ title: `Forge: ${r.ticket} restored`, body: "Open it, then continue in its Chat.", level: "success" });
+      else this.error = res.err;
+      cx.notify();
+      if (res.ok) this.load(cx);
     });
   }
 
@@ -285,7 +329,7 @@ export default class ForgeStart extends View {
 
   settingsView(t, button) {
     const s = this.settings;
-    if (!s) return div().text_size(11.5).text_color(this.settingsError ? t.blocked : t.dim).child(this.settingsError ? `Settings: ${this.settingsError}` : "Loading settings…");
+    if (!s) return div().text_size(11.5).text_color(this.settingsError ? t.blocked : t.dim).child(this.settingsError ? `Settings: ${this.settingsError}` : this.space ? "Loading settings…" : "Pick a space to see its settings.");
     const editable = Boolean(this.repo); // project settings live in this repo's or workspace's .forge/
     const chip = (id, label, on, f) => div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5)
       .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted)
@@ -416,7 +460,7 @@ export default class ForgeStart extends View {
 
   start(cx) {
     const goal = this.goal.value().trim();
-    if (!goal || !this.repo) return;
+    if (!goal || !this.repo || !this.space) return;
     const ticket = this.ticket.value().trim();
     this.task(cx, "new run", async () => {
       // A missing tool found now costs seconds; found in exec it costs an hour of grill, TLA+, and the gate.
@@ -434,7 +478,8 @@ export default class ForgeStart extends View {
       await writeTextFile(file, `---\nticket: ${ticket || "none"}\n${repoLines}${refLines}---\n${goal}\n`, null);
       // A workspace root has no git: forge init sees that and starts a workspace run. A repo runs --here.
       // --grill and --checks: the switches above the Start button (also kept as this repo's defaults).
-      const opts = ["--grill", this.settings?.grill?.value ?? "auto", "--checks", this.settings?.checks?.value ?? "light"];
+      // --space: the space picked at the top (saved in run.json; the sidebar colors the run with it).
+      const opts = ["--grill", this.settings?.grill?.value ?? "auto", "--checks", this.settings?.checks?.value ?? "light", "--space", this.space];
       const init = await forge([...(this.workspace ? ["init", file] : ["init", file, "--here"]), ...opts], this.repo.top);
       if (!init.ok) throw new Error(init.err);
       const st = JSON.parse(init.out);
@@ -444,8 +489,6 @@ export default class ForgeStart extends View {
         await forge(["remove", "--purge", "--run", st.run], this.repo.main);
         throw new Error(coord.err);
       }
-      // Remember the space this run was started from: its notifications switch to it.
-      if (this.space) setShared("forge.spaces", { ...(shared("forge.spaces") ?? {}), [st.run]: this.space });
       // "With me": the run window opens now, so round 1 shows up in front of you. An Auto run opens only when you
       // click its row in projects (a long run should not cover your work).
       if (opts[1] === "me") {
@@ -458,7 +501,7 @@ export default class ForgeStart extends View {
 
   render(cx) {
     const t = theme();
-    const name = this.repo ? this.repo.top.split("/").pop() : String(this.folder ?? "").split("/").pop();
+    const name = (this.repo ? this.repo.top.split("/").pop() : String(this.folder ?? "").split("/").pop()) || "pick a space";
     const inputField = (state) => div().h(32).px(10).flex().items_center().rounded(6).border_1().border_color(t.input).bg(t.background)
       .child(Input.new(state).h_full().text_size(12));
     const areaField = (state) => div().px(10).py(8).rounded(6).border_1().border_color(t.input).bg(t.background)
@@ -471,6 +514,7 @@ export default class ForgeStart extends View {
       .when(!this.busy, (e) => e.on_click((_e, cx) => f(cx))).child(text);
     const phase = (r) => {
       const h = r.head ?? {};
+      if (r.removed) return ["removed", t.dim];
       return h.phase === "gate" ? ["◆ waiting for you", t.accent] : h.phase === "done" ? ["✓ done", t.done] : [`● ${h.phase ?? "?"}`, t.working];
     };
     const where = this.workspace ? "workspace" : "repo";
@@ -480,12 +524,21 @@ export default class ForgeStart extends View {
         .child(div().font_semibold().child(`Forge · ${name}`))
         .child(div().id("fs-close").text_color(t.muted).cursor_pointer().hover((x) => x.text_color(t.foreground)).on_click(() => this.close()).child("×")))
       .child(v_flex().id("fs-body").flex_1().min_h(0).overflow_y_scrollbar().p(16).gap(14)
-        .when(Boolean(this.error), (e) => e.child(div().p(8).rounded(6).bg(alpha(t.blocked, 0.12)).text_size(12).text_color(t.blocked).child(this.error)))
+          .child(v_flex().gap(6)
+            .child(label("Space", this.space ? null : "pick one to start"))
+            .child(h_flex().flex_wrap().gap(6)
+              .children(this.spaces.map((s, i) => div().id(`fs-space-${i}`).h(24).px(10).flex().items_center().rounded(5).text_size(12)
+                .bg(s.id === this.space ? t.selected : t.raised).text_color(s.id === this.space ? t.foreground : t.muted)
+                .tooltip(s.folder || "This space has no folder.")
+                .when(!this.busy, (e) => e.cursor_pointer().hover((x) => x.bg(t.hover)).on_click((_e, cx) => this.pick(cx, s)))
+                .child(s.name || s.id)))
+              .when(!this.spaces.length, (x) => x.child(div().text_size(12).text_color(t.dim).child("No spaces yet. Make a space first.")))))
+          .when(Boolean(this.error), (e) => e.child(div().p(8).rounded(6).bg(alpha(t.blocked, 0.12)).text_size(12).text_color(t.blocked).child(this.error)))
         .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
         .when(Boolean(this.notRepo), (e) => e.child(h_flex().justify_end().child(button("fs-git-init", "Make this a git repo", (cx) => this.gitInit(cx), true))))
         .when(Boolean(this.workspace), (e) => e.child(div().p(8).rounded(6).bg(alpha(t.accent, 0.10)).text_size(11.5).text_color(t.accent)
           .child(`Workspace with ${this.childRepos.length} repos. A run can change several of them, each in its own worktree under worktrees/<ticket>/<repo>.`)))
-        .when(!this.notRepo, (e) => e
+        .when(Boolean(this.space) && !this.notRepo, (e) => e
           .child(v_flex().gap(8)
             .child(h_flex().gap(6).items_center()
               .child(div().text_size(12).font_semibold().child(`Runs in this ${where}`))
@@ -500,9 +553,11 @@ export default class ForgeStart extends View {
                   .child(div().flex_none().text_size(11.5).text_color(color).child(state)))
                 .child(h_flex().gap(8).justify_end().items_center()
                   .when(this.merged.has(r.dir), (x) => x.child(div().flex_1().text_size(11.5).text_color(t.done).child("PR merged")))
-                  .child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r); this.close(); }))
+                  .when(!r.removed, (x) => x.child(button(`fs-open-${i}`, "Open", () => { this.openPanel(r); this.close(); })))
+                  // A removed run (its folder stayed): Restore lists it again, its worktrees made again, in the picked space.
+                  .when(Boolean(r.removed), (x) => x.child(button(`fs-restore-${i}`, "Restore", (cx) => this.restore(cx, r))))
                   // Follow-ups go through the run chat (Chat in the run window), the one place for them.
-                  .when(this.merged.has(r.dir), (x) => x.child(button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r)))));
+                  .when(Boolean(r.hasSpec), (x) => x.child(button(`fs-cont-${i}`, "New run from this", (cx) => this.continueFrom(cx, r)))));
             }))
             .when(!this.runs.length && !this.error, (x) => x.child(div().text_size(12).text_color(t.dim).child(`No forge run in this ${where} yet.`))))
           .child(v_flex().gap(8).p(12).rounded(8).bg(t.surface).border_1().border_color(t.border)

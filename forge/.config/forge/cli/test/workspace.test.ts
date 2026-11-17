@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { findRun, loadRun } from "../src/append";
 import { init } from "../src/init";
+import { removeRun, restoreRun } from "../src/agents";
 import { addRepos, branchRepos, childRepos, listRepos } from "../src/repos";
 import { spawnNode } from "../src/spawn";
 import { status } from "../src/status";
@@ -121,5 +122,26 @@ describe("workspace mode", () => {
     add(run, "node_add", "u-api", { wave: 100, files: ["api/src/index.ts"], repo: "api" });
     add(run, "node_add", "u-web", { wave: 100, files: ["web/src/index.ts"], repo: "web" });
     expect(() => add(run, "node_add", "u-api2", { wave: 100, files: ["api/src/index.ts"], repo: "api" })).toThrow(/both change/);
+  });
+
+  test("restore makes each repo worktree again: on the run branch when exec made one, else detached", () => {
+    const { root, ctx } = workspace({ api: "develop", web: "main" });
+    const run = init(ctx, root);
+    addRepos(run, ["api"]);
+    const [api] = branchRepos(run);
+    writeFileSync(join(api.worktree, "WORK.md"), "work\n");
+    g(api.worktree, "add", "-A");
+    g(api.worktree, "commit", "-q", "-m", "work");
+    const head = g(api.worktree, "rev-parse", "HEAD");
+    addRepos(run, ["web"]);
+    const web = join(root, "worktrees", "ABC-42", "web");
+    removeRun(run);
+    expect(existsSync(api.worktree)).toBe(false);
+    const r = restoreRun(run, "work");
+    expect(r.worktrees).toEqual([api.worktree, web]);
+    expect(g(api.worktree, "rev-parse", "--abbrev-ref", "HEAD")).toBe("fix/ABC-42");
+    expect(g(api.worktree, "rev-parse", "HEAD")).toBe(head);
+    expect(g(web, "rev-parse", "--abbrev-ref", "HEAD")).toBe("HEAD");
+    expect(runs().find((x) => x.dir === run.dir)?.space).toBe("work");
   });
 });

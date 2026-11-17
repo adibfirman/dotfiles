@@ -90,6 +90,30 @@ export function removeWorktrees(run: Run): { removed: string[]; skipped: { path:
 }
 
 /**
+ * Make again the repo worktrees removeWorktrees took from a workspace run: on the repo's run branch when exec
+ * made one (its commits stay), else detached at origin/<base> as forge repo add made it. A worktree that still
+ * exists is kept. Returns the worktrees made.
+ */
+export function restoreRepoWorktrees(run: Run): string[] {
+  const m = meta(run);
+  const made: string[] = [];
+  for (const r of (m.repos ?? []) as RepoEntry[]) {
+    if (existsSync(r.worktree)) continue;
+    git(r.path, ["worktree", "prune"]); // forget the removed worktree, so its path is free
+    const onBranch = Boolean(r.branch) && git(r.path, ["show-ref", "--verify", "--quiet", `refs/heads/${r.branch}`]).ok;
+    if (!onBranch) {
+      fetchBase(r.path, r.base);
+      r.branch = null; // no branch to come back to: exec makes it again (forge repo branch)
+    }
+    const add = onBranch ? git(r.path, ["worktree", "add", r.worktree, r.branch!]) : git(r.path, ["worktree", "add", "--detach", r.worktree, `origin/${r.base}`]);
+    if (!add.ok) throw new Refused(`git worktree add failed for ${r.name}: ${add.err.slice(0, 200)}`);
+    made.push(r.worktree);
+  }
+  saveMeta(run, m);
+  return made;
+}
+
+/**
  * The run's grill mode and check level, chosen at start. A run made before they existed has neither: it
  * grills with agents and runs the full checks, as it did then.
  */

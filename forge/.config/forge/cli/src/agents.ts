@@ -2,9 +2,10 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { appendEvent, cycleDirs, loadState, readLines, Refused, type Run } from "./append";
 import { running, type Event } from "./events";
-import { unregister } from "./registry";
-import { dirtyWorktrees, removeWorktrees, runMeta, runOptions } from "./repos";
+import { entries, registerExisting, unregister } from "./registry";
+import { dirtyWorktrees, removeWorktrees, restoreRepoWorktrees, runMeta, runOptions, updateMeta } from "./repos";
 import { closeTerminal, hc, isLive, launch, nodeSpawnId, spawnInfo, terminalName, type Launched } from "./spawn";
+import { ticketWorktree } from "./init";
 
 const PHASE_COORD: Record<string, string> = { grill: "grill-coord", verify: "verify-coord", exec: "exec-coord" };
 
@@ -155,6 +156,28 @@ export function removeRun(run: Run, purge = false) {
 }
 
 /**
+ * Bring back a removed run: make again the worktrees remove took (the ticket worktree on its kept branch, or
+ * each repo worktree of a workspace run), save the space, and list the run again. It starts no agent: the user
+ * continues in the run's Chat (forge followup). A failure stops before the run is listed again.
+ */
+export function restoreRun(run: Run, space?: string) {
+  if (entries().some((e) => e.dir === run.dir)) throw new Refused(`run ${run.ticket} is listed already: open it instead`);
+  const m = runMeta(run);
+  let worktrees: string[] = [];
+  let listed = run;
+  if (m.mode === "workspace") worktrees = restoreRepoWorktrees(run);
+  else if (m.branch && m.worktree && m.worktree !== m.main && !existsSync(m.worktree)) {
+    const wt = ticketWorktree(m.main, m.branch);
+    worktrees = [wt];
+    if (wt !== m.worktree) updateMeta(run, { worktree: wt });
+    listed = { ...run, worktree: wt };
+  }
+  if (space) updateMeta(run, { space });
+  registerExisting(listed);
+  return { restored: run.dir, worktrees, space: space ?? m.space ?? null };
+}
+
+/**
  * At coordinator boot: a running node whose agent is gone fails with "agent lost", so it can retry.
  * Coordinators of this run other than the caller are closed (their screens are saved first).
  */
@@ -185,7 +208,7 @@ export function followups(run: Run) {
   return all.filter((e) => e.kind === "followup").map((e) => ({ id: String(e.data!.id), source: String(e.data!.source ?? "user"), text: String(e.data!.text), handled: handled.has(String(e.data!.id)) }));
 }
 
-/** The newest spec files: the draft from grill, the gate copy, and the last approved one. */
+/** The newest spec files: the draft from grill, the gate copy, the last approved one, and the newest exec plan. */
 export function specs(run: Run) {
   const dirs = cycleDirs(run).reverse();
   const find = (rel: string, ok: (d: string) => boolean = () => true) => {
@@ -196,5 +219,6 @@ export function specs(run: Run) {
     draft: find("grill/SPEC.draft.md"),
     gate: find("gate/SPEC.md"),
     approved: find("gate/SPEC.md", (d) => events(d).some((e) => e.kind === "approved")),
+    plan: find("exec/plan.md"),
   };
 }

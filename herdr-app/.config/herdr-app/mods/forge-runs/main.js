@@ -1,6 +1,6 @@
 // forge-runs: the "projects" section of the sidebar. Every forge run on this machine, one row each, marked with
 // the color of the space it belongs to. Click opens the run window (a popup over the main area); right-click
-// offers Rename and Remove; the "+" in the header starts a run in the active space.
+// offers Rename and Remove; the "+" in the header opens the Start dialog, where you pick the space.
 // The run window follows its run: when the terminal it should show changes, the window is reopened in place.
 // It also posts a notification when a run needs you or moves on (gate, blocked node, a coordinator blocked on a
 // tool, your turn in a "With me" grill, done, a wave committed, a TLA+ counterexample), and publishes the run
@@ -117,19 +117,27 @@ function place(s, ps) {
 
 // The folder a space works in: where most of its panes are (agent panes 2, shells 1). Its stored folder
 // only breaks a tie or fills in for an empty space: a space made from one repo can live in another.
+// A shell in <root>/.forge (where forge keeps its runs) works in <root>.
+const outOfForge = (cwd) => cwd.replace(/\/\.forge(\/.*)?$/, "");
 function workFolder(w, ps) {
   const tabs = new Set((w.tabs ?? []).map((x) => x.id));
   const score = new Map();
-  for (const p of ps) if (tabs.has(p.tab) && p.cwd) score.set(p.cwd, (score.get(p.cwd) ?? 0) + (p.status ? 2 : 1));
+  for (const p of ps) if (tabs.has(p.tab) && p.cwd) {
+    const cwd = outOfForge(p.cwd);
+    score.set(cwd, (score.get(cwd) ?? 0) + (p.status ? 2 : 1));
+  }
   if (w.folder) score.set(w.folder, (score.get(w.folder) ?? 0) + 0.5);
   let best = null, top = 0;
   for (const [folder, n] of score) if (n > top) [best, top] = [folder, n];
   return best ?? place(w, ps);
 }
 
-// Which one space a run belongs to: the space it was started from (the Start dialog records it in shared
-// "forge.spaces"), else the space most in the run's folder (agent panes 2, shells 1, the space's own folder 1).
+// Which one space a run belongs to: the space saved in run.json (forge init --space, an id or a name), else the
+// one older runs recorded in shared "forge.spaces", else the space most in the run's folder (agent panes 2,
+// shells 1, the space's own folder 1).
 function ownerOf(f, sp, ps) {
+  const saved = f.space ? sp.find((s) => s.id === f.space || s.name === f.space) : null;
+  if (saved) return saved.id;
   const recorded = (shared("forge.spaces") ?? {})[f.dir];
   if (recorded && sp.some((s) => s.id === recorded)) return recorded;
   const inside = (cwd) => cwd === f.worktree || (cwd ?? "").startsWith(`${f.worktree}/`);
@@ -344,12 +352,12 @@ export default class ForgeRuns extends View {
     });
   }
 
-  // The header's "+": the Start dialog for the active space (open a run, follow one up, or start one there).
+  // The header's "+": the Start dialog. You pick the space there, then open a run or start one in it. Each space
+  // comes with its work folder.
   start() {
     const ps = panes();
-    const w = spaces().find((s) => s.active);
-    if (!w) return;
-    openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 600, props: { space: w.id, folder: workFolder(w, ps) } });
+    const list = spaces().map((s) => ({ id: s.id, name: s.name, folder: workFolder(s, ps) }));
+    openOverlay({ mod: "forge-start", kind: "dialog", width: 540, height: 640, props: { spaces: list } });
   }
 
   row(f, t, owners, sp, collapsed) {
@@ -417,18 +425,16 @@ export default class ForgeRuns extends View {
     const collapsed = narrow();
     const sp = spaces(), ps = panes();
     const owners = new Map(this.forge.map((f) => [f.dir, ownerOf(f, sp, ps)]));
-    const active = sp.find((s) => s.active);
     const plus = div().id("runs-new").size(22).flex_none().flex().items_center().justify_center().rounded(0).border(1).border_color(t.foreground + "00")
-      .when(Boolean(active), (el) => el.hover((s) => s.bg(t.foreground + "14").border_color(t.foreground + "40").text_color(t.foreground)).on_click(() => this.start()))
-      .when(!active, (el) => el.opacity(0.4))
-      .tooltip(active ? `Forge: start a run in ${active.name}` : "Forge: open a space first")
+      .hover((s) => s.bg(t.foreground + "14").border_color(t.foreground + "40").text_color(t.foreground)).on_click(() => this.start())
+      .tooltip("Forge: start a run (pick the space in the dialog)")
       .child(svg("mods/omarchy-chrome/plus.svg").size(14));
     return v_flex().size_full().min_h(0).bg(t.chrome).pt(10).text_size(12)
       .child(h_flex().h(26).flex_none().when(collapsed, (el) => el.justify_center()).when(!collapsed, (el) => el.pl(18).pr(10).justify_between()).items_center().text_size(11).text_color(t.dim)
         .when(!collapsed, (el) => el.child(`projects ${this.forge.length}`))
         .child(plus))
       .child(v_flex().id("runs-list").flex_1().min_h(0).px(collapsed ? 0 : 10).pt(6).pb(10).gap(collapsed ? 6 : 2).when(collapsed, (el) => el.items_center()).overflow_y_scrollbar().mode("always")
-        .when(!this.forge.length && !collapsed, (el) => el.child(div().px(8).text_size(12).text_color(t.dim).child("No runs. Use + to start one in this space.")))
+        .when(!this.forge.length && !collapsed, (el) => el.child(div().px(8).text_size(12).text_color(t.dim).child("No runs. Use + to start one.")))
         .children(this.forge.map((f) => this.row(f, t, owners, sp, collapsed))));
   }
 }

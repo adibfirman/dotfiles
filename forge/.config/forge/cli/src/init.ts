@@ -55,6 +55,21 @@ function worktreeFor(main: string, branch: string): string | null {
   return null;
 }
 
+/**
+ * The worktree on branch: the one that exists, else a new one from herdr. base: the start point of a new branch
+ * (init). Without base (restore), herdr puts the worktree on the branch as it is, so its commits stay.
+ */
+export function ticketWorktree(main: string, branch: string, base?: string): string {
+  git(main, ["worktree", "prune"]); // forget worktrees whose folder is gone
+  const found = worktreeFor(main, branch);
+  if (found) return found;
+  const r = spawnSync(herdrBin(), ["worktree", "create", "--cwd", main, "--branch", branch, ...(base ? ["--base", base] : []), "--no-focus", "--json"], { encoding: "utf8", env: process.env });
+  if (r.status !== 0) throw new Refused(`herdr worktree create failed: ${(r.stderr || r.stdout || "").trim()}`);
+  const made = worktreeFor(main, branch);
+  if (!made) throw new Refused(`herdr made no worktree for branch ${branch}`);
+  return made;
+}
+
 function hideForge(main: string) {
   const common = git(main, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).out;
   const exclude = join(common, "info", "exclude");
@@ -115,14 +130,7 @@ export function init(contextFile: string, cwd = process.cwd(), cap = Number(proc
     ticket = ticketField;
     branch = `${type}/${ticket}`;
     const base = fm.base ?? "main";
-    let found = worktreeFor(main, branch);
-    if (!found) {
-      const r = spawnSync(herdrBin(), ["worktree", "create", "--cwd", main, "--branch", branch, "--base", base, "--no-focus", "--json"], { encoding: "utf8", env: process.env });
-      if (r.status !== 0) throw new Refused(`herdr worktree create failed: ${(r.stderr || r.stdout || "").trim()}`);
-      found = worktreeFor(main, branch);
-      if (!found) throw new Refused(`herdr made no worktree for branch ${branch}`);
-    }
-    worktree = found;
+    worktree = ticketWorktree(main, branch, base);
   }
 
   const dir = join(main, ".forge", "tickets", ticket);

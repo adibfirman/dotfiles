@@ -29,10 +29,15 @@ function place(s, ps) {
 }
 // The folder a space works in: where most of its panes are (agent panes 2, shells 1). Its stored folder only
 // breaks a tie or fills in for an empty space. Its worktree rows go by this, not by its first terminal.
+// A shell in <root>/.forge (where forge keeps its runs) works in <root>.
+const outOfForge = (cwd) => cwd.replace(/\/\.forge(\/.*)?$/, "");
 function workFolder(w, ps) {
   const tabs = new Set((w.tabs ?? []).map((x) => x.id));
   const score = new Map();
-  for (const p of ps) if (tabs.has(p.tab) && p.cwd) score.set(p.cwd, (score.get(p.cwd) ?? 0) + (p.status ? 2 : 1));
+  for (const p of ps) if (tabs.has(p.tab) && p.cwd) {
+    const cwd = outOfForge(p.cwd);
+    score.set(cwd, (score.get(cwd) ?? 0) + (p.status ? 2 : 1));
+  }
   if (w.folder) score.set(w.folder, (score.get(w.folder) ?? 0) + 0.5);
   let best = null, top = 0;
   for (const [folder, n] of score) if (n > top) [best, top] = [folder, n];
@@ -107,6 +112,12 @@ export default class Spaces extends View {
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
     const due = this.due(now, sp, panes());
     if (due.size) this.refreshGit(due, cx);
+    // The delete dialog (worktree-delete) asks for a new look after it removed a worktree.
+    const ask = shared("spaces.lookAgain");
+    if (ask && ask !== this.lookedAgain) {
+      this.lookedAgain = ask;
+      this.refreshGit(Object.keys(this.trees), cx);
+    }
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
   }
 
@@ -389,12 +400,37 @@ export default class Spaces extends View {
       .child(div().flex_none().text_size(10.5).text_color(t.dim).child(String(r.count)));
   }
 
+  // Delete a worktree: opens the delete dialog, which shows what a delete loses. This computer's worktrees only.
+  trasher(t, r) {
+    const { path, branch } = r.item;
+    return div()
+      .id(`trash-${path}`)
+      .flex_none()
+      .ml(4)
+      .p(2)
+      .rounded(0)
+      .text_color(t.dim)
+      .cursor_pointer()
+      .hover((s) => s.bg(t.foreground + "14").text_color(t.blocked))
+      .tooltip("Delete worktree…")
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        this.overTree = null;
+        openOverlay({ mod: "worktree-delete", kind: "dialog", width: 520, height: 440, props: { path, branch } });
+        cx.notify();
+      })
+      .child(svg("mods/omarchy-changes/graph/icons/trash.svg").size(13));
+  }
+
   // One worktree: its branch. A dot when a space is open in it (in its status color when an agent there works,
   // waits, or is done). Click switches to that space, or opens the worktree as a new space.
   worktreeRow(r, t) {
     const { item, w } = r;
     const on = w?.active;
     const busy = w && ["working", "blocked", "done"].includes(w.status);
+    // The delete button: on hover (or while armed), for this computer's worktrees only.
+    const trash = !r.machine && (w ? this.hovered === w.id : this.overTree === item.path);
     return h_flex().relative().id(`wt-${r.machine ?? ""}-${item.path}`).h(22).flex_none().pl(r.deep ? 36 : 22).pr(8).gap(6).items_center().text_size(11.5)
       .text_color(on ? t.foreground : w ? t.muted : t.dim)
       .when(on, (el) => el.bg(t.foreground + "2e").child(div().absolute().left(-1).top(0).bottom(0).w(2).bg(t.accent)))
@@ -406,9 +442,16 @@ export default class Spaces extends View {
         else if (this.hovered === w.id) this.hovered = null;
         cx.notify();
       }))
+      // A row with no space open in it: hover shows the delete button too.
+      .when(!w, (el) => el.on_hover((over, cx) => {
+        if (over) this.overTree = item.path;
+        else if (this.overTree === item.path) this.overTree = null;
+        cx.notify();
+      }))
       .child(div().flex_none().text_color(t.dim).child(r.glyph))
       .child(div().flex_1().min_w(0).truncate().child(item.branch))
       .when(Boolean(w), (el) => el.child(div().size(6).flex_none().rounded_full().bg(busy ? tone(t, w.status) : t.accent)))
+      .when(trash, (el) => el.child(this.trasher(t, r)))
       .when(Boolean(w) && (this.hovered === w.id || this.arming === w.id), (el) => el.child(this.closer(t, w)));
   }
 

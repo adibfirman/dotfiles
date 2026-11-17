@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
-import { appendFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { entries, registerExisting, runs, titleOf } from "../src/registry";
 import { init } from "../src/init";
-import { removeRun, startCoordinator } from "../src/agents";
+import { removeRun, restoreRun, startCoordinator } from "../src/agents";
+import { loadState } from "../src/append";
+import { main } from "../src/main";
 import { hcCalls, setup } from "./helpers";
 
 test("init registers the run with its title and current branch", () => {
@@ -48,6 +50,16 @@ test("init --here uses this checkout and its branch, with the ticket as the run 
   expect(entries().find((e) => e.ticket === "ABC-9")).toMatchObject({ branch: "feat/ABC-9", title: "Retry payments" });
 });
 
+test("init --space saves the space in run.json, and runs() shows it (null without it)", async () => {
+  const env = setup();
+  const ctx = join(env.root, "space.md");
+  writeFileSync(ctx, "---\nticket: ABC-7\n---\n# Space pick\n");
+  process.chdir(env.repo);
+  expect(await main(["init", ctx, "--here", "--space", "work"])).toBe(0);
+  expect(runs().find((r) => r.ticket === "ABC-7")?.space).toBe("work");
+  expect(runs().find((r) => r.ticket === env.run.ticket)?.space).toBeNull();
+});
+
 test("titleOf skips front matter and heading marks", () => {
   expect(titleOf("---\nticket: none\n---\n\n# Refunds\n\nAdd refunds.")).toBe("Refunds");
 });
@@ -65,4 +77,52 @@ test("removeRun: ends live agents, takes the run off the list, keeps its forge f
   expect(existsSync(env.repo)).toBe(true);
   expect(removeRun(env.run, true).kept).toBe(false);
   expect(existsSync(env.run.dir)).toBe(false);
+});
+
+test("runs --removed lists a removed run; restore lists it again in the given space, once", () => {
+  const env = setup();
+  removeRun(env.run);
+  expect(runs()).toEqual([]);
+  expect(runs({ removed: true })).toMatchObject([{ dir: env.run.dir, removed: true }]);
+  expect(restoreRun(env.run, "work")).toMatchObject({ restored: env.run.dir, worktrees: [], space: "work" });
+  expect(runs()).toMatchObject([{ dir: env.run.dir, space: "work" }]);
+  expect(runs({ removed: true }).some((r) => r.removed)).toBe(false);
+  expect(() => restoreRun(env.run)).toThrow("listed already");
+});
+
+test("hasSpec: false until a cycle has a grill draft", () => {
+  const env = setup();
+  expect(runs()[0].hasSpec).toBe(false);
+  const { cycleDir } = loadState(env.run);
+  mkdirSync(join(cycleDir, "grill"), { recursive: true });
+  writeFileSync(join(cycleDir, "grill", "SPEC.draft.md"), "d");
+  expect(runs()[0].hasSpec).toBe(true);
+});
+
+test("restore makes the ticket worktree again on the kept branch, without --base, so its commits stay", () => {
+  const env = setup();
+  const g = (...a: string[]) => spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...a], { cwd: env.repo, encoding: "utf8" }).stdout.trim();
+  // A fake herdr: logs its args, then makes the worktree with git (on the branch, or a new branch from --base).
+  const herdr = join(env.root, "herdr");
+  writeFileSync(herdr, `#!/bin/sh\necho "$@" >> "${env.root}/herdr.log"\nwhile [ $# -gt 0 ]; do case "$1" in --cwd) C=$2; shift;; --branch) B=$2; shift;; --base) S=$2; shift;; esac; shift; done\nD="${env.root}/wt-$(echo "$B" | tr / -)"\ngit -C "$C" worktree add -q "$D" "$B" 2>/dev/null || git -C "$C" worktree add -q -b "$B" "$D" "$S"\n`);
+  chmodSync(herdr, 0o755);
+  process.env.FORGE_HERDR = herdr;
+  try {
+    const ctx = join(env.root, "t.md");
+    writeFileSync(ctx, "---\nticket: ABC-3\n---\n# Ticket run\n");
+    const run = init(ctx, env.repo);
+    spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "work"], { cwd: run.worktree });
+    const head = g("rev-parse", "feat/ABC-3");
+    removeRun(run);
+    expect(existsSync(run.worktree)).toBe(false);
+    const r = restoreRun(run);
+    expect(r.worktrees).toHaveLength(1);
+    expect(existsSync(r.worktrees[0])).toBe(true);
+    expect(g("rev-parse", "feat/ABC-3")).toBe(head);
+    const calls = readFileSync(join(env.root, "herdr.log"), "utf8").trim().split("\n");
+    expect(calls[0]).toContain("--base");
+    expect(calls[calls.length - 1]).not.toContain("--base");
+  } finally {
+    delete process.env.FORGE_HERDR;
+  }
 });

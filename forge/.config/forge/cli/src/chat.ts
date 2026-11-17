@@ -7,7 +7,7 @@ import { Refused, type Run } from "./append";
 import { listRepos, runMeta, updateMeta } from "./repos";
 import { forgeHome } from "./sources";
 import { agentPath } from "./env";
-import { hc, isLive } from "./spawn";
+import { acceptTrust, hc, isLive } from "./spawn";
 import { status } from "./status";
 
 // The run chat: the user's own claude (their settings, skills, MCP, model, permission prompts), started in the
@@ -61,7 +61,7 @@ export function chatBrief(run: Run): string {
 }
 
 /** The claude argv for the chat (no --setting-sources: the user's own setup loads). */
-export function chatArgs(run: Run): { args: string[]; cwd: string; session: string; resume: boolean } {
+export function chatArgs(run: Run): { args: string[]; cwd: string; session: string; resume: boolean; dirs: string[] } {
   const { session, resume } = chatSession(run);
   const brief = chatBrief(run);
   // FORGE_RUN so `forge followup` and `forge status` find this run; PATH because hc terminals start with a short one.
@@ -77,7 +77,7 @@ export function chatArgs(run: Run): { args: string[]; cwd: string; session: stri
     "--settings", settings,
     "--append-system-prompt-file", brief,
   ];
-  return { args, cwd: run.worktree, session, resume };
+  return { args, cwd: run.worktree, session, resume, dirs };
 }
 
 /** `forge chat`: the chat in this terminal. Returns claude's exit code. */
@@ -98,7 +98,7 @@ export function openChat(run: Run, message?: string): { terminal: string; sessio
     if (message && hc(["send", cur.terminal, message]).code !== 0) throw new Refused(`could not send the message to the chat ${cur.terminal}`);
     return { terminal: cur.terminal, session: cur.session, reused: true };
   }
-  const { args, cwd, session } = chatArgs(run);
+  const { args, cwd, session, dirs } = chatArgs(run);
   const name = `f-${run.ticket}-chat`.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 32);
   const r = hc([
     "run", "--bg", "--json", "--name", name, "--cwd", cwd, "--label", `forge=${run.ticket}/chat`,
@@ -113,6 +113,9 @@ export function openChat(run: Run, message?: string): { terminal: string; sessio
     /* hc printed text: keep the name as the address */
   }
   const terminal = String(info.id ?? info.terminal ?? info.address ?? name);
+  // The chat's --add-dir folders can each ask "Adding a new directory" first. You see this terminal, so a dialog
+  // forge does not answer stays there for you.
+  acceptTrust(terminal, dirs);
   updateMeta(run, { chat: { ...(runMeta(run).chat ?? {}), session, terminal } });
   return { terminal, session, reused: false };
 }

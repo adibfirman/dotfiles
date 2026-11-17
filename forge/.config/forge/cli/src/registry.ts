@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { loadState, readLines, Refused, type Run } from "./append";
+import { cycleDirs, loadState, readLines, Refused, type Run } from "./append";
 import { needsOf } from "./checks";
 
 /** Every run on this machine, one JSON line each. The prs mod lists runs from here. */
@@ -63,6 +63,30 @@ export function entries(): Entry[] {
   return [...byDir.values()].filter((e) => existsSync(join(e.dir, "run.json"))).sort((a, b) => b.created.localeCompare(a.created));
 }
 
+/**
+ * Runs taken off the list (forge remove) whose folder still exists, newest first, each with its last listed
+ * entry: forge restore can bring them back.
+ */
+export function removedEntries(): Entry[] {
+  const last = new Map<string, Entry>();
+  const removed = new Set<string>();
+  for (const l of readLines(registryFile())) {
+    try {
+      const e = JSON.parse(l) as Entry & { removed?: boolean };
+      if (e.removed) removed.add(e.dir);
+      else {
+        last.set(e.dir, e);
+        removed.delete(e.dir);
+      }
+    } catch {
+    }
+  }
+  return [...removed].flatMap((d) => {
+    const e = last.get(d);
+    return e && existsSync(join(e.dir, "run.json")) ? [e] : [];
+  }).sort((a, b) => b.created.localeCompare(a.created));
+}
+
 /** Show the run under another title (a new line for the same folder; the last line wins). */
 export function rename(dir: string, title: string) {
   const cur = entries().find((e) => e.dir === dir);
@@ -118,15 +142,25 @@ export function coordinatorOf(dir: string, head: any): { id: string; terminal: s
   return existsSync(spawn) ? { id: last.data.id, terminal: JSON.parse(readFileSync(spawn, "utf8")).terminal } : null;
 }
 
-/** The registered runs with their HEAD (cycle, phase, approved, paused), their newest coordinator, and, for workspaces, their repos. */
-export function runs() {
-  return entries().map((e) => {
+/** Whether any cycle of the run has a spec (the grill draft or the gate copy). */
+function hasSpec(e: Entry): boolean {
+  return cycleDirs({ dir: e.dir, ticket: e.ticket, main: e.main, worktree: e.worktree }).some((d) => existsSync(join(d, "gate", "SPEC.md")) || existsSync(join(d, "grill", "SPEC.draft.md")));
+}
+
+/**
+ * The registered runs with their HEAD (cycle, phase, approved, paused), their newest coordinator, their space
+ * (forge init --space), whether they have a spec (hasSpec: "New run from this" needs one), and, for workspaces,
+ * their repos. removed: also the runs taken off the list whose folder still exists, marked removed: true.
+ */
+export function runs(opts: { removed?: boolean } = {}) {
+  const list: (Entry & { removed?: boolean })[] = [...entries(), ...(opts.removed ? removedEntries().map((e) => ({ ...e, removed: true })) : [])];
+  return list.map((e) => {
     const headFile = join(e.dir, "HEAD");
     const head = existsSync(headFile) ? JSON.parse(readFileSync(headFile, "utf8")) : null;
     const meta = JSON.parse(readFileSync(join(e.dir, "run.json"), "utf8"));
     const p = progressOf(e, head);
     const repos = meta.mode === "workspace" ? (meta.repos ?? []).map((r: any) => ({ name: r.name, remote: r.remote, branch: r.branch, worktree: r.worktree })) : undefined;
-    return { ...e, mode: meta.mode ?? "repo", ...(repos ? { repos } : {}), head, coordinator: coordinatorOf(e.dir, head), chat: meta.chat ?? null, blocked: p.blocked, progress: { committed: p.committed, waves: p.waves }, needs: needsOf({ dir: e.dir, ticket: e.ticket, main: e.main, worktree: e.worktree }) };
+    return { ...e, mode: meta.mode ?? "repo", space: meta.space ?? null, hasSpec: hasSpec(e), ...(repos ? { repos } : {}), head, coordinator: coordinatorOf(e.dir, head), chat: meta.chat ?? null, blocked: p.blocked, progress: { committed: p.committed, waves: p.waves }, needs: needsOf({ dir: e.dir, ticket: e.ticket, main: e.main, worktree: e.worktree }) };
   });
 }
 
