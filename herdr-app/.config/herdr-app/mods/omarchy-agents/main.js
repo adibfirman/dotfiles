@@ -142,12 +142,13 @@ export default class Agents extends View {
     return this.changed[a.address]?.at ?? 0;
   }
 
-  // Opening a forge run (its window, or a peek at a top terminal) marks its done tops seen. The run stays
-  // held, its done still shown, until you leave it: another run, another sub-agent, or another focused agent.
+  // Opening a forge run (its window, or a peek at a top terminal) marks its done tops seen. A run that showed done
+  // stays held, its done still shown, until you leave it: another run, another sub-agent, or another focused agent.
+  // An idle run is not held: holding it would bring back the done you already saw.
   holdRun(g) {
     for (const k of g.tops) if (rawStatus(k, this.listed) === "done") this.seen.add(k.address);
     localStorage.setItem("seen", JSON.stringify([...this.seen]));
-    this.heldRun = g.ticket;
+    this.heldRun = g.status === "done" ? g.ticket : null;
     this.heldFocus = focused()?.agent ?? null;
   }
 
