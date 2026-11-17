@@ -1,5 +1,7 @@
 // forge-window: the parts of a forge run window.
 //   part "bar":   the title bar: run title, the Coordinator | Chat switch (only while a coordinator runs), close.
+//   part "tabs":  the Graph | Pull request tabs above the right side. A click writes shared "forge.window".tab;
+//                 the sidebar (forge-runs) then reopens the window with that tab's mod on the right.
 //   part "agent": the left side when it has no live terminal to show (no coordinator runs, or the Chat view
 //                 has no chat yet): a centered "Start a chat" button (`forge chat --open`). The sidebar then
 //                 shows the chat's terminal here.
@@ -16,10 +18,16 @@ import { props, theme, closeOverlay, exec, home, shared, setShared, notify, term
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
 
-// Change the left side's view: the sidebar sees it within 2 s and reopens the window in place.
+// Change the left side's view: the sidebar sees it on its next render and reopens the window in place.
 function setView(view) {
   const win = shared("forge.window");
   if (win && win.view !== view) setShared("forge.window", { ...win, view });
+}
+
+// Change the right side's tab ("graph" or "pr"): the sidebar reopens the window with that tab's mod.
+function setTab(tab) {
+  const win = shared("forge.window");
+  if (win && win.tab !== tab) setShared("forge.window", { ...win, tab });
 }
 
 // The repo or workspace root of a run folder (<main>/.forge/tickets/<ticket>), for forge config --main.
@@ -30,7 +38,8 @@ export default class ForgeWindow extends View {
     this.chat = null; // null | "opening" | "error: …"
     this.needs = null; // forge status → needs: a coordinator blocked on a tool
     this.fix = null; // null | "working" | {ok, text}: the last Allow / Restart result
-    if (!(props() ?? {}).run) return;
+    const p0 = props() ?? {};
+    if (!p0.run || p0.part === "tabs") return;
     this.loadNeeds(cx);
     cx.timer.every(5000, (cx) => this.loadNeeds(cx));
   }
@@ -134,6 +143,27 @@ export default class ForgeWindow extends View {
   render() {
     const t = theme();
     const p = props() ?? {};
+    if (p.part === "tabs") {
+      const win = shared("forge.window");
+      const tab = win?.run === p.run && win?.tab === "pr" ? "pr" : "graph";
+      // A Push or Create PR runs in the Pull request tab (shared "prs.busy"): a switch would close it mid-way.
+      const busy = shared("prs.busy");
+      const locked = busy?.run === p.run ? busy.label : null;
+      const item = (id, label, v) => {
+        const on = tab === v;
+        const open = !on && !locked;
+        return div().id(id).h_full().px(12).flex().items_center().text_size(12.5).border_b(2)
+          .border_color(on ? t.accent : t.chrome).text_color(on ? t.foreground : locked ? t.dim : t.muted)
+          .when(on, (e) => e.font_semibold())
+          .when(!on && Boolean(locked), (e) => e.tooltip(`Wait: ${locked} is running`))
+          .when(open, (e) => e.cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click((_e, cx) => { setTab(v); cx.notify(); }))
+          .child(label);
+      };
+      return h_flex().id("fw-tabs").size_full().px(2).gap(2).items_center().bg(t.chrome)
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .child(item("fw-tab-graph", "Graph", "graph"))
+        .child(item("fw-tab-pr", "Pull request", "pr"));
+    }
     if (p.part === "agent") {
       const opening = this.chat === "opening";
       const failed = String(this.chat ?? "").startsWith("error");

@@ -6,17 +6,25 @@ const FAILED_CONCLUSIONS = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "
 const FAILED_STATES = new Set(["FAILURE", "ERROR"]);
 const PENDING_STATES = new Set(["PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"]);
 
-/** One check (a CheckRun or a StatusContext) as { name, status: "passed" | "failed" | "running" | "skipped", url }. */
+/**
+ * One check (a CheckRun or a StatusContext) as { name, status: "passed" | "failed" | "running" | "skipped", url,
+ * required, seconds }. required (true or false) and seconds (its run time) come only from the detail query: null
+ * otherwise.
+ */
 export function check(c) {
   const name = c.name ?? c.context ?? "check";
   const url = c.detailsUrl ?? c.targetUrl ?? null;
+  const required = typeof c.isRequired === "boolean" ? c.isRequired : null;
+  const start = Date.parse(c.startedAt ?? ""), end = Date.parse(c.completedAt ?? "");
+  const seconds = Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, Math.round((end - start) / 1000)) : null;
+  const as = (status) => ({ name, status, url, required, seconds });
   const conclusion = String(c.conclusion ?? "").toUpperCase();
   const state = String(c.state ?? c.status ?? "").toUpperCase();
-  if (FAILED_CONCLUSIONS.has(conclusion) || FAILED_STATES.has(state)) return { name, status: "failed", url };
-  if (conclusion === "SUCCESS" || state === "SUCCESS") return { name, status: "passed", url };
-  if (["SKIPPED", "NEUTRAL", "CANCELLED", "STALE"].includes(conclusion)) return { name, status: "skipped", url };
-  if (PENDING_STATES.has(state) || (!conclusion && state !== "COMPLETED")) return { name, status: "running", url };
-  return { name, status: "passed", url };
+  if (FAILED_CONCLUSIONS.has(conclusion) || FAILED_STATES.has(state)) return as("failed");
+  if (conclusion === "SUCCESS" || state === "SUCCESS") return as("passed");
+  if (["SKIPPED", "NEUTRAL", "CANCELLED", "STALE"].includes(conclusion)) return as("skipped");
+  if (PENDING_STATES.has(state) || (!conclusion && state !== "COMPLETED")) return as("running");
+  return as("passed");
 }
 
 /** All checks of a PR as one word, with counts. */
@@ -61,7 +69,10 @@ export function normalize(node) {
     ci: ciSummary(checks),
     additions: node.additions ?? 0,
     deletions: node.deletions ?? 0,
-    files: (node.files?.nodes ?? []).map((f) => ({ path: f.path, additions: f.additions, deletions: f.deletions })),
+    author: node.author?.login ?? null,
+    labels: (node.labels?.nodes ?? []).map((l) => ({ name: l.name, color: l.color ?? null })),
+    comments: node.totalCommentsCount ?? 0,
+    changedFiles: node.changedFiles ?? (node.files?.nodes ?? []).length,
   };
 }
 
@@ -159,4 +170,99 @@ export function timeline(pr, now = Date.now(), opts = {}) {
     status: pr.mergeable === "CONFLICTING" ? "failed" : "todo",
   });
   return steps;
+}
+
+/** A run time in seconds as "36s", "6m", or "1h 2m" ("" when unknown). */
+export function duration(s) {
+  if (s == null) return "";
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  return `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`;
+}
+
+/** A PR's state as a GitHub-style icon: kind picks the color (good, bad, idle, merged). */
+export function stateIcon(pr) {
+  if (pr.state === "MERGED") return { icon: "◆", kind: "merged", label: "Merged" };
+  if (pr.state === "CLOSED") return { icon: "✕", kind: "bad", label: "Closed" };
+  if (pr.draft) return { icon: "◌", kind: "idle", label: "Draft" };
+  return { icon: "◉", kind: "good", label: "Open" };
+}
+
+/** The review decision as words for the list row ("" when there is none). */
+export function reviewWord(pr) {
+  if (pr.reviewDecision === "APPROVED") return "Approved";
+  if (pr.reviewDecision === "CHANGES_REQUESTED") return "Changes requested";
+  if (pr.reviewDecision === "REVIEW_REQUIRED") return "Review required";
+  return "";
+}
+
+/** Failed first, then running, passed, and skipped; the order inside each group stays. */
+export function sortChecks(checks) {
+  const rank = { failed: 0, running: 1, passed: 2, skipped: 3 };
+  return [...checks].sort((a, b) => (rank[a.status] ?? 4) - (rank[b.status] ?? 4));
+}
+
+/** A check's line after its name: "Successful in 6m", "Failing after 55s", "Running", or "Skipped". */
+export function checkLine(c) {
+  const d = duration(c.seconds);
+  if (c.status === "passed") return d ? `Successful in ${d}` : "Successful";
+  if (c.status === "failed") return d ? `Failing after ${d}` : "Failing";
+  if (c.status === "running") return "Running";
+  return "Skipped";
+}
+
+/**
+ * The detail query's pullRequest node as { checks, commits, commitCount, files, fileCount, pendingReviewers }.
+ * checks carry required and seconds. commits are [{ oid, title, at, author }], oldest first.
+ */
+export function detailOf(node) {
+  const contexts = node.head?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
+  return {
+    checks: contexts.map(check),
+    commits: (node.commitList?.nodes ?? []).map((n) => ({
+      oid: n.commit?.oid ?? "", title: n.commit?.messageHeadline ?? "", at: n.commit?.committedDate ?? null,
+      author: n.commit?.author?.user?.login ?? n.commit?.author?.name ?? "someone",
+    })),
+    commitCount: node.commitList?.totalCount ?? (node.commitList?.nodes ?? []).length,
+    files: (node.files?.nodes ?? []).map((f) => ({ path: f.path, additions: f.additions, deletions: f.deletions })),
+    fileCount: node.changedFiles ?? (node.files?.nodes ?? []).length,
+    pendingReviewers: (node.reviewRequests?.nodes ?? []).map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.name ?? "someone"),
+  };
+}
+
+/**
+ * The Overview box: { checks, comments, approvals }, each { title, sub, kind, bar }. bar is one kind per segment
+ * (good, bad, wait, idle): one segment per check for Checks, one segment for the other two.
+ * detail is null until the detail query returns: then the list's checks count, without required flags.
+ */
+export function overview(pr, detail) {
+  const checks = detail?.checks ?? pr.checks;
+  const n = (s) => checks.filter((c) => c.status === s).length;
+  const failed = n("failed"), running = n("running"), passed = n("passed"), skipped = n("skipped"), total = checks.length;
+  const reqFailed = checks.filter((c) => c.status === "failed" && c.required).length;
+  const fill = (count, kind) => Array(count).fill(kind);
+  const pending = detail?.pendingReviewers?.length ?? 0;
+  const approved = pr.approvedBy.length;
+  const changes = pr.reviewDecision === "CHANGES_REQUESTED";
+  const reviewKind = changes ? "bad" : approved ? "good" : "idle";
+  return {
+    checks: {
+      title: "Checks",
+      sub: !total ? "No checks" : reqFailed ? `${reqFailed} required failing` : failed ? `${failed} failing` : running ? `${running} running` : "All passed",
+      kind: failed ? "bad" : running ? "wait" : total ? "good" : "idle",
+      bar: total ? [...fill(passed, "good"), ...fill(failed, "bad"), ...fill(running, "wait"), ...fill(skipped, "idle")] : ["idle"],
+    },
+    comments: {
+      title: "Comments",
+      sub: pr.unresolved ? `${pr.unresolved} unresolved` : "All resolved",
+      kind: pr.unresolved ? "bad" : "good",
+      bar: [pr.unresolved ? "bad" : "idle"],
+    },
+    approvals: {
+      title: "Approvals",
+      sub: changes ? "Changes requested" : approved ? `${approved} approved${pending ? `, ${pending} pending` : ""}` : pending ? `${pending} pending` : "None yet",
+      kind: reviewKind,
+      bar: [reviewKind],
+    },
+  };
 }

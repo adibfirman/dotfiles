@@ -4,7 +4,7 @@
 // Opened as: openOverlay({ mod: "forge-start", kind: "dialog", props: { spaces: [{ id, name, folder }] } }).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, terminals, setShared, settings as appSettings } from "herdr";
+import { props, openOverlay, closeOverlay, theme, exec, home, writeTextFile, notify, run, setShared, settings as appSettings } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 const alpha = (hex, a) => (/^#[0-9a-f]{6}$/i.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex);
@@ -38,53 +38,6 @@ const jsonOf = (r) => {
     return null;
   }
 };
-
-// The Pull request panel shows only when there is something to do with a PR: the run is done, and it is a
-// workspace run, or on its own branch, or has commits not pushed yet. A run on the default branch with
-// everything pushed has nothing to do (its commits went straight there).
-async function wantsPrPanel(f) {
-  if (f.head?.phase !== "done") return false;
-  if (f.mode === "workspace") return true;
-  const git = async (args) => {
-    const r = await exec("git", args, { cwd: f.worktree }).catch(() => null);
-    return r?.code === 0 ? r.stdout.trim() : null;
-  };
-  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const def = (await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]))?.replace(/^origin\//, "") ?? "main";
-  if (branch !== def) return true;
-  return (await git(["rev-list", "--count", "@{upstream}..HEAD"])) !== "0";
-}
-
-// The run's live coordinator terminal, or null (at the gate, or when the run is done).
-function liveCoord(f) {
-  const a = f.coordinator?.terminal;
-  return a && terminals().some((t) => t.address === a && t.state === "live") ? a : null;
-}
-
-// A forge run opens in one floating window (not a tab). shared "forge.window" tells the sidebar which run is open
-// and which coordinator terminal it shows.
-async function openRunWindow(f) {
-  const title = f.title || f.ticket;
-  const prs = await wantsPrPanel(f);
-  const term = liveCoord(f);
-  // Left: the coordinator's own Claude terminal, to type into as usual. Herdr closes a window when its terminal
-  // ends, so at a phase handoff the sidebar reopens it with the next coordinator. With none running (the gate,
-  // or done), a panel says so. Right: the forge graph above the PR view.
-  // Each part is a framed panel with a gap around it.
-  const panel = { background: "background", border: { width: 1, color: "border" }, radius: 8 };
-  const layout = { type: "column", background: "chrome", children: [
-    { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title } } },
-    { type: "row", padding: 8, gap: 8, children: [
-      { type: "block", size: { weight: 1 }, min: 260, ...panel, content: term ? { terminal: term } : { mod: "forge-window", props: { part: "agent", run: f.dir } } },
-      { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
-        { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
-        ...(prs ? [{ type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } }] : []),
-      ] },
-    ] },
-  ] };
-  const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout });
-  setShared("forge.window", { run: f.dir, id, terminal: term });
-}
 
 export default class ForgeStart extends View {
   init(_props, cx) {
@@ -438,9 +391,10 @@ export default class ForgeStart extends View {
     cx.notify();
   }
 
-  // The run's floating window (the same one a click on its row in the spaces sidebar opens).
+  // The run's floating window: the projects list (forge-runs) opens it on shared "forge.open", the same as a click
+  // on its row, so one place builds the window.
   openPanel(r) {
-    openRunWindow(r);
+    setShared("forge.open", { dir: r.dir, view: "coord", at: Date.now() });
   }
 
   task(cx, label, work) {

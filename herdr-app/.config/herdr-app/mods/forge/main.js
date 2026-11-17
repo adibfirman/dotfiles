@@ -32,6 +32,14 @@ export default class Forge extends View {
     this.pinned = this.propsRun = given()?.run ?? props?.run ?? null;
     // A click on a forge row in the spaces sidebar sets "forge.selected"; this panel then shows that run.
     this.selAt = shared("forge.selected")?.at ?? null;
+    // A reopened run window (a tab switch, a handoff) draws the last state of this run at once, from shared
+    // "forge.cache"; refresh then brings it up to date.
+    const c = shared("forge.cache");
+    if (this.propsRun && c?.run === this.propsRun) {
+      Object.assign(this, { cwd: c.cwd ?? null, repo: c.repo ?? null, runs: c.runs ?? [], dir: c.dir ?? null, st: c.st ?? null, hist: c.hist ?? null,
+        verdicts: c.verdicts ?? {}, specText: c.specText ?? "", lastPhase: c.lastPhase ?? null, tab: c.tab ?? "run", stage: c.stage ?? null });
+      if (this.dir) this.watch(cx);
+    }
     cx.timer.every(8000, (cx) => this.refresh(cx));
     this.refresh(cx);
   }
@@ -69,6 +77,7 @@ export default class Forge extends View {
           this.watch(cx);
         }
         await this.load();
+        this.saveCache();
         // What this copy sees, for debugging without a screenshot (a covered window is not redrawn).
         await fs.mkdir(`${appHome()}/data/forge`, { recursive: true }).catch(() => {});
         await fs.writeFile(`${appHome()}/data/forge/last-state.json`, JSON.stringify({
@@ -86,6 +95,18 @@ export default class Forge extends View {
 
   pinnedByProps() {
     return Boolean(this.pinned) && this.pinned === this.propsRun;
+  }
+
+  // shared "forge.cache": the last state of the run this window shows (one run only, to keep shared state small),
+  // so the next window of the run draws it at once. Written only when it changed.
+  saveCache() {
+    if (!this.propsRun || !this.dir) return;
+    const c = { run: this.propsRun, cwd: this.cwd, repo: this.repo, runs: this.runs, dir: this.dir, st: this.st, hist: this.hist ?? null,
+      verdicts: this.verdicts, specText: this.specText, lastPhase: this.lastPhase, tab: this.tab, stage: this.stage };
+    const key = JSON.stringify(c);
+    if (key === this.cacheKey) return;
+    this.cacheKey = key;
+    setShared("forge.cache", c);
   }
 
   async load() {
@@ -241,7 +262,9 @@ export default class Forge extends View {
   // The run window went away (closed, or its coordinator ended): the sidebar no longer marks the run as open.
   async close() {
     // Nothing to clear: Herdr also closes the window when its coordinator terminal ends (a handoff), and the
-    // sidebar reopens it then. Only the window's × clears shared "forge.window".
+    // sidebar reopens it then. Only the window's × clears shared "forge.window". Keep the view (the view pick and
+    // the open stage) for the next window of this run: a tab switch reopens the window.
+    this.saveCache();
   }
 
   // ---------------------------------------------------------------- view
@@ -386,7 +409,15 @@ export default class Forge extends View {
     return items;
   }
 
+  // Loading with nothing cached yet: four grey stage boxes, each with a light band that slides across it and back.
+  skeleton(t) {
+    const box = (i) => div().id(`f-skel-${i}`).w(180).h(44).flex_none().relative().overflow_hidden().rounded(8).bg(alpha(t.foreground, 0.06))
+      .child(div().absolute().top(0).h(44).w(70).bg(alpha(t.foreground, 0.14)).loop("left", { from: -70, to: 180, period: 1600, easing: "linear" }));
+    return v_flex().id("f-skel").size_full().items_center().justify_center().gap(22).children([0, 1, 2, 3].map(box));
+  }
+
   body(t, cx) {
+    if (!this.repo && this.loading && !this.repoError && !this.error) return this.skeleton(t);
     if (!this.repo) return this.note(t, this.repoError ? `Not a git repo: ${this.repoError}` : this.error ? `Error: ${this.error}` : this.loading ? "Loading…" : this.runJsonState === "unreadable" ? `Cannot read ${this.pinned}/run.json` : "Focus a terminal in a git repo.");
     if (!this.st) return this.error ? this.note(t, this.error) : this.startForm(t);
     if (this.tab === "gate") return this.gateView(t);

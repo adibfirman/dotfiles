@@ -1,6 +1,6 @@
 // GitHub reads for the prs mod, through the gh CLI (the user's own login). Read only.
 import { exec } from "herdr";
-import { normalize } from "./model.js";
+import { detailOf, normalize } from "./model.js";
 
 // The PR fields the list and the detail view show.
 const FRAGMENT = `fragment P on PullRequest {
@@ -14,22 +14,13 @@ const FRAGMENT = `fragment P on PullRequest {
           ... on CheckRun { name status conclusion detailsUrl }
           ... on StatusContext { context state targetUrl }
         } } } } } }
-        files(first: 50) { nodes { path additions deletions } }
+        author { login } labels(first: 10) { nodes { name color } } totalCommentsCount changedFiles
 }`;
-
-// All my open PRs in one call (the "All" view).
-export const QUERY = `query($q: String!) { search(query: $q, type: ISSUE, first: 40) { nodes { ...P } } }
-${FRAGMENT}`;
 
 async function gh(args, timeout = 60_000) {
   const r = await exec("gh", args, { timeout }).catch((e) => ({ code: 1, stdout: "", stderr: String(e?.message ?? e) }));
   if (r.code !== 0) throw new Error((r.stderr || r.stdout || `gh exit ${r.code}`).trim().slice(0, 300));
   return r.stdout;
-}
-
-export async function fetchPrs() {
-  const out = await gh(["api", "graphql", "-f", `query=${QUERY}`, "-f", "q=is:pr is:open author:@me archived:false"]);
-  return (JSON.parse(out).data?.search?.nodes ?? []).filter((n) => n?.url).map(normalize);
 }
 
 /**
@@ -53,6 +44,26 @@ export async function fetchRunPrs(runs) {
   });
   return map;
 }
+
+/** The detail view's data for one PR: commits, files, checks with run time and the required flag, reviewers asked. */
+export async function fetchPrDetail(pr) {
+  const [owner, name] = pr.repo.split("/");
+  const out = await gh(["api", "graphql", "-f", `query=${DETAIL}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-F", `number=${pr.number}`]);
+  const node = JSON.parse(out).data?.repository?.pullRequest;
+  if (!node) throw new Error(`No data for ${pr.repo}#${pr.number}`);
+  return detailOf(node);
+}
+
+const DETAIL = `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+  changedFiles
+  commitList: commits(first: 100) { totalCount nodes { commit { oid messageHeadline committedDate author { name user { login } } } } }
+  files(first: 100) { nodes { path additions deletions } }
+  reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
+  head: commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+    ... on CheckRun { name status conclusion detailsUrl startedAt completedAt isRequired(pullRequestNumber: $number) }
+    ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: $number) }
+  } } } } } }
+} } }`;
 
 /** Unresolved review threads with file, line, author, and the first comment. */
 export async function openThreads(pr) {

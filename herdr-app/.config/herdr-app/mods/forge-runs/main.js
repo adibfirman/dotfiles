@@ -2,13 +2,14 @@
 // the color of the space it belongs to. Click opens the run window (a popup over the main area); right-click
 // offers Rename and Remove; the "+" in the header opens the Start dialog, where you pick the space.
 // The run window follows its run: when the terminal it should show changes, the window is reopened in place.
+// Its right side has Graph | Pull request tabs; a tab click (shared "forge.window".tab) reopens it with the other mod.
 // It also posts a notification when a run needs you or moves on (gate, blocked node, a coordinator blocked on a
 // tool, your turn in a "With me" grill, done, a wave committed, a TLA+ counterexample), and publishes the run
 // list in shared "forge.runs".
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { spaces, panes, terminals, openOverlay, closeOverlay, notify, exec, theme, shared, setShared, layout, home } from "herdr";
+import { spaces, panes, terminals, openOverlay, closeOverlay, notify, exec, theme, shared, setShared, layout, home, checking } from "herdr";
 
 const forgeBin = () => `${home()}/.local/bin/forge`;
 
@@ -24,22 +25,6 @@ function find(node, id) {
 // The sidebar's rail goes by its width (the same rule as the spaces list).
 const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 
-// The Pull request panel shows only when there is something to do with a PR: the run is done, and it is a
-// workspace run, or on its own branch, or has commits not pushed yet. A run on the default branch with
-// everything pushed has nothing to do (its commits went straight there).
-async function wantsPrPanel(f) {
-  if (f.head?.phase !== "done") return false;
-  if (f.mode === "workspace") return true;
-  const git = async (args) => {
-    const r = await exec("git", args, { cwd: f.worktree }).catch(() => null);
-    return r?.code === 0 ? r.stdout.trim() : null;
-  };
-  const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const def = (await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]))?.replace(/^origin\//, "") ?? "main";
-  if (branch !== def) return true;
-  return (await git(["rev-list", "--count", "@{upstream}..HEAD"])) !== "0";
-}
-
 const live = (a) => (a && terminals().some((t) => t.address === a && t.state === "live") ? a : null);
 // The run's live coordinator terminal, or null (at the gate, or when the run is done).
 const liveCoord = (f) => live(f.coordinator?.terminal);
@@ -49,6 +34,8 @@ const liveChat = (f) => live(f.chat?.terminal);
 // View "chat": the chat, else a panel (with "Start a chat").
 const leftTerminal = (f, view) => (view === "chat" ? liveChat(f) : liveCoord(f) ?? liveChat(f));
 const viewOf = (v) => (v === "chat" ? "chat" : "coord");
+// The right side's tab: "graph" (the forge graph) or "pr" (the Pull request list and detail).
+const tabOf = (x) => (x === "pr" ? "pr" : "graph");
 // Blocked node ids: `forge runs` gives them at the top level (older CLIs only in HEAD).
 const blockedOf = (f) => f.blocked ?? f.head?.blocked ?? [];
 // A coordinator's "blocked: <role> needs <tool>: <command>" that nothing has acted on yet (forge runs → needs).
@@ -84,29 +71,36 @@ function runState(f, t) {
   return show("○", t.dim, false, "coordinator idle: open the run window");
 }
 
-// A forge run opens in one floating window (not a tab). shared "forge.window" tells this list which run is open
-// and which terminal it shows.
-async function openRunWindow(f, view) {
-  const v = viewOf(view ?? (shared("forge.window")?.run === f.dir ? shared("forge.window")?.view : null));
+// A forge run opens in one floating window (not a tab). shared "forge.window" tells this list which run is open,
+// which terminal it shows (terminal), the left view and right tab the bar asks for (view, tab), and the ones the
+// window shows now (shownView, shownTab). Nothing here waits on a shell call: the window shows at once, and each
+// mod in it loads its own data.
+function openRunWindow(f, view, tab) {
+  const win0 = shared("forge.window");
+  const mine = win0?.run === f.dir;
+  const v = viewOf(view ?? (mine ? win0?.view : null));
+  const tb = tabOf(tab ?? (mine ? win0?.tab : null));
   const title = f.title || f.ticket;
-  const prs = await wantsPrPanel(f);
   const term = leftTerminal(f, v);
   // Left: the coordinator's own Claude terminal (or the run's chat), to type into as usual. Herdr closes a window
   // when its terminal ends, so at a phase handoff this list reopens it with the next one. With none running,
-  // a panel says so. Right: the forge graph above the PR view. Each part is a framed panel with a gap around it.
+  // a panel says so. Right: the Graph | Pull request tabs above one framed panel. A window cannot switch a block
+  // in place (layout.select reaches only the main layout), so a tab click reopens the window with the other mod;
+  // each mod draws its cached data first, so the switch shows no empty frame.
   const panel = { background: "background", border: { width: 1, color: "border" }, radius: 8 };
+  const right = tb === "pr" ? { mod: "prs", props: { run: f.dir } } : { mod: "forge", props: { run: f.dir } };
   const win = { type: "column", background: "chrome", children: [
     { type: "block", size: { px: 40 }, content: { mod: "forge-window", props: { part: "bar", title, run: f.dir } } },
     { type: "row", padding: 8, gap: 8, children: [
       { type: "block", size: { weight: 1 }, min: 260, ...panel, content: term ? { terminal: term } : { mod: "forge-window", props: { part: "agent", run: f.dir } } },
-      { type: "column", size: { weight: 1 }, min: 420, gap: 8, children: [
-        { type: "block", size: { weight: 3 }, min: 220, ...panel, content: { mod: "forge", props: { run: f.dir } } },
-        ...(prs ? [{ type: "block", size: { weight: 2 }, min: 100, ...panel, content: { mod: "prs", props: { run: f.dir } } }] : []),
+      { type: "column", size: { weight: 1 }, min: 420, gap: 6, children: [
+        { type: "block", size: { px: 32 }, content: { mod: "forge-window", props: { part: "tabs", run: f.dir } } },
+        { type: "block", size: { weight: 1 }, min: 220, ...panel, content: right },
       ] },
     ] },
   ] };
   const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout: win });
-  setShared("forge.window", { run: f.dir, id, terminal: term, view: v });
+  setShared("forge.window", { run: f.dir, id, terminal: term, view: v, tab: tb, shownView: v, shownTab: tb });
 }
 
 // Where a space is now: its first terminal's live folder, else where it was made.
@@ -234,6 +228,28 @@ export default class ForgeRuns extends View {
     this.openAt = o.at;
     this.openWaiting = false;
     if (f) openRunWindow(f, o.view);
+  }
+
+  // setShared re-renders every mod, so render calls this: a request in "forge.open" (the agents list, the PR panel,
+  // the Start dialog, cmd-escape) or a tab or view change in "forge.window" (the window's bar) acts at once, not on
+  // the next 2 s tick. It runs after the frame, not inside it. A run not in the list yet is left to openRequested
+  // on the timer, which loads the list first.
+  sharedChanged() {
+    if (checking()) return;
+    const o = shared("forge.open");
+    if (o?.at && o.at !== this.openAt) {
+      const f = this.forge.find((x) => x.dir === o.dir);
+      if (f) {
+        this.openAt = o.at;
+        openRunWindow(f, o.view);
+      }
+      return;
+    }
+    const w = shared("forge.window");
+    if (!w?.run) return;
+    if (tabOf(w.tab) === tabOf(w.shownTab) && viewOf(w.view) === viewOf(w.shownView)) return;
+    const f = this.forge.find((x) => x.dir === w.run);
+    if (f) openRunWindow(f, w.view, w.tab);
   }
 
   // A click switches to the run's space, else to the active one: every notification needs an action, because
@@ -421,6 +437,7 @@ export default class ForgeRuns extends View {
   }
 
   render() {
+    Promise.resolve().then(() => this.sharedChanged());
     const t = theme();
     const collapsed = narrow();
     const sp = spaces(), ps = panes();

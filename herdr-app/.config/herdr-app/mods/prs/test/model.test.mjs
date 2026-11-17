@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { actionStep, ago, check, ciSummary, normalize, prState, sortPrs, ticketOf, timeline } from "../model.js";
+import { actionStep, ago, check, checkLine, ciSummary, detailOf, duration, normalize, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, ticketOf, timeline } from "../model.js";
 
 const node = (over = {}) => ({
   url: "https://github.com/acme/shop/pull/7", number: 7, title: "Retry payments", isDraft: false,
@@ -100,4 +100,58 @@ test("timeline with a PR: a later push shows right after PR opened", () => {
   assert.deepEqual(t.slice(0, 2).map((s) => [s.label, s.status]), [["PR opened", "done"], ["Pushed", "done"]]);
   assert.equal(timeline(pr, Date.now(), { ahead: 3 })[1].sub, "↑3 not pushed");
   assert.equal(timeline(pr, Date.now()).length, 4);
+});
+
+test("check: required and run time come from the detail query", () => {
+  const c = check({ name: "sonar", status: "COMPLETED", conclusion: "FAILURE", isRequired: true, startedAt: "2026-11-15T10:00:00Z", completedAt: "2026-11-15T10:00:55Z" });
+  assert.deepEqual(c, { name: "sonar", status: "failed", url: null, required: true, seconds: 55 });
+  assert.equal(check({ name: "x", status: "IN_PROGRESS" }).required, null);
+  assert.equal(checkLine(c), "Failing after 55s");
+  assert.equal(checkLine({ status: "passed", seconds: 360 }), "Successful in 6m");
+  assert.equal(checkLine({ status: "running", seconds: null }), "Running");
+});
+
+test("duration", () => {
+  assert.equal(duration(null), "");
+  assert.equal(duration(36), "36s");
+  assert.equal(duration(3720), "1h 2m");
+});
+
+test("normalize: author, labels, comments, changed files", () => {
+  const pr = normalize(node({ author: { login: "ridho9" }, labels: { nodes: [{ name: "security", color: "d73a4a" }] }, totalCommentsCount: 3, changedFiles: 28 }));
+  assert.equal(pr.author, "ridho9");
+  assert.deepEqual(pr.labels, [{ name: "security", color: "d73a4a" }]);
+  assert.equal(pr.comments, 3);
+  assert.equal(pr.changedFiles, 28);
+  assert.equal(normalize(node()).changedFiles, 1);
+});
+
+test("detailOf and overview: required failing first, unresolved threads, pending reviewers", () => {
+  const d = detailOf({
+    head: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
+      { name: "test", status: "COMPLETED", conclusion: "SUCCESS", isRequired: false },
+      { name: "gitar", status: "COMPLETED", conclusion: "SUCCESS", isRequired: false },
+      { name: "sonar", status: "COMPLETED", conclusion: "FAILURE", isRequired: true },
+    ] } } } }] },
+    commitList: { totalCount: 7, nodes: [{ commit: { oid: "a1", messageHeadline: "feat: x", committedDate: "2026-11-15T10:00:00Z", author: { name: "Adib", user: { login: "adib" } } } }] },
+    files: { nodes: [{ path: "a.go", additions: 1, deletions: 0 }] }, changedFiles: 28,
+    reviewRequests: { nodes: [{ requestedReviewer: { login: "dana" } }] },
+  });
+  assert.equal(d.commitCount, 7);
+  assert.deepEqual(d.commits[0], { oid: "a1", title: "feat: x", at: "2026-11-15T10:00:00Z", author: "adib" });
+  assert.equal(d.fileCount, 28);
+  assert.deepEqual(d.pendingReviewers, ["dana"]);
+  const o = overview(normalize(node({ reviewThreads: { nodes: [{ isResolved: false }] } })), d);
+  assert.equal(o.checks.sub, "1 required failing");
+  assert.deepEqual(o.checks.bar, ["good", "good", "bad"]);
+  assert.equal(o.comments.sub, "1 unresolved");
+  assert.equal(o.approvals.sub, "1 pending");
+  assert.deepEqual(sortChecks(d.checks).map((c) => c.name), ["sonar", "test", "gitar"]);
+});
+
+test("stateIcon and reviewWord", () => {
+  assert.equal(stateIcon(normalize(node({ state: "MERGED" }))).kind, "merged");
+  assert.equal(stateIcon(normalize(node({ isDraft: true }))).label, "Draft");
+  assert.equal(reviewWord(normalize(node({ reviewDecision: "CHANGES_REQUESTED" }))), "Changes requested");
+  assert.equal(reviewWord(normalize(node())), "");
 });

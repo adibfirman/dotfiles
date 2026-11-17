@@ -1,10 +1,15 @@
-// prs: forge runs and their pull requests (default), or all my open PRs across repos.
+// prs: the Pull request tab of a forge run window (props.run). The list shows this run's pull requests: one row per
+// repo (a workspace run has several), any state, and a row for a repo with no PR yet. A row opens its detail:
+// Overview (the Checks, Comments, and Approvals box, then every check), Commits, and Files changed.
+// The window mounts this mod only while its Pull request tab shows, so the list loads when the tab opens. The detail
+// data (commits, files, check times, required checks, reviewers asked) loads when a row opens. The last list, the
+// details, and where you were live in shared "prs.cache" for this run: a reopened window draws them at once.
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as fs from "fs/promises";
-import { theme, panes, terminals, exec, readTextFile, writeTextFile, notify, run, appHome, home, shared, setShared, props as given, window as host } from "herdr";
-import { ago, prState, sortPrs, timeline } from "./model.js";
-import { failedLog, fetchPrs, fetchRunPrs, openThreads } from "./github.js";
+import { theme, terminals, exec, readTextFile, writeTextFile, notify, appHome, home, shared, setShared, props as given, window as host } from "herdr";
+import { ago, checkLine, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, timeline } from "./model.js";
+import { failedLog, fetchPrDetail, fetchRunPrs, openThreads } from "./github.js";
 
 const REFRESH_MS = 120_000;
 const forgeBin = () => `${home()}/.local/bin/forge`;
@@ -23,57 +28,64 @@ const twice = async (f) => {
 // made from origin/<base> can track the base, and a plain push would then aim at the base (git refuses).
 const pushHead = (cwd) => exec("git", ["push", "-u", "origin", "HEAD"], { cwd, timeout: 120_000 }).catch((e) => ({ code: 1, stderr: String(e?.message ?? e), stdout: "" }));
 
+// A loading placeholder: a grey bar with a lighter band that slides across it and back (a shimmer). w: px, or
+// null for the full width.
+const shimmer = (t, w, h = 12) => div().h(h).flex_none().relative().overflow_hidden().rounded(4).bg(alpha(t.foreground, 0.06))
+  .when(w == null, (e) => e.w_full()).when(w != null, (e) => e.w(w))
+  .child(div().absolute().top(0).h(h).w(80).bg(alpha(t.foreground, 0.14)).loop("left", { from: -80, to: 520, period: 1600, easing: "linear" }));
+
 export default class Prs extends View {
   init(_props, cx) {
-    let mode = "forge";
-    try {
-      mode = localStorage.getItem("mode") === "all" ? "all" : "forge";
-    } catch {
-      /* no storage: default */
-    }
-    Object.assign(this, { mode, items: [], local: new Map(), error: null, loading: false, at: null, open: null, busy: null, remotes: new Map(), config: {} });
+    this.run = given()?.run ?? null;
+    Object.assign(this, { items: [], local: new Map(), error: null, loading: false, at: null, open: null, sub: "overview",
+      details: new Map(), detailLoading: null, detailError: null, busy: null, config: {} });
     // The Push or Create PR the user clicked last, per item: { kind, status, cmd, out, result, at }. Shown as a
     // Progress step until a refresh shows the new state (done), or until the next action (failed).
     this.actions = new Map();
-    // props.run (opened for one forge run) or a click on a forge row ("forge.selected") opens that run's detail.
-    this.wanted = given()?.run ?? null;
-    if (this.wanted) this.mode = "forge";
-    this.selAt = shared("forge.selected")?.at ?? null;
+    const c = shared("prs.cache");
+    if (this.run && c?.run === this.run) {
+      Object.assign(this, { items: c.items ?? [], local: new Map(c.local ?? []), at: c.at ?? null, open: c.open ?? null,
+        sub: c.sub ?? "overview", details: new Map(c.details ?? []) });
+      // A step still "running" in the cache lost its task when the last window closed (a handoff or ×).
+      this.actions = new Map((c.actions ?? []).map(([k, a]) => [k, a.status === "running"
+        ? { ...a, status: "failed", out: "The window closed while this ran. Check GitHub, then try again." } : a]));
+    }
+    // A new copy runs no action yet: a lock left by a closed copy goes.
+    if (this.run && shared("prs.busy")?.run === this.run) setShared("prs.busy", null);
+    if (!this.run) return;
     cx.timer.every(REFRESH_MS, (cx) => this.refresh(cx));
     this.refresh(cx);
   }
 
-  setMode(mode, cx) {
-    if (mode === this.mode) return;
-    Object.assign(this, { mode, open: null, items: [] });
-    try {
-      localStorage.setItem("mode", mode);
-    } catch {
-      /* per-copy convenience only */
-    }
-    this.refresh(cx);
+  // The window goes (a tab switch reopens it): keep where you were for the next window of this run.
+  close() {
+    if (this.busy) setShared("prs.busy", null);
+    this.saveCache();
+  }
+
+  // shared "prs.cache": this run's list, details, open row, and sub-tab (one run only). Written only when it changed.
+  saveCache() {
+    if (!this.run) return;
+    const c = { run: this.run, at: this.at, items: this.items, local: [...this.local], open: this.open, sub: this.sub, details: [...this.details], actions: [...this.actions] };
+    const key = JSON.stringify(c);
+    if (key === this.cacheKey) return;
+    this.cacheKey = key;
+    setShared("prs.cache", c);
   }
 
   // ---------------------------------------------------------------- data
 
   refresh(cx) {
-    if (this.loading) return;
+    if (this.loading || !this.run) return;
     this.loading = true;
     cx.notify();
     cx.spawn(async (cx) => {
-      const mode = this.mode;
       try {
         // Ticket links come from an untracked local file, so no company URL lives in dotfiles.
         this.config = JSON.parse((await readTextFile(`${appHome()}/data/prs/config.json`)) ?? "{}");
-        const items = mode === "forge" ? await this.forgeItems() : await this.allItems();
-        if (mode !== this.mode) return; // switched while loading
+        const items = await this.runItems();
         this.items = items;
-        // The selection is a run folder; a workspace run's rows are "<run>#<repo>": open its first row.
-        const hit = this.wanted && items.find((i) => i.key === this.wanted || i.fr?.runDir === this.wanted);
-        if (hit) {
-          this.open = hit.key;
-          this.wanted = null;
-        }
+        if (this.open && !items.some((i) => i.key === this.open)) this.open = null;
         this.error = null;
         this.at = new Date().toISOString();
         this.local = await this.localInfo(items);
@@ -83,100 +95,108 @@ export default class Prs extends View {
           const it = items.find((i) => i.key === key);
           if ((a.kind === "push" && this.local.get(key)?.ahead === 0) || (a.kind === "create" && it?.pr)) this.actions.delete(key);
         }
+        if (this.open) this.loadDetail(cx, this.open);
       } catch (e) {
         this.error = String(e?.message ?? e);
       } finally {
         await this.writeState();
         this.loading = false;
+        this.saveCache();
         cx.notify();
       }
     });
   }
 
-  // Forge runs from the registry, each with its newest PR (open, merged, or closed).
-  async forgeItems() {
+  // This run's rows, each with its newest PR (open, merged, or closed). A workspace run gives one row per repo in
+  // it; a repo run (or a workspace run with no repo yet) one row. PRs first, most urgent first.
+  async runItems() {
     const r = await exec(forgeBin(), ["runs"], { timeout: 30_000 });
     if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || "forge runs failed");
-    // A workspace run shows one row per repo in it; a repo run (or a workspace run with no repo yet) one row.
-    const runs = JSON.parse(r.stdout).flatMap((fr) => fr.mode === "workspace" && fr.repos?.length
+    const fr = JSON.parse(r.stdout).find((x) => x.dir === this.run);
+    if (!fr) throw new Error("This run is not in `forge runs`.");
+    const rows = fr.mode === "workspace" && fr.repos?.length
       ? fr.repos.map((rp) => ({ ...fr, dir: `${fr.dir}#${rp.name}`, runDir: fr.dir, repo: rp.remote, branch: rp.branch, worktree: rp.worktree, repoName: rp.name, title: `${fr.title || fr.ticket} · ${rp.name}` }))
-      : [{ ...fr, runDir: fr.dir }]);
-    const prs = await twice(() => fetchRunPrs(runs));
-    const items = runs.map((fr) => ({ key: fr.dir, fr, pr: prs.get(fr.dir) ?? null }));
+      : [{ ...fr, runDir: fr.dir }];
+    const prs = await twice(() => fetchRunPrs(rows));
+    const items = rows.map((x) => ({ key: x.dir, fr: x, pr: prs.get(x.dir) ?? null }));
     const withPr = sortPrs(items.filter((i) => i.pr).map((i) => i.pr)).map((pr) => items.find((i) => i.pr === pr));
     return [...withPr, ...items.filter((i) => !i.pr)];
   }
 
-  async allItems() {
-    return sortPrs(await twice(fetchPrs)).map((pr) => ({ key: pr.key, pr, fr: null }));
-  }
-
-  // For each item: its worktree, its agent pane, how far it is ahead, and its forge state.
+  // For each row: its worktree, how far it is ahead, its branch and the repo's default branch, and its forge state.
   async localInfo(items) {
     const local = new Map();
-    const shown = panes().filter((p) => p.cwd && p.terminal);
     for (const item of items) {
-      let cwd = item.fr?.worktree ?? null;
-      if (!cwd && item.pr) cwd = (await this.paneFor(item.pr, shown))?.cwd ?? null;
+      const cwd = item.fr?.worktree ?? null;
       if (!cwd) continue;
-      // A forge run's agents are its own terminals (label forge=<ticket>/…). Other panes in the same folder
-      // (your own sessions) are not the run's agent.
-      const inside = item.fr ? [] : shown.filter((p) => p.cwd === cwd || p.cwd.startsWith(`${cwd}/`));
-      const pane = inside.find((p) => p.status) ?? inside[0] ?? null;
-      // Commits on no remote branch: right before the first push (no upstream yet) and after it.
-      const ahead = await exec("git", ["rev-list", "--count", "HEAD", "--not", "--remotes"], { cwd }).catch(() => null);
-      // The branch and the repo's default branch: a run on the default branch commits straight to it, so it has no PR.
-      const branch = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd }).catch(() => null);
-      const def = await exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd }).catch(() => null);
-      const l = {
-        cwd, pane, ahead: ahead?.code === 0 ? Number(ahead.stdout.trim()) : null,
-        branch: branch?.code === 0 ? branch.stdout.trim() : null,
-        base: def?.code === 0 ? def.stdout.trim().replace(/^origin\//, "") : "main",
+      const git = async (args) => {
+        const r = await exec("git", args, { cwd }).catch(() => null);
+        return r?.code === 0 ? r.stdout.trim() : null;
       };
-      if (item.fr) l.forge = { dir: item.fr.runDir ?? item.fr.dir, main: item.fr.main, ticket: item.fr.ticket, ...(item.fr.head ?? {}) };
-      else if (item.pr.ticket) {
-        const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd }).catch(() => null);
-        const main = common?.code === 0 ? common.stdout.trim().replace(/\/\.git\/?$/, "") : null;
-        const head = main ? await readTextFile(`${main}/.forge/tickets/${item.pr.ticket}/HEAD`).catch(() => null) : null;
-        if (head) l.forge = { dir: `${main}/.forge/tickets/${item.pr.ticket}`, main, ...JSON.parse(head) };
-      }
-      local.set(item.key, l);
+      // Commits on no remote branch: right before the first push (no upstream yet) and after it.
+      const ahead = await git(["rev-list", "--count", "HEAD", "--not", "--remotes"]);
+      // A run on the default branch commits straight to it, so it has no PR.
+      const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
+      const def = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+      local.set(item.key, {
+        cwd, ahead: ahead === null ? null : Number(ahead), branch, base: def ? def.replace(/^origin\//, "") : "main",
+        forge: { dir: item.fr.runDir ?? item.fr.dir, main: item.fr.main, ticket: item.fr.ticket, ...(item.fr.head ?? {}) },
+      });
     }
     return local;
   }
 
-  // In the "All" view a PR has no run: find a pane on the same repo (origin remote) and branch.
-  async paneFor(pr, shown) {
-    for (const p of shown) {
-      if (p.branch !== pr.head) continue;
-      if (!this.remotes.has(p.cwd)) {
-        const r = await exec("git", ["remote", "get-url", "origin"], { cwd: p.cwd }).catch(() => null);
-        const m = /[:/]([^/:]+\/[^/]+?)(\.git)?$/.exec(r?.stdout.trim() ?? "");
-        this.remotes.set(p.cwd, m ? m[1].toLowerCase() : null);
+  // The detail data for one row with a PR: on open, and on each refresh while it is open.
+  loadDetail(cx, key) {
+    const item = this.items.find((i) => i.key === key);
+    if (!item?.pr || this.detailLoading === key) return;
+    this.detailLoading = key;
+    cx.notify();
+    cx.spawn(async (cx) => {
+      try {
+        this.details.set(key, await twice(() => fetchPrDetail(item.pr)));
+        if (this.detailError?.key === key) this.detailError = null;
+      } catch (e) {
+        this.detailError = { key, text: String(e?.message ?? e) };
+      } finally {
+        if (this.detailLoading === key) this.detailLoading = null;
+        this.saveCache();
+        cx.notify();
       }
-      if (this.remotes.get(p.cwd) === pr.repo.toLowerCase()) return p;
-    }
-    return null;
+    });
+  }
+
+  openRow(cx, key) {
+    this.open = key;
+    this.sub = "overview";
+    this.saveCache();
+    this.loadDetail(cx, key);
+    cx.notify();
   }
 
   // What this copy sees, for debugging without a screenshot.
   async writeState() {
     await fs.mkdir(`${appHome()}/data/prs`, { recursive: true }).catch(() => {});
     await fs.writeFile(`${appHome()}/data/prs/last-state.json`, JSON.stringify({
-      at: new Date().toISOString(), mode: this.mode, error: this.error,
+      at: new Date().toISOString(), run: this.run, error: this.error,
       items: this.items.map((i) => ({ run: i.fr?.ticket ?? null, pr: i.pr ? `${i.pr.repo}#${i.pr.number} ${prState(i.pr).label}` : null, forge: this.local.get(i.key)?.forge?.phase ?? null })),
     }, null, 2)).catch(() => {});
   }
 
   // ---------------------------------------------------------------- actions
 
+  // Open a link from PR data in the browser: https only (a check's link comes from the CI workflow).
   openUrl(url) {
+    if (!/^https:\/\//i.test(String(url ?? ""))) return;
     exec(host().platform === "linux" ? "xdg-open" : "open", [url]);
   }
 
+  // One action at a time. shared "prs.busy" = { run, label } while it runs: the window's tabs lock, because a tab
+  // switch closes this copy, and herdr cancels a closed copy's unfinished task (a Create PR could stop after the push).
   task(cx, label, work) {
     if (this.busy) return;
     this.busy = label;
+    setShared("prs.busy", { run: this.run, label });
     cx.notify();
     cx.spawn(async (cx) => {
       let res;
@@ -186,6 +206,8 @@ export default class Prs extends View {
         res = { ok: false, body: String(e?.message ?? e) };
       }
       this.busy = null;
+      setShared("prs.busy", null);
+      this.saveCache();
       notify({ title: label.replace(/^./, (c) => c.toUpperCase()), body: String(res.body ?? "").slice(0, 300) || "Done.", level: res.ok ? "success" : "error" });
       this.refresh(cx);
     });
@@ -195,6 +217,7 @@ export default class Prs extends View {
   act(cx, item, kind, cmd, label, work) {
     if (this.busy) return;
     this.actions.set(item.key, { kind, status: "running", cmd, at: Date.now() });
+    this.saveCache();
     this.task(cx, label, async () => {
       const res = await work();
       this.actions.set(item.key, { kind, status: res.ok ? "done" : "failed", cmd, out: res.body, result: res.result, at: Date.now() });
@@ -271,26 +294,15 @@ export default class Prs extends View {
 
   render(cx) {
     const t = theme();
-    const sel = shared("forge.selected");
-    if (sel?.at && sel.at !== this.selAt && !given()?.run) {
-      this.selAt = sel.at;
-      const hit = this.mode === "forge" && this.items.find((i) => i.key === sel.dir || i.fr?.runDir === sel.dir);
-      if (hit) this.open = hit.key;
-      else {
-        Object.assign(this, { mode: "forge", wanted: sel.dir, open: null });
-        this.refresh(cx);
-      }
-    }
     const item = this.open && this.items.find((i) => i.key === this.open);
     return v_flex().id("prs").size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13).overflow_hidden()
-      // In a run window, a press that reaches the window drags it: stop presses here, so dragging the graph
-      // pans it and the window stays where it is. (Inner handlers, like the graph's pan, run first.)
+      // In a run window, a press that reaches the window drags it: stop presses here, so the window stays where it is.
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .child(item ? this.detail(t, item) : this.list(t));
   }
 
   color(t, kind) {
-    return kind === "bad" ? t.blocked : kind === "good" ? t.done : kind === "wait" ? t.working : t.muted;
+    return kind === "bad" ? t.blocked : kind === "good" ? t.done : kind === "wait" ? t.working : kind === "merged" ? t.ansi5 ?? t.accent : t.muted;
   }
 
   stepIcon(t, status) {
@@ -299,76 +311,15 @@ export default class Prs extends View {
     return div().w(18).h(18).flex_none().flex().items_center().justify_center().rounded_full().bg(alpha(c, 0.18)).text_color(c).text_size(11).child(ch);
   }
 
+  // The run's live forge agents, from their hc labels (null when none runs).
   agentRow(t, l) {
-    if (l?.forge && !l.pane) {
-      // The run's live agents, from their hc labels.
-      const mine = terminals().filter((x) => x.state === "live" && String(x.labels?.forge ?? "").startsWith(`${l.forge.ticket ?? ""}/`));
-      if (!mine.length) return null;
-      const working = mine.filter((x) => x.status === "working").length;
-      return h_flex().gap(6).items_center().text_size(11.5).text_color(t.muted)
-        .child(div().w(7).h(7).rounded_full().bg(working ? t.working : t.idle))
-        .child(div().truncate().child(`${mine.length} forge agent${mine.length > 1 ? "s" : ""}${working ? ` · ${working} working` : ""}`));
-    }
-    const p = l?.pane;
-    if (!p) return null;
-    const c = p.status === "working" ? t.working : p.status === "blocked" ? t.blocked : p.status === "done" ? t.done : t.idle;
+    if (!l?.forge) return null;
+    const mine = terminals().filter((x) => x.state === "live" && String(x.labels?.forge ?? "").startsWith(`${l.forge.ticket ?? ""}/`));
+    if (!mine.length) return null;
+    const working = mine.filter((x) => x.status === "working").length;
     return h_flex().gap(6).items_center().text_size(11.5).text_color(t.muted)
-      .child(div().w(7).h(7).rounded_full().bg(p.status ? c : t.dim))
-      .child(div().truncate().child(`${p.app ?? "terminal"} · ${p.title || p.branch}`));
-  }
-
-  chip(t, id, label, on, f) {
-    return div().id(id).h(22).px(8).flex().items_center().rounded(5).text_size(11.5).cursor_pointer()
-      .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
-      .on_click((_e, cx) => f(cx)).child(label);
-  }
-
-  list(t) {
-    const label = this.mode === "forge" ? "Forge runs" : "Pull requests";
-    return v_flex().size_full().min_h(0)
-      .child(h_flex().h(44).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border)
-        .child(div().font_semibold().child(label))
-        .child(div().px(6).rounded(5).bg(t.raised).text_size(11).text_color(t.muted).child(String(this.items.length)))
-        .child(div().flex_1())
-        .child(h_flex().p(2).gap(2).rounded(7).bg(t.raised)
-          .child(this.chip(t, "prs-mode-forge", "Forge", this.mode === "forge", (cx) => this.setMode("forge", cx)))
-          .child(this.chip(t, "prs-mode-all", "All", this.mode === "all", (cx) => this.setMode("all", cx))))
-        .child(div().id("prs-refresh").w(24).h(24).flex().items_center().justify_center().rounded(5).text_size(12).text_color(t.muted).cursor_pointer()
-          .hover((s) => s.bg(t.hover)).tooltip(this.loading ? "Loading…" : this.at ? `Updated ${ago(this.at)}` : "Refresh").on_click((_e, cx) => this.refresh(cx))
-          .child(this.loading ? "…" : "↻")))
-      .when(Boolean(this.error), (e) => e.child(div().px(14).py(6).text_size(11).text_color(t.blocked).child(this.error)))
-      .child(v_flex().id("prs-list").flex_1().min_h(0).overflow_y_scrollbar().p(8).gap(6)
-        .children(this.items.map((i) => this.row(t, i)))
-        .when(!this.items.length && !this.loading && !this.error, (e) => e.child(div().p(12).text_color(t.dim)
-          .child(this.mode === "forge" ? "No forge runs yet. Start one from the Forge panel." : "No open pull requests."))));
-  }
-
-  row(t, item) {
-    const { pr, fr } = item, l = this.local.get(item.key);
-    const card = v_flex().id(`row-${item.key}`).gap(4).p(10).rounded(8).bg(t.surface).border_1().border_color(t.border).cursor_pointer()
-      .hover((st) => st.bg(t.hover)).on_click((_e, cx) => { this.open = item.key; cx.notify(); });
-    const forge = l?.forge?.phase ? div().text_color(t.accent).child(`forge ${l.forge.phase}${l.forge.paused ? " · paused" : ""}`) : null;
-    if (!pr) {
-      return card
-        .child(div().font_semibold().truncate().child(fr.title || fr.ticket))
-        .child(h_flex().gap(6).text_size(11.5).text_color(t.dim)
-          .child(div().truncate().child(`${fr.repo?.split("/")[1] ?? "local repo"} · ${fr.ticket}`))
-          .child(div().flex_1()).child(div().flex_none().child(ago(fr.created))))
-        .child(h_flex().gap(10).text_size(11.5).child(div().text_color(t.muted).child("No PR yet")).when(Boolean(forge), (e) => e.child(forge)))
-        .when(Boolean(l?.pane), (e) => e.child(this.agentRow(t, l)));
-    }
-    const s = prState(pr);
-    const ci = pr.ci.status === "failed" ? ["✕ CI failed", t.blocked] : pr.ci.status === "running" ? ["◌ CI", t.working] : pr.ci.status === "passed" ? ["✓ CI", t.done] : ["no CI", t.dim];
-    return card
-      .child(div().font_semibold().truncate().child(pr.title))
-      .child(h_flex().gap(6).text_size(11.5).text_color(t.dim)
-        .child(div().truncate().child(`${pr.repo.split("/")[1]} #${pr.number}${pr.ticket ? ` · ${pr.ticket}` : ""}`))
-        .child(div().flex_1()).child(div().flex_none().child(ago(pr.updatedAt))))
-      .child(h_flex().gap(10).text_size(11.5).items_center()
-        .when(pr.state === "OPEN", (e) => e.child(div().text_color(ci[1]).child(ci[0])))
-        .child(div().text_color(this.color(t, s.kind)).child(s.label))
-        .when(Boolean(forge), (e) => e.child(forge)))
-      .when(Boolean(l?.pane), (e) => e.child(this.agentRow(t, l)));
+      .child(div().w(7).h(7).rounded_full().bg(working ? t.working : t.idle))
+      .child(div().truncate().child(`${mine.length} forge agent${mine.length > 1 ? "s" : ""}${working ? ` · ${working} working` : ""}`));
   }
 
   button(t, id, label, f, primary = false) {
@@ -377,68 +328,112 @@ export default class Prs extends View {
       .on_click((_e, cx) => f(cx)).child(label);
   }
 
+  list(t) {
+    const first = this.loading && !this.items.length && !this.error;
+    const many = this.items.length > 1;
+    return v_flex().size_full().min_h(0)
+      .child(h_flex().h(44).flex_none().px(12).gap(6).items_center().border_b(1).border_color(t.border)
+        .child(div().font_semibold().child("Pull requests"))
+        .child(div().px(6).rounded(5).bg(t.raised).text_size(11).text_color(t.muted).child(String(this.items.filter((i) => i.pr).length)))
+        .child(div().flex_1())
+        .child(div().id("prs-refresh").w(24).h(24).flex().items_center().justify_center().rounded(5).text_size(12).text_color(t.muted).cursor_pointer()
+          .hover((s) => s.bg(t.hover)).tooltip(this.loading ? "Loading…" : this.at ? `Updated ${ago(this.at)}` : "Refresh").on_click((_e, cx) => this.refresh(cx))
+          .child(this.loading ? "…" : "↻")))
+      .when(Boolean(this.error), (e) => e.child(div().px(14).py(6).text_size(11).text_color(t.blocked).child(this.error)))
+      .child(v_flex().id("prs-list").flex_1().min_h(0).overflow_y_scrollbar()
+        .when(first, (e) => e.children([0, 1, 2].map((i) => v_flex().id(`prs-skel-${i}`).gap(6).px(14).py(10).border_b(1).border_color(t.border)
+          .child(shimmer(t, 260, 13)).child(shimmer(t, 180, 10)))))
+        .children(this.items.map((i) => this.row(t, i, many)))
+        .when(!this.items.length && !this.loading && !this.error, (e) => e.child(div().p(12).text_color(t.dim).child("This run has no branch for a PR yet."))));
+  }
+
+  // One list row, GitHub style: the state icon, the title and labels, then `#number · author opened X ago ·
+  // review · ✓ n/m`, and the comment count on the right. many: show the repo name (a workspace run).
+  row(t, item, many) {
+    const { pr, fr } = item, l = this.local.get(item.key);
+    const line = h_flex().id(`row-${item.key}`).gap(10).px(14).py(9).items_start().border_b(1).border_color(t.border).cursor_pointer()
+      .hover((st) => st.bg(t.hover)).on_click((_e, cx) => this.openRow(cx, item.key));
+    if (!pr) {
+      return line
+        .child(div().w(16).flex_none().text_color(t.dim).child("○"))
+        .child(v_flex().flex_1().min_w(0).gap(3)
+          .child(div().font_semibold().truncate().child(fr.title || fr.ticket))
+          .child(div().text_size(11.5).text_color(t.dim).truncate()
+            .child(`No PR yet · ${fr.repo?.split("/")[1] ?? "local repo"} · ${fr.branch ?? "?"}${l?.ahead ? ` · ↑${l.ahead} not pushed` : ""}`)));
+    }
+    const icon = stateIcon(pr);
+    const review = pr.state === "OPEN" ? reviewWord(pr) : "";
+    const ci = pr.ci.total ? `${pr.ci.status === "failed" ? "✕" : pr.ci.status === "running" ? "◌" : "✓"} ${pr.ci.passed}/${pr.ci.total}` : "";
+    const ciColor = pr.ci.status === "failed" ? t.blocked : pr.ci.status === "running" ? t.working : t.done;
+    return line
+      .child(div().w(16).flex_none().text_color(this.color(t, icon.kind)).tooltip(icon.label).child(icon.icon))
+      .child(v_flex().flex_1().min_w(0).gap(3)
+        .child(h_flex().gap(6).items_center().min_w(0)
+          .child(div().font_semibold().truncate().child(pr.title))
+          .children(pr.labels.map((lb, i) => this.label(t, `lb-${item.key}-${i}`, lb))))
+        .child(h_flex().gap(4).items_center().min_w(0).text_size(11.5).text_color(t.dim)
+          .child(div().truncate().child(`${many ? `${pr.repo.split("/")[1]} ` : ""}#${pr.number}${pr.author ? ` · ${pr.author}` : ""} opened ${ago(pr.createdAt)}${review ? ` · ${review}` : ""}`))
+          .when(Boolean(ci), (e) => e.child(div().flex_none().text_color(ciColor).child(`· ${ci}`)))))
+      .when(pr.comments > 0, (e) => e.child(div().flex_none().text_size(11.5).text_color(t.muted).child(`💬 ${pr.comments}`)));
+  }
+
+  label(t, id, lb) {
+    const c = /^[0-9a-f]{6}$/i.test(lb.color ?? "") ? `#${lb.color}` : t.muted;
+    return div().id(id).flex_none().px(7).h(18).flex().items_center().rounded(9).text_size(10.5)
+      .border_1().border_color(alpha(c, 0.6)).bg(alpha(c, 0.18)).text_color(t.foreground).child(lb.name);
+  }
+
+  subTab(t, key, label, count) {
+    const on = this.sub === key;
+    return h_flex().id(`prs-sub-${key}`).h(34).px(10).gap(6).items_center().text_size(12.5).border_b(2)
+      .border_color(on ? t.accent : t.background).text_color(on ? t.foreground : t.muted)
+      .when(!on, (e) => e.cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click((_e, cx) => { this.sub = key; this.saveCache(); cx.notify(); }))
+      .child(label)
+      .when(count != null, (e) => e.child(div().px(6).rounded(9).bg(t.raised).text_size(11).text_color(t.muted).child(String(count))));
+  }
+
   detail(t, item) {
     const { pr, fr } = item, l = this.local.get(item.key);
-    // The other repos of the same workspace run (one item per repo), by repo name.
-    const runDir = fr?.runDir ?? item.key;
-    const siblings = fr ? this.items.filter((i) => (i.fr?.runDir ?? i.key) === runDir).sort((x, y) => String(x.fr?.repoName ?? "").localeCompare(String(y.fr?.repoName ?? ""))) : [item];
-    const section = (title) => div().pt(8).text_size(11.5).text_color(t.dim).child(title);
+    const d = this.details.get(item.key) ?? null;
     const ticket = pr?.ticket ?? (fr && !fr.ticket.startsWith("local-") ? fr.ticket : null);
     const ticketUrl = ticket && this.config.ticketUrl ? this.config.ticketUrl.replace("{key}", ticket) : null;
     const canSend = Boolean(pr && l?.forge) && pr.state === "OPEN" && (pr.ci.status === "failed" || pr.unresolved > 0 || pr.reviewDecision === "CHANGES_REQUESTED");
     const onBase = Boolean(l?.branch) && l.branch === l.base;
     const canCreate = !pr && Boolean(fr?.repo) && l?.forge?.phase === "done" && !onBase;
     const canPush = Boolean(l) && (pr ? pr.state === "OPEN" : Boolean(fr?.repo)) && l.ahead !== 0;
-    const body = v_flex().id("prs-detail").flex_1().min_h(0).overflow_y_scrollbar().p(14).gap(6)
+    const icon = pr ? stateIcon(pr) : null;
+    const head = v_flex().flex_none().gap(4).px(14).pt(12).pb(8)
       .child(div().text_size(15).font_semibold().child(pr?.title ?? (fr.title || fr.ticket)))
-      .child(div().text_size(11.5).text_color(t.dim).child(pr ? `${pr.repo} #${pr.number}` : `${fr.repo ?? "no GitHub remote"} · ${fr.ticket}`))
-      .child(div().text_size(11.5).text_color(t.muted).child(pr ? `${pr.head} → ${pr.base}` : `${fr.branch ?? "?"} · ${fr.worktree}`))
-      .when(Boolean(pr), (e) => e.child(div().text_size(12).text_color(this.color(t, prState(pr).kind)).child(prState(pr).label)))
-      .when(!pr && onBase, (e) => e.child(div().text_size(12).text_color(t.muted).child(l.ahead ? `On ${l.base}: commits go straight to ${l.base}, so there is no PR. ${l.ahead} not pushed yet.` : `On ${l.base}: commits go straight to ${l.base}, so there is no PR. Everything is pushed.`)))
-      .when(Boolean(l?.pane), (e) => e.child(h_flex().mt(4).p(8).gap(8).items_center().rounded(8).bg(t.raised)
-        .child(div().flex_1().min_w(0).child(this.agentRow(t, l)))
-        .child(div().id("prs-go").text_size(12).text_color(t.accent).cursor_pointer().on_click(() => run("pane.focus", { pane: l.pane.pane })).child("Go ›"))))
-      .when(Boolean(l?.forge), (e) => e.child(section("Forge")).child(div().text_size(12).child(`cycle ${l.forge.cycle} · ${l.forge.phase}${l.forge.paused ? " · paused" : ""}`)));
-    // Progress: before a PR, the push and the draft PR to come; with one, its story. A clicked Push or Create PR
-    // shows as its step (◌ the command, ✓ the result, ✕ the error, the full output on hover).
-    const steps = pr || (fr?.repo && !onBase) ? timeline(pr, Date.now(), { ahead: l?.ahead ?? null, base: l?.base ?? "main", action: this.actions.get(item.key) ?? null }) : [];
-    body.when(steps.length > 0, (e) => e.child(section("Progress"))
-      .children(steps.map((st, i) => h_flex().id(`step-${i}`).gap(8).items_center().child(this.stepIcon(t, st.status))
-        .child(v_flex().id(`step-text-${i}`).min_w(0).when(Boolean(st.tip), (x) => x.tooltip(st.tip.slice(0, 2000)))
-          .child(div().text_size(12.5).child(st.label))
-          .when(Boolean(st.sub), (x) => x.child(div().text_size(11).truncate().text_color(st.status === "failed" ? t.blocked : t.dim).child(st.sub)))))));
-    if (pr) {
-      body
-        .when(pr.checks.length > 0, (e) => e.child(section(`Checks ${pr.checks.length}`))
-          .children(pr.checks.map((c, i) => h_flex().id(`chk-${i}`).gap(8).items_center().when(Boolean(c.url), (r) => r.cursor_pointer().on_click(() => this.openUrl(c.url)))
-            .child(this.stepIcon(t, c.status)).child(div().truncate().text_size(12).child(c.name)))))
-        .child(section(`Changed files ${pr.files.length}`))
-        .child(h_flex().gap(8).text_size(11.5).child(div().text_color(t.done).child(`+${pr.additions}`)).child(div().text_color(t.blocked).child(`−${pr.deletions}`)))
-        .children(pr.files.map((f, i) => h_flex().id(`file-${i}`).gap(6).text_size(11.5)
-          .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(f.path))
-          .child(div().text_color(t.done).child(`+${f.additions}`)).child(div().text_color(t.blocked).child(`−${f.deletions}`))));
+      .child(h_flex().gap(8).items_center().min_w(0).text_size(11.5).text_color(t.dim)
+        .when(Boolean(icon), (e) => e.child(div().flex_none().text_color(this.color(t, icon.kind)).child(`${icon.icon} ${icon.label}`)))
+        .child(div().truncate().child(pr ? `${pr.repo} #${pr.number}${pr.author ? ` · ${pr.author}` : ""} · ${pr.head} → ${pr.base}` : `${fr.repo ?? "no GitHub remote"} · ${fr.branch ?? "?"}`)));
+    const body = v_flex().id("prs-detail").flex_1().min_h(0).overflow_y_scrollbar().p(14).gap(8);
+    const progress = (p) => timeline(p, Date.now(), { ahead: l?.ahead ?? null, base: l?.base ?? "main", action: this.actions.get(item.key) ?? null });
+    if (!pr) {
+      body.when(onBase, (e) => e.child(div().text_size(12).text_color(t.muted).child(l.ahead
+        ? `On ${l.base}: commits go straight to ${l.base}, so there is no PR. ${l.ahead} not pushed yet.`
+        : `On ${l.base}: commits go straight to ${l.base}, so there is no PR. Everything is pushed.`)));
+      this.forgeSection(t, body, l);
+      this.steps(t, body, fr?.repo && !onBase ? progress(null) : []);
+    } else if (this.sub === "commits") this.commits(t, body, pr, d, item.key);
+    else if (this.sub === "files") this.files(t, body, pr, d, item.key);
+    else {
+      this.overviewTab(t, body, pr, d, item.key);
+      this.forgeSection(t, body, l);
+      this.steps(t, body, progress(pr));
     }
-    body.when(Boolean(ticket), (e) => e.child(section("Ticket")).child(div().id("prs-ticket").text_size(12)
-      .text_color(ticketUrl ? t.accent : t.foreground).when(Boolean(ticketUrl), (d) => d.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)));
+    body.when(Boolean(ticket), (e) => e.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Ticket")).child(div().id("prs-ticket").text_size(12)
+      .text_color(ticketUrl ? t.accent : t.foreground).when(Boolean(ticketUrl), (x) => x.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)));
     return v_flex().size_full().min_h(0)
-      .child(h_flex().h(44).flex_none().px(12).items_center().justify_between().border_b(1).border_color(t.border)
-        // Pinned to one run (in a run window): no list to go back to. A workspace run has one PR per repo:
-        // a chip per repo switches between them, each with its own Push and Create PR.
-        .child(given()?.run
-          ? h_flex().gap(8).items_center().min_w(0)
-            .child(div().flex_none().text_size(12).font_semibold().child(siblings.length > 1 ? "Pull requests" : "Pull request"))
-            .when(siblings.length > 1, (e) => e.children(siblings.map((sib, i) => {
-              const on = sib.key === item.key;
-              const sl = this.local.get(sib.key);
-              const mark = sib.pr ? prState(sib.pr).label : sl?.ahead ? `↑${sl.ahead}` : "";
-              return div().id(`prs-repo-${i}`).h(24).px(9).flex().items_center().gap(6).rounded(6).text_size(11.5).cursor_pointer()
-                .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted).hover((x) => x.bg(t.hover).text_color(t.foreground))
-                .on_click((_e, cx) => { this.open = sib.key; cx.notify(); })
-                .child(sib.fr?.repoName ?? sib.key)
-                .when(Boolean(mark), (c) => c.child(div().text_size(10.5).text_color(t.dim).child(mark)));
-            })))
-          : div().id("prs-back").text_size(12).text_color(t.muted).cursor_pointer().on_click((_e, cx) => { this.open = null; cx.notify(); }).child("‹ List"))
+      .child(h_flex().h(40).flex_none().px(12).items_center().justify_between().border_b(1).border_color(t.border)
+        .child(div().id("prs-back").text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => { this.open = null; this.saveCache(); cx.notify(); }).child("‹ List"))
         .when(Boolean(pr), (e) => e.child(div().id("prs-gh").text_size(12).text_color(t.muted).cursor_pointer().on_click(() => this.openUrl(pr.url)).child("GitHub ↗"))))
+      .child(head)
+      .when(Boolean(pr), (e) => e.child(h_flex().flex_none().px(10).gap(2).border_b(1).border_color(t.border)
+        .child(this.subTab(t, "overview", "Overview", null))
+        .child(this.subTab(t, "commits", "Commits", d ? d.commitCount : null))
+        .child(this.subTab(t, "files", "Files changed", d ? d.fileCount : pr.changedFiles))))
       .child(body)
       .child(h_flex().h(44).flex_none().px(12).gap(8).items_center().justify_end().border_t(1).border_color(t.border)
         .when(Boolean(this.busy), (e) => e.child(div().flex_1().text_size(11.5).text_color(t.working).child(`${this.busy}…`)))
@@ -446,5 +441,93 @@ export default class Prs extends View {
         .when(canCreate, (e) => e.child(this.button(t, "prs-create", "Create PR", (cx) => this.createPr(cx, item, l), true)))
         .when(canSend, (e) => e.child(div().id("prs-chat-tip").tooltip("Collects the failed checks and open review threads, and opens the run chat with them. You pick what to fix there.")
           .child(this.button(t, "prs-chat", "Send to chat", (cx) => this.sendToChat(cx, pr, l), true)))));
+  }
+
+  // The box (Checks, Comments, Approvals, each with a bar, like GitHub's merge box), then every check: failed
+  // first, with its run time and a "Required" badge. A click opens the check.
+  overviewTab(t, body, pr, d, key) {
+    if (!d && this.detailLoading === key) {
+      body.child(h_flex().rounded(8).border_1().border_color(t.border)
+          .children([0, 1, 2].map((i) => v_flex().id(`ov-skel-${i}`).flex_1().gap(8).p(10).child(shimmer(t, 110, 12)).child(shimmer(t, null, 4)))))
+        .children([0, 1, 2].map((i) => h_flex().id(`chk-skel-${i}`).gap(8).items_center().child(shimmer(t, 18, 18)).child(shimmer(t, 220, 12))));
+      return;
+    }
+    const o = overview(pr, d);
+    body.child(h_flex().rounded(8).border_1().border_color(t.border).overflow_hidden()
+      .child(this.part(t, "ov-checks", o.checks, false))
+      .child(this.part(t, "ov-comments", o.comments, true))
+      .child(this.part(t, "ov-approvals", o.approvals, true)));
+    if (!d && this.detailError?.key === key) body.child(div().text_size(11).text_color(t.blocked).child(`Could not load the check details: ${this.detailError.text}`));
+    const checks = sortChecks(d?.checks ?? pr.checks);
+    body.child(div().pt(4).text_size(11.5).text_color(t.dim).child(`${checks.length} check${checks.length === 1 ? "" : "s"}`))
+      .children(checks.map((c, i) => h_flex().id(`chk-${i}`).gap(8).items_center().py(2).rounded(4)
+        .when(Boolean(c.url), (r) => r.cursor_pointer().hover((s) => s.bg(t.hover)).on_click(() => this.openUrl(c.url)))
+        .child(this.stepIcon(t, c.status))
+        .child(div().flex_none().text_size(12.5).child(c.name))
+        .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(checkLine(c)))
+        .when(c.required === true, (r) => r.child(div().flex_none().px(7).h(18).flex().items_center().rounded(9).border_1().border_color(t.border)
+          .text_size(10.5).text_color(t.muted).child("Required")))));
+  }
+
+  // One part of the Overview box: its title, a line in its color, and a bar of one segment per unit.
+  part(t, id, p, divider) {
+    return v_flex().id(id).flex_1().min_w(0).gap(8).p(10).when(divider, (e) => e.border_l(1).border_color(t.border))
+      .child(h_flex().gap(6).items_center().min_w(0)
+        .child(div().flex_none().text_size(12.5).font_semibold().child(p.title))
+        .child(div().truncate().text_size(11.5).text_color(this.color(t, p.kind)).child(p.sub)))
+      .child(h_flex().h(4).w_full().gap(1).rounded(2).overflow_hidden()
+        .children(p.bar.map((k) => div().h_full().flex_1().bg(k === "idle" ? t.raised : this.color(t, k)))));
+  }
+
+  // The Commits and Files tabs before their data: five shimmer rows, or the error.
+  pending(t, body, key) {
+    if (this.detailLoading !== key && this.detailError?.key === key) {
+      body.child(div().text_size(11.5).text_color(t.blocked).child(`Could not load the details: ${this.detailError.text}`));
+      return;
+    }
+    body.children([0, 1, 2, 3, 4].map((i) => v_flex().id(`row-skel-${i}`).gap(6).py(4).child(shimmer(t, 260, 12)).child(shimmer(t, 150, 10))));
+  }
+
+  commits(t, body, pr, d, key) {
+    if (!d) return this.pending(t, body, key);
+    if (!d.commits.length) {
+      body.child(div().text_color(t.dim).child("No commits."));
+      return;
+    }
+    body.children(d.commits.map((c, i) => v_flex().id(`cm-${i}`).gap(2).py(6).px(4).rounded(4).border_b(1).border_color(t.border).cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_click(() => this.openUrl(`${pr.url}/commits/${c.oid}`))
+      .child(div().text_size(12.5).truncate().child(c.title))
+      .child(div().text_size(11).text_color(t.dim).child(`${c.author}${c.at ? ` · ${ago(c.at)}` : ""} · ${c.oid.slice(0, 7)}`))))
+      .when(d.commitCount > d.commits.length, (e) => e.child(div().text_size(11).text_color(t.dim).child(`Showing ${d.commits.length} of ${d.commitCount}. The rest are on GitHub.`)));
+  }
+
+  files(t, body, pr, d, key) {
+    if (!d) return this.pending(t, body, key);
+    body.child(h_flex().gap(8).text_size(11.5)
+        .child(div().text_color(t.dim).child(`${d.fileCount} file${d.fileCount === 1 ? "" : "s"}`))
+        .child(div().text_color(t.done).child(`+${pr.additions}`)).child(div().text_color(t.blocked).child(`−${pr.deletions}`)))
+      .children(d.files.map((f, i) => h_flex().id(`file-${i}`).gap(6).py(2).text_size(11.5)
+        .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(f.path))
+        .child(div().text_color(t.done).child(`+${f.additions}`)).child(div().text_color(t.blocked).child(`−${f.deletions}`))))
+      .when(d.fileCount > d.files.length, (e) => e.child(div().text_size(11).text_color(t.dim).child(`Showing ${d.files.length} of ${d.fileCount}. The rest are on GitHub.`)));
+  }
+
+  // The run's forge cycle and phase, and its live agents.
+  forgeSection(t, body, l) {
+    if (!l?.forge) return;
+    const agents = this.agentRow(t, l);
+    body.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Forge"))
+      .child(div().text_size(12).child(`cycle ${l.forge.cycle} · ${l.forge.phase}${l.forge.paused ? " · paused" : ""}`))
+      .when(Boolean(agents), (e) => e.child(agents));
+  }
+
+  // Progress: before a PR, the push and the draft PR to come; with one, its story. A clicked Push or Create PR
+  // shows as its step (◌ the command, ✓ the result, ✕ the error, the full output on hover).
+  steps(t, body, steps) {
+    body.when(steps.length > 0, (e) => e.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Progress"))
+      .children(steps.map((st, i) => h_flex().id(`step-${i}`).gap(8).items_center().child(this.stepIcon(t, st.status))
+        .child(v_flex().id(`step-text-${i}`).min_w(0).when(Boolean(st.tip), (x) => x.tooltip(st.tip.slice(0, 2000)))
+          .child(div().text_size(12.5).child(st.label))
+          .when(Boolean(st.sub), (x) => x.child(div().text_size(11).truncate().text_color(st.status === "failed" ? t.blocked : t.dim).child(st.sub)))))));
   }
 }
