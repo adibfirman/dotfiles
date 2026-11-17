@@ -1,5 +1,5 @@
 // Agents in grouped or priority views; parents take their most urgent sub-agent's place.
-// A viewed done agent stays in Done until left.
+// A viewed done agent stays in Done until left. A forge run's top terminal keeps done until its run is opened and left.
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -48,11 +48,17 @@ function title(tab, l) {
   return (tab.name === prog || !tab.named) && telling ? live : tab.name;
 }
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
+// A terminal's raw status word (terminals() can report a string or {state}); a listed agent's own word wins.
+const rawStatus = (k, listed) => {
+  const s = listed.get(k.address) ?? k.status;
+  return typeof s === "object" ? s?.state ?? null : s;
+};
 // A sub-agent without a pane isn't in agents(): its raw word, error counting as
 // blocked. It's never done: it reports to its parent, and the parent's done is the news.
-const kidStatus = (k, listed) => {
-  const s = listed.get(k.address) ?? k.status;
-  return s === "error" ? "blocked" : s === "done" ? "idle" : s;
+// A forge run's top terminal has no parent that shows it, so it keeps done (keepDone) until its run is seen.
+const kidStatus = (k, listed, keepDone = false) => {
+  const s = rawStatus(k, listed);
+  return s === "error" ? "blocked" : s === "done" && !keepDone ? "idle" : s;
 };
 // A forge terminal's short name from its label (forge=<ticket>/<cycle>/<id>, or <ticket>/chat): the node id or "chat".
 const forgeName = (k) => {
@@ -90,6 +96,8 @@ export default class Agents extends View {
     this.pendingPins = JSON.parse(localStorage.getItem("pins") ?? "[]");
     if (!this.pendingPins.length) localStorage.removeItem("pins");
     this.migratingPins = new Set();
+    // Forge top terminals whose done you saw by opening their run, kept across restarts.
+    this.seen = new Set(JSON.parse(localStorage.getItem("seen") ?? "[]"));
     cx.timer.every(30000, (cx) => cx.notify());
   }
 
@@ -132,6 +140,29 @@ export default class Agents extends View {
 
   since(a) {
     return this.changed[a.address]?.at ?? 0;
+  }
+
+  // Opening a forge run (its window, or a peek at a top terminal) marks its done tops seen. The run stays
+  // held, its done still shown, until you leave it: another run, another sub-agent, or another focused agent.
+  holdRun(g) {
+    for (const k of g.tops) if (rawStatus(k, this.listed) === "done") this.seen.add(k.address);
+    localStorage.setItem("seen", JSON.stringify([...this.seen]));
+    this.heldRun = g.ticket;
+    this.heldFocus = focused()?.agent ?? null;
+  }
+
+  // A seen mark lasts while its terminal is live and done: its next done is news.
+  // Right after a start terminals() can be empty, so an empty list drops nothing.
+  forgetSeen(byAddr) {
+    if (!byAddr.size) return;
+    let dirty = false;
+    for (const a of this.seen) {
+      const k = byAddr.get(a);
+      if (k?.state === "live" && rawStatus(k, this.listed) === "done") continue;
+      this.seen.delete(a);
+      dirty = true;
+    }
+    if (dirty) localStorage.setItem("seen", JSON.stringify([...this.seen]));
   }
 
   // Looking at a done agent makes it idle; it stays with Done until you leave
@@ -192,7 +223,7 @@ export default class Agents extends View {
 
   subRow(t, s, shown, compact) {
     const k = s.t;
-    const st = kidStatus(k, this.listed);
+    const st = kidStatus(k, this.listed, s.keep);
     const pic = icon(k.program, 14, t.foreground);
     const on = k.address === shown;
     return h_flex()
@@ -212,7 +243,13 @@ export default class Agents extends View {
         else if (this.hovered === k.address) this.hovered = null;
         cx.notify();
       })
-      .on_click(() => this.peek(k.address))
+      .on_click((_e, cx) => {
+        // A top terminal's peek opens its run; a sub-row outside the held run leaves it.
+        if (s.run) this.holdRun(s.run);
+        else if (s.ticket !== this.heldRun) this.heldRun = null;
+        this.peek(k.address);
+        cx.notify();
+      })
       .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(17).mr(4).flex_none()
         .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(0))))
@@ -276,6 +313,8 @@ export default class Agents extends View {
     const now = Date.now();
     this.track(list, now);
     this.hold(list);
+    // Another focused agent leaves the held forge run.
+    if (this.heldRun && (focused()?.agent ?? null) !== this.heldFocus) this.heldRun = null;
     const byPriority = sort.id === "priority";
     const urgency = new Map(list.map((a) => [a.address, Math.max(this.rank(a), ...this.tree(all, a.address).map((s) => RANK[kidStatus(s.t, this.listed)] ?? 0))]));
     const rankOf = (a) => urgency.get(a.address);
@@ -309,15 +348,21 @@ export default class Agents extends View {
       }
       g.tops.push(k);
     }
+    this.forgetSeen(byAddr);
     for (const g of forgeGroups) {
+      // A top keeps done until its run is seen, and while that run is held.
+      const keep = (k) => !this.seen.has(k.address) || this.heldRun === g.ticket;
       g.subs = g.tops.flatMap((k, i) => {
         const last = i === g.tops.length - 1;
-        return [{ t: k, lines: [last ? "└" : "├"] }, ...this.tree(all, k.address, [last ? "" : "│"])].map((x) => ({ ...x, name: forgeName(x.t) }));
+        return [{ t: k, lines: [last ? "└" : "├"], run: g, keep: keep(k) }, ...this.tree(all, k.address, [last ? "" : "│"])].map((x) => ({ ...x, ticket: g.ticket, name: forgeName(x.t) }));
       });
-      g.status = g.subs.reduce((m, x) => { const st = kidStatus(x.t, this.listed); return (RANK[st] ?? 0) > (RANK[m] ?? 0) ? st : m; }, "idle");
+      g.status = g.subs.reduce((m, x) => { const st = kidStatus(x.t, this.listed, x.keep); return (RANK[st] ?? 0) > (RANK[m] ?? 0) ? st : m; }, "idle");
     }
     // A run's row opens its window (the projects list does that, on shared "forge.open").
-    const openRun = (g) => { if (g.dir) setShared("forge.open", { dir: g.dir, view: "coord", at: Date.now() }); };
+    const openRun = (g) => {
+      this.holdRun(g);
+      if (g.dir) setShared("forge.open", { dir: g.dir, view: "coord", at: Date.now() });
+    };
 
     const withKids = (a, i) => {
       if (a.forge) return collapsed ? [forgeSquare(a)] : [forgeRow(a), ...(this.folded.has(a.address) ? [] : a.subs.map((s) => this.subRow(t, s, shown, byPriority)))];
@@ -329,7 +374,7 @@ export default class Agents extends View {
 
     // The fold chevron; folded, the count too, colored by the most urgent one.
     const fold = (a, subs) => {
-      const sts = subs.map((s) => kidStatus(s.t, this.listed));
+      const sts = subs.map((s) => kidStatus(s.t, this.listed, s.keep));
       const top = sts.reduce((m, s) => ((RANK[s] ?? 0) > (RANK[m] ?? 0) ? s : m), null);
       const open = !this.folded.has(a.address);
       return div()
@@ -491,7 +536,10 @@ export default class Agents extends View {
       .cursor_pointer()
       .hover((s) => s.bg(t.foreground + "14").border_color(t.foreground + "40"))
       .tooltip(g.dir ? `${g.title}: open the run window` : `${g.ticket}: no run found`)
-      .on_click(() => openRun(g))
+      .on_click((_e, cx) => {
+        openRun(g);
+        cx.notify();
+      })
       .child(div().w(16).flex_none().flex().justify_center().text_color(t.accent).child("⚒"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(g.title))
       .when(g.subs.length > 0, (el) => el.child(fold(g, g.subs)))
