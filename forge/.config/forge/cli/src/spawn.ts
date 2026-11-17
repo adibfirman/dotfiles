@@ -7,7 +7,7 @@ import { appendEvent, loadState, readLines, Refused, withLock, type Run } from "
 import { startBlock } from "./events";
 import { refsIndexPath } from "./refs";
 import { isWorkspace, repoWorktree } from "./repos";
-import { deniedBy, denyFloor, denyRules, effectiveDeny, expandPath, forgeHome, mergeSources, modelFor, scriptDenies } from "./sources";
+import { deniedBy, denyFloor, denyRules, effectiveDeny, expandPath, forgeHome, mergeSources, modelFor, ruleOf, scriptDenies } from "./sources";
 import { projectForced } from "./config";
 import { agentPath } from "./env";
 import { lessonsFile } from "./checks";
@@ -104,9 +104,7 @@ export function allowedFor(run: Run, nodeId: string, command: string) {
   const cwd = node.repo ? repoWorktree(run, node.repo) ?? run.worktree : run.worktree;
   const { deny } = toolRules(run, node.phase, node.role ?? "unit", cwd);
   const cmd = command.trim().replace(/\s+/g, " ");
-  // A tool rule (`mcp__server__tool`, `WebFetch`, `Edit(path)`) is checked as itself; anything else is a shell command.
-  const rule = /^mcp__[\w-]+$/.test(cmd) || /^[A-Z][A-Za-z]*(\(.*\))?$/.test(cmd) ? cmd : `Bash(${cmd}:*)`;
-  const denied = deny.find((d) => deniedBy(rule, [d]));
+  const denied = deny.find((d) => deniedBy(ruleOf(cmd), [d]));
   return { node: nodeId, command: cmd, allowed: !denied, ...(denied ? { deniedBy: denied } : {}) };
 }
 

@@ -149,6 +149,12 @@ export function effectiveDeny(floor: string[], lifted: string[]): string[] {
 
 const bashBody = (rule: string) => /^Bash\((.*?)(?::\*)?\)$/.exec(rule)?.[1];
 
+/** A command or a tool name as a rule: a tool rule (`mcp__server__tool`, `WebFetch`, `Edit(path)`) as itself, else `Bash(<command>:*)`. */
+export function ruleOf(command: string): string {
+  const c = command.trim().replace(/\s+/g, " ");
+  return /^mcp__[\w-]+$/.test(c) || /^[A-Z][A-Za-z]*(\(.*\))?$/.test(c) ? c : `Bash(${c}:*)`;
+}
+
 /**
  * True when a deny rule covers an allow rule: same rule, a Bash command that starts with a denied one, or a tool of
  * a denied MCP server.

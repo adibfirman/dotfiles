@@ -72,7 +72,8 @@ export default class ForgeWindow extends View {
       if (how !== "restart" && nd?.prefix) {
         // The phase whose agent is blocked (a lift in another phase does nothing for it).
         const own = /^Bash\((.*?):\*\)$/.exec(nd.deniedBy ?? "")?.[1] ?? nd.deniedBy;
-        const args = how === "undeny" ? ["config", "undeny", nd.phase ?? "exec", own] : ["config", "force", nd.phase ?? "exec", "bash", nd.prefix];
+        // key: "tools" for an MCP tool or a tool rule, "bash" for a command (a needs object from an older CLI has none).
+        const args = how === "undeny" ? ["config", "undeny", nd.phase ?? "exec", own] : ["config", "force", nd.phase ?? "exec", nd.key ?? "bash", nd.prefix];
         const r = await run([...args, "--main", mainOf(p.run)]);
         if (r.code !== 0) done = { ok: false, text: `Could not allow ${nd.prefix}: ${said(r)}` };
       }

@@ -5,7 +5,7 @@ import { loadState, readLines, type Run } from "./append";
 import { commandLike, projectForced } from "./config";
 import { agentPath, onAgentPath } from "./env";
 import { childRepos, isRepo, listRepos } from "./repos";
-import { blockersOf, deniedBy, denyFloor, denyRules, effectiveDeny, forgeHome, mergeSources, NEVER_LIFT, safeScript } from "./sources";
+import { blockersOf, deniedBy, denyFloor, denyRules, effectiveDeny, forgeHome, mergeSources, NEVER_LIFT, ruleOf, safeScript } from "./sources";
 
 // Agents run in bypass mode, so what blocks them is the environment (a program not on their PATH, a login that ran
 // out) or a deny rule. These give agents the repo's check commands, find a missing program before any agent runs
@@ -98,7 +98,8 @@ export function doctor(checks: Checks[]): { ok: boolean; path: string; items: Do
  * repo's own `- deny:` entry blocks it (remove that entry); "never": NEVER_LIFT blocks it; "env": no rule blocks it,
  * so it is the environment (a missing program, a login) or a note: fix that, then restart.
  */
-export interface Needs { role: string; tool: string; command: string; prefix: string; phase: string; floor: "lift" | "project" | "never" | "env"; deniedBy?: string; text: string; at: string }
+/** key: what a lift of `prefix` names in `forge config force`: "tools" for a tool rule (`mcp__…`, `WebFetch`), else "bash". */
+export interface Needs { role: string; tool: string; command: string; prefix: string; key: "bash" | "tools"; phase: string; floor: "lift" | "project" | "never" | "env"; deniedBy?: string; text: string; at: string }
 
 /**
  * The command prefix a rule names: the program and up to 2 subcommands ("kubectl get pods", not "kubectl", which
@@ -140,8 +141,9 @@ export function needsOf(run: Run): Needs | null {
   const m = /^blocked:\s*(\S+)\s+needs\s+(.+?)(?::\s*(.+))?$/i.exec(text.split("\n")[0]);
   const command = (m?.[3] ?? m?.[2] ?? "").trim().replace(/^`|`$/g, "");
   const prefix = allowPrefix(command);
-  // Match the whole command (a rule covers a command that starts with it); the prefix is what a lift names.
-  const rule = `Bash(${command.replace(/\s+/g, " ")}:*)`;
+  // Match the whole command or tool (a rule covers a command that starts with it, or a tool of its MCP server);
+  // the prefix is what a lift names.
+  const rule = ruleOf(command);
   const floorRules = effectiveDeny(denyFloor(join(forgeHome(), "deny-floor.json")), projectForced(run.main, phase).flatMap((f) => f.lifts));
   const projectRules = denyRules(mergeSources([existsSync(join(run.main, ".forge", "SOURCES.md")) ? readFileSync(join(run.main, ".forge", "SOURCES.md"), "utf8") : ""], [phase, "all"]));
   const by = (rules: string[]) => rules.find((r) => deniedBy(rule, [r]));
@@ -158,7 +160,8 @@ export function needsOf(run: Run): Needs | null {
     else if (own) [floor, deniedRule] = ["project", own];
   }
   // The phase whose agents need it: a lift in another phase does nothing for them.
-  return { role: m?.[1] ?? "agent", tool: m?.[2] ?? command, command, prefix, phase, floor, ...(deniedRule ? { deniedBy: deniedRule } : {}), text, at: String(e.ts ?? i) };
+  const key: Needs["key"] = rule.startsWith("Bash(") ? "bash" : "tools";
+  return { role: m?.[1] ?? "agent", tool: m?.[2] ?? command, command, prefix, key, phase, floor, ...(deniedRule ? { deniedBy: deniedRule } : {}), text, at: String(e.ts ?? i) };
 }
 
 /** <main>/.forge/lessons.md: one line per block that was solved, read by every agent of later runs. */

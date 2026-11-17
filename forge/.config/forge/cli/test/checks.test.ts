@@ -6,7 +6,7 @@ import { agentPath } from "../src/env";
 import { spawnNode } from "../src/spawn";
 import { status } from "../src/status";
 import { add, hcCalls, setup, toExec } from "./helpers";
-import { commandLike, deny } from "../src/config";
+import { commandLike, deny, force } from "../src/config";
 
 test("checks: a pnpm repo gets the pnpm forms; a Go repo the go forms", () => {
   const env = setup();
@@ -38,7 +38,7 @@ test("needs: the newest blocked comment, until a coordinator or node starts; its
   expect(needsOf(env.run)).toMatchObject({ role: "unit", tool: "git", command: "git log --oneline -n 3", prefix: "git log", phase: "exec", floor: "env" });
   expect(status(env.run).needs?.prefix).toBe("git log");
   add(env.run, "comment", undefined, { text: "blocked: unit needs git push: git push origin HEAD" });
-  expect(needsOf(env.run)).toMatchObject({ floor: "lift", deniedBy: "Bash(git push:*)" });
+  expect(needsOf(env.run)).toMatchObject({ key: "bash", floor: "lift", deniedBy: "Bash(git push:*)" });
   deny(env.repo, "exec", "kubectl delete");
   add(env.run, "comment", undefined, { text: "blocked: unit needs kubectl: kubectl delete pod web-1" });
   expect(needsOf(env.run)).toMatchObject({ floor: "project", deniedBy: "Bash(kubectl delete:*)", prefix: "kubectl delete pod" });
@@ -52,6 +52,18 @@ test("needs: the newest blocked comment, until a coordinator or node starts; its
   expect(needsOf(env.run)).toBeNull();
   expect([allowPrefix("pnpm test src/x"), allowPrefix("go test ./..."), allowPrefix("./scripts/gen.sh --all"), allowPrefix("kubectl get pods -n web"), allowPrefix("kubectl --help")])
     .toEqual(["pnpm test", "go test", "./scripts/gen.sh", "kubectl get pods", "kubectl"]);
+});
+
+test("needs: a blocked MCP tool is checked as a tool, so the floor rule that denies it is found", () => {
+  const env = setup();
+  writeFileSync(join(env.home, "deny-floor.json"), JSON.stringify({ permissions: { deny: ["Bash(git push:*)", "mcp__claude_ai_Gmail", "mcp__claude_ai_Slack__slack_send_message"] } }));
+  toExec(env.run);
+  add(env.run, "comment", undefined, { text: "blocked: unit needs mcp__claude_ai_Slack__slack_send_message: mcp__claude_ai_Slack__slack_send_message" });
+  expect(needsOf(env.run)).toMatchObject({ key: "tools", floor: "lift", deniedBy: "mcp__claude_ai_Slack__slack_send_message" });
+  add(env.run, "comment", undefined, { text: "blocked: unit needs Gmail: mcp__claude_ai_Gmail__send_email" });
+  expect(needsOf(env.run)).toMatchObject({ key: "tools", prefix: "mcp__claude_ai_Gmail__send_email", floor: "lift", deniedBy: "mcp__claude_ai_Gmail" });
+  // The run window lifts with that key: the floor rule that blocks the tool is lifted.
+  expect(force(env.repo, "exec", "tools", "mcp__claude_ai_Gmail__send_email").lifts).toEqual(["mcp__claude_ai_Gmail"]);
 });
 
 test("needs in grill: the phase is grill, so a lift goes to the grill phase; notes are refused as rules", () => {
