@@ -9,7 +9,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { spaces, panes, terminals, openOverlay, closeOverlay, notify, exec, theme, shared, setShared, layout, home, checking } from "herdr";
+import { spaces, panes, terminals, openOverlay, closeOverlay, notify, exec, theme, shared, setShared, layout, home, checking, nextCommand, run } from "herdr";
 
 // A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
 const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
@@ -116,6 +116,20 @@ function openRunWindow(f, view, tab) {
   setShared("forge.window", { run: f.dir, id, terminal: term, view: v, tab: tb, shownView: v, shownTab: tb });
 }
 
+// Closes the run window like its ×: forge.lastWindow keeps the run, and a cleared forge.window stops the reopen
+// at the next handoff. The id can be stale (Herdr closes a window whose terminal ends).
+function closeRunWindow() {
+  const win = shared("forge.window");
+  if (!win?.id) return;
+  try {
+    closeOverlay(win.id);
+  } catch {
+    // already closed
+  }
+  if (win.run) setShared("forge.lastWindow", { run: win.run, view: win.view ?? "coord" });
+  setShared("forge.window", null);
+}
+
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
@@ -169,10 +183,27 @@ export default class ForgeRuns extends View {
     this.loadForge(cx);
     cx.timer.every(8000, (cx) => this.loadForge(cx));
     cx.timer.every(2000, (cx) => this.followWindow(cx));
+    // "forge-runs.close": ctrl-s then escape, sent by the which-key popup. One press closes a peek and the run
+    // window: overlay.close closes the top dialog or popup (a peek is one), and it cannot tell if one was open.
+    // The short wait lets the which-key popup close first, so overlay.close does not take that popup.
+    cx.spawn(async (cx) => {
+      for (;;) {
+        if ((await nextCommand()) !== "close") continue;
+        const closeAll = () => {
+          run("overlay.close");
+          closeRunWindow();
+        };
+        try {
+          cx.timer.after(60, closeAll);
+        } catch {
+          closeAll();
+        }
+      }
+    });
   }
 
   // The open run window follows its run: when the terminal it should show changes (a phase handoff, the gate, the
-  // end, a chat opened or ended), reopen it in place. Herdr closes a window whose terminal ends, so this also
+  // end, a chat opened or ended), reopen it (centered). Herdr closes a window whose terminal ends, so this also
   // brings it back after a handoff. Only the window's × (it clears forge.window) stops this.
   followWindow(cx) {
     this.openRequested(cx);

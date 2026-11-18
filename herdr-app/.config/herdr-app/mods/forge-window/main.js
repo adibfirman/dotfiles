@@ -201,7 +201,7 @@ export default class ForgeWindow extends View {
         .child(seg("fw-view-coord", "Coordinator", view === "coord", "Left side: the coordinator while one runs", "coord"))
         .child(seg("fw-view-chat", "Chat", view === "chat", "Left side: your chat about this run", "chat"))))
       .child(div().id("fw-close").w(26).h(26).flex().items_center().justify_center().rounded(6).text_color(t.muted).cursor_pointer()
-        .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("Close the window (cmd-escape)")
+        .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("Close the window (ctrl-s esc)")
         // Closed by you: the sidebar stops reopening it at the next handoff. cmd-escape can bring it back.
         .on_click(() => {
           const w = shared("forge.window");
