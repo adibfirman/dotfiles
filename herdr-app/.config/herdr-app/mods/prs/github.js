@@ -45,7 +45,10 @@ export async function fetchRunPrs(runs) {
   return map;
 }
 
-/** The detail view's data for one PR: commits, files, checks with run time and the required flag, reviewers asked. */
+/**
+ * The detail view's data for one PR: commits, files, checks with run time and the required flag, reviewers asked,
+ * and the comments, reviews, and code threads of the activity list.
+ */
 export async function fetchPrDetail(pr) {
   const [owner, name] = pr.repo.split("/");
   const out = await gh(["api", "graphql", "-f", `query=${DETAIL}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-F", `number=${pr.number}`]);
@@ -56,6 +59,10 @@ export async function fetchPrDetail(pr) {
 
 const DETAIL = `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
   changedFiles
+  comments(last: 50) { nodes { body createdAt author { __typename login } } }
+  reviewList: reviews(last: 50) { nodes { body state submittedAt author { __typename login } } }
+  threads: reviewThreads(last: 50) { nodes { isResolved path line startLine originalLine originalStartLine
+    comments(first: 20) { nodes { body createdAt diffHunk author { __typename login } } } } }
   commitList: commits(first: 100) { totalCount nodes { commit { oid messageHeadline committedDate author { name user { login } } } } }
   files(first: 100) { nodes { path additions deletions } }
   reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }

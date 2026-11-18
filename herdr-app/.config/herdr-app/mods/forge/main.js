@@ -280,7 +280,8 @@ export default class Forge extends View {
       // In a run window, a press that reaches the window drags it: stop presses here, so dragging the graph
       // pans it and the window stays where it is. (Inner handlers, like the graph's pan, run first.)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .child(this.header(t, cx))
+      // Without a run: the bar with Refresh. With one: the cycle row (the cycle, why it exists, the view, Pause).
+      .when(!this.st, (el) => el.child(this.header(t, cx)))
       .when(Boolean(this.st), (el) => el.child(this.viewRow(t)))
       // The graph on top, a node's detail below: the user drags the line between them. The window keeps the
       // size under the group id while herdr-app runs; the hidden detail panel keeps its place for next time.
@@ -321,55 +322,43 @@ export default class Forge extends View {
     return alpha(this.statusColor(t, s), s === "pending" ? 0.06 : 0.2);
   }
 
+  // The bar of a panel with no run yet.
   header(t, cx) {
-    const st = this.st;
-    const row = h_flex().h(HEADER_H).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border).child(div().font_semibold().child("Forge"));
-    if (!st) return row.child(div().flex_1()).child(this.button(t, "f-refresh", "Refresh", (cx) => this.refresh(cx)));
-    const phaseColor = st.phase === "gate" ? t.accent : st.phase === "done" ? t.done : t.working;
-    return row
-      .children(this.runs.length > 1
-        ? this.runs.slice(0, 4).map((r) => div().id(`f-run-${r.ticket}`).px(7).py(1).rounded(6).text_size(11).cursor_pointer()
-          .bg(r.dir === this.dir ? t.selected : t.raised).text_color(r.dir === this.dir ? t.foreground : t.muted)
-          .on_click((_e, cx) => { this.pinned = r.dir; this.stage = null; this.refresh(cx); }).child(r.ticket))
-        : [div().text_size(12).text_color(t.muted).child(st.ticket)])
-      .child(div().text_size(12).text_color(t.dim).child(`cycle ${st.cycle}`))
-      .child(this.pill(t, st.paused ? `${st.phase} · paused` : st.phase, st.paused ? t.blocked : phaseColor))
-      .child(div().text_size(12).text_color(t.dim).child(`${st.running}/${st.cap} running`))
-      .when(Boolean(st.blocked?.length), (e) => e.child(h_flex().gap(4).items_center().text_size(12).text_color(t.blocked).tooltip("Stopped after too many failures: click the node, then Retry or Skip")
-        .child(ico("circle-alert", 12)).child(`${st.blocked.length} blocked: needs you`)))
-      .when(st.queue.length > 0, (e) => e.child(div().text_size(12).text_color(t.dim).child(`${st.queue.length} queued`)))
-      .child(div().flex_1())
-      .when(Boolean(this.busy), (e) => e.child(div().text_size(12).text_color(t.working).child(`${this.busy}…`)))
-      .child(this.button(t, "f-pause", st.paused ? "Resume" : "Pause", (cx) => this.act(cx, st.paused ? "resumed" : "paused", ["append", st.paused ? "resume" : "pause"]), { enabled: st.phase !== "done" }))
-
+    return h_flex().h(HEADER_H).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border)
+      .child(div().font_semibold().child("Forge")).child(div().flex_1())
+      .child(this.button(t, "f-refresh", "Refresh", (cx) => this.refresh(cx)));
   }
 
-  // Why the current cycle exists, for every cycle after the first: a counterexample, a follow-up, a gate comment.
-  cycleText() {
+  // Why the current cycle exists, for every cycle after the first: { source, text }. source is the pill's word
+  // (a counterexample, a follow-up, a gate comment), or null when the cycle has only a reason.
+  cycleNote() {
     const st = this.st;
     if (!st || st.cycle <= 1) return null;
     const o = st.cycleOpen ?? {};
     const src = { gate: "gate comment", qa: "QA follow-up", pr: "PR follow-up", user: "follow-up" };
-    if (String(o.slug ?? "").startsWith("cex")) return `fixing a TLA+ counterexample from cycle ${st.cycle - 1}: ${o.reason ?? ""}`;
-    if (o.followup) return `${src[o.followup.source] ?? "follow-up"}: ${o.followup.text}`;
-    return o.reason || `started at ${o.start ?? "?"}`;
+    if (String(o.slug ?? "").startsWith("cex")) return { source: "counterexample", text: `From cycle ${st.cycle - 1}: ${o.reason ?? ""}` };
+    if (o.followup) return { source: src[o.followup.source] ?? "follow-up", text: String(o.followup.text ?? "") };
+    return { source: null, text: o.reason || `started at ${o.start ?? "?"}` };
   }
 
-  // One row under the header: why this cycle exists on the left (a click shows all of it), and on the right
-  // a dropdown that picks the view (the run graph, the gate, each spec graph, the spec).
+  // The row above the graph: the cycle and why it exists on the left (a click shows all of it below the line),
+  // then what waits for you (paused, blocked), the view dropdown (the run graph, the gate, each spec graph, the
+  // spec), and Pause.
   viewRow(t) {
-    const text = this.cycleText();
+    const st = this.st;
+    const note = this.cycleNote();
+    const text = note?.text ?? "";
     const open = this.cycleOpen && Boolean(text);
+    const first = text.split("\n").find((l) => l.trim()) ?? "";
     const items = this.viewItems();
     const cur = items.find(([k]) => k === this.tab) ?? items[0];
     const gateWaiting = this.st.phase === "gate" && this.tab !== "gate";
-    const left = h_flex().id("f-cycle-line").flex_1().min_w(0).gap(6).items_start()
+    const left = h_flex().id("f-cycle-line").flex_1().min_w(0).h(24).gap(6).items_center()
       .when(Boolean(text), (e) => e.cursor_pointer().on_click((_e, cx) => { this.cycleOpen = !this.cycleOpen; cx.notify(); }))
       .child(div().flex_none().w(12).h(16).flex().items_center().text_color(t.dim).when(Boolean(text), (x) => x.child(ico(open ? "chevron-down" : "chevron-right", 12))))
-      .child(div().flex_none().font_semibold().text_color(t.accent).child(`Cycle ${this.st.cycle}`))
-      .when(Boolean(text), (e) => e.child(open
-        ? div().id("f-cycle-full").flex_1().min_w(0).max_h(160).overflow_y_scrollbar().text_color(t.foreground).child(text)
-        : div().flex_1().min_w(0).truncate().text_color(t.muted).child(text)));
+      .child(div().flex_none().font_semibold().text_color(t.accent).child(`Cycle ${st.cycle}`))
+      .when(Boolean(note?.source), (e) => e.child(div().flex_none().child(this.pill(t, note.source, t.accent))))
+      .when(Boolean(text) && !open, (e) => e.child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(first)));
     const trigger = h_flex().id("f-view-btn").h(24).max_w(300).px(9).gap(6).items_center().rounded(6).border_1().border_color(t.input).bg(t.raised)
       .cursor_pointer().hover((x) => x.bg(t.hover)).tooltip(cur[2] ?? cur[1])
       .when(gateWaiting, (e) => e.child(div().w(7).h(7).flex_none().rounded_full().bg(t.blocked)))
@@ -393,13 +382,21 @@ export default class Forge extends View {
       .text_color(t.foreground).cursor_pointer().hover((x) => x.bg(t.hover)).tooltip("Back to the stage summary")
       .on_click((_e, cx) => { this.stage = null; this.selected = null; this.detail = null; cx.notify(); })
       .gap(4).child(ico("arrow-left", 12)).child("All stages");
-    return h_flex().flex_none().px(12).py(5).gap(10).items_start().border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
+    const line = h_flex().gap(10).items_center()
       .child(left)
+      .when(Boolean(st.paused), (e) => e.child(div().flex_none().child(this.pill(t, "paused", t.blocked))))
+      .when(Boolean(st.blocked?.length), (e) => e.child(h_flex().flex_none().gap(4).items_center().text_color(t.blocked).tooltip("Stopped after too many failures: click the node, then Retry or Skip")
+        .child(ico("circle-alert", 12)).child(`${st.blocked.length} blocked: needs you`)))
+      .when(Boolean(this.busy), (e) => e.child(div().flex_none().text_color(t.working).child(`${this.busy}…`)))
       .when(this.tab === "run" && Boolean(this.stage), (e) => e.child(back))
       .when(many, (e) => e.child(scope))
       .child(Popover.new("f-view").anchor("top_right").open(Boolean(this.viewOpen))
         .on_open_change((o, cx) => { this.viewOpen = o; cx.notify(); })
-        .trigger(trigger).content(menu));
+        .trigger(trigger).content(menu))
+      .child(this.button(t, "f-pause", st.paused ? "Resume" : "Pause", (cx) => this.act(cx, st.paused ? "resumed" : "paused", ["append", st.paused ? "resume" : "pause"]), { enabled: st.phase !== "done" }));
+    return v_flex().flex_none().px(12).py(5).gap(6).border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
+      .child(line)
+      .when(open, (e) => e.child(div().id("f-cycle-full").pl(18).max_h(160).overflow_y_scrollbar().text_color(t.foreground).child(text)));
   }
 
   graphs() {

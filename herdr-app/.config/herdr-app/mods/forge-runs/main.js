@@ -425,7 +425,7 @@ export default class ForgeRuns extends View {
     // Waiting for you: the gate, a node blocked by the retry cap (Retry or Skip in the run window), a coordinator
     // blocked on a tool (Lift or Restart in the run window), or your turn in a "With me" grill.
     const nd = needsOf(f);
-    const { mark, color, you, blocked, note } = runState(f, t);
+    const { mark, color, note } = runState(f, t);
     const open = shared("forge.window")?.run === f.dir;
     const owner = sp.find((s) => s.id === owners.get(f.dir));
     const tip = `${f.ticket} · ${owner ? `space ${owner.name}` : "no space"} · cycle ${h.cycle ?? "?"} · ${h.phase ?? "?"}${h.paused ? " · paused" : ""}${blockedOf(f).length ? ` · ${blockedOf(f).length} blocked: Retry or Skip in the run window` : ""}${nd ? ` · blocked: ${nd.role ?? "an agent"} needs ${nd.tool ?? nd.command}: Lift or Restart in the run window` : ""}${note ? ` · ${note}` : ""}`;
@@ -444,7 +444,7 @@ export default class ForgeRuns extends View {
         if (this.menuFor === f.dir || this.confirm === f.dir) { this.menuFor = null; this.confirm = null; cx.notify(); return; }
         if (this.renaming !== f.dir) openRunWindow(f);
       })
-      // Right-click: Rename and Remove, in place of the phase.
+      // Right-click: Rename and Remove, at the row's right end.
       .on_mouse_down("right", (_e, cx) => { this.menuFor = this.menuFor === f.dir ? null : f.dir; this.confirm = null; cx.notify(); })
       .child(div().flex_none().flex().items_center().text_color(color).child(ico(h.paused ? "pause" : mark, 12)))
       .child(this.renaming === f.dir
@@ -452,12 +452,12 @@ export default class ForgeRuns extends View {
             .on_key_down((e, cx) => { if (e.key === "escape") { cx.stop_propagation(); this.renaming = null; cx.notify(); } })
             .child(Input.new(this.renameIn).h_full().text_size(12))
         : div().flex_1().min_w(0).truncate().child(f.title || f.ticket))
-      .children(this.menuItems(f, t, blocked, you));
+      .children(this.menuItems(f, t));
   }
 
-  // The row's right end: the phase, or (after a right-click) Rename and Remove, then remove/keep to confirm.
-  menuItems(f, t, blocked, you) {
-    const h = f.head ?? {};
+  // The row's right end: empty, or (after a right-click) Rename and Remove, then remove/keep to confirm. The row
+  // icon and the tooltip show the state, so the row has no status word.
+  menuItems(f, t) {
     const link = (id, text, color, tip, act) => div().id(id).flex_none().px(4).rounded(4).text_size(10.5).text_color(color)
       .hover((s) => s.bg(t.foreground + "14").text_color(t.foreground)).tooltip(tip)
       .on_click((_e, cx) => { cx.stop_propagation(); act(cx); }).child(text);
@@ -475,7 +475,7 @@ export default class ForgeRuns extends View {
       }),
       link(`run-remove-${f.dir}`, "remove", t.blocked, "Remove this run (asks again)", (cx) => { this.confirm = f.dir; cx.notify(); }),
     ];
-    return [div().flex_none().text_size(10.5).text_color(blocked ? t.blocked : you ? t.accent : t.dim).child(you ? "you" : h.phase ?? "")];
+    return [];
   }
 
   render() {

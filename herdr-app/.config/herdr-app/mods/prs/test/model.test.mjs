@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { actionStep, ago, check, checkLine, ciSummary, detailOf, duration, normalize, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, ticketOf, timeline } from "../model.js";
+import { actionStep, activity, ago, bodyParts, check, checkLine, ciSummary, cleanBody, detailOf, duration, hunkTail, lineRange, normalize, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, ticketOf, timeline } from "../model.js";
 
 const node = (over = {}) => ({
   url: "https://github.com/acme/shop/pull/7", number: 7, title: "Retry payments", isDraft: false,
@@ -154,4 +154,57 @@ test("stateIcon and reviewWord", () => {
   assert.equal(stateIcon(normalize(node({ isDraft: true }))).label, "Draft");
   assert.equal(reviewWord(normalize(node({ reviewDecision: "CHANGES_REQUESTED" }))), "Changes requested");
   assert.equal(reviewWord(normalize(node())), "");
+});
+
+test("hunkTail: the last lines with their numbers and signs", () => {
+  const hunk = "@@ -10,3 +10,4 @@ function x() {\n a\n-b\n+c\n+d\n e";
+  assert.deepEqual(hunkTail(hunk, 3), [{ n: 11, sign: "+", text: "c" }, { n: 12, sign: "+", text: "d" }, { n: 13, sign: " ", text: "e" }]);
+  assert.deepEqual(hunkTail(hunk, 5)[1], { n: 11, sign: "-", text: "b" });
+  assert.deepEqual(hunkTail("not a hunk"), []);
+});
+
+test("lineRange and cleanBody", () => {
+  assert.equal(lineRange({ startLine: 718, line: 728 }), "Lines 718-728");
+  assert.equal(lineRange({ line: 728 }), "Line 728");
+  assert.equal(lineRange({ originalStartLine: 3, originalLine: 9 }), "Lines 3-9");
+  assert.equal(lineRange({}), "");
+  assert.equal(cleanBody("  hi <!-- bot data -->there  "), "hi there");
+  assert.equal(cleanBody("x".repeat(20000)).length < 12100, true);
+});
+
+test("activity: newest first, commits grouped, quiet reviews dropped, opened last", () => {
+  const d = detailOf({
+    commitList: { nodes: [
+      { commit: { oid: "c1", messageHeadline: "one", committedDate: "2026-11-15T10:10:00Z", author: { name: "A" } } },
+      { commit: { oid: "c2", messageHeadline: "two", committedDate: "2026-11-15T10:20:00Z", author: { name: "A" } } },
+      { commit: { oid: "c3", messageHeadline: "three", committedDate: "2026-11-15T10:50:00Z", author: { name: "A" } } },
+    ] },
+    comments: { nodes: [{ body: "Quality Gate passed", createdAt: "2026-11-15T10:30:00Z", author: { __typename: "Bot", login: "sonar" } }] },
+    reviewList: { nodes: [
+      { body: "", state: "COMMENTED", submittedAt: "2026-11-15T10:40:00Z", author: { __typename: "User", login: "dana" } },
+      { body: "", state: "APPROVED", submittedAt: "2026-11-15T11:00:00Z", author: { __typename: "User", login: "dana" } },
+    ] },
+    threads: { nodes: [{ isResolved: true, path: "src/a.ts", line: 9, startLine: 7,
+      comments: { nodes: [{ body: "Bug here", createdAt: "2026-11-15T10:40:00Z", diffHunk: "@@ -1,1 +1,2 @@\n a\n+b", author: { __typename: "Bot", login: "gitar" } }] } }] },
+  });
+  const a = activity(normalize(node({ author: { login: "adib" } })), d);
+  assert.deepEqual(a.map((x) => x.kind), ["review", "commits", "thread", "comment", "commits", "opened"]);
+  assert.deepEqual(a[1].commits.map((c) => c.oid), ["c3"]);
+  assert.deepEqual(a[4].commits.map((c) => c.oid), ["c2", "c1"]);
+  assert.deepEqual({ path: a[2].path, lines: a[2].lines, resolved: a[2].resolved, hunk: a[2].hunk.length, bot: a[2].comments[0].bot }, { path: "src/a.ts", lines: "Lines 7-9", resolved: true, hunk: 2, bot: true });
+  assert.deepEqual(a[3], { kind: "comment", author: "sonar", bot: true, at: "2026-11-15T10:30:00Z", body: "Quality Gate passed" });
+  assert.deepEqual(a.at(-1), { kind: "opened", at: "2026-11-15T10:00:00Z", author: "adib" });
+  assert.deepEqual(activity(normalize(node()), null).map((x) => x.kind), ["opened"]);
+});
+
+test("bodyParts: details blocks fold, nested ones too, the text around them stays", () => {
+  const p = bodyParts("Intro\n\n<details>\n<summary>⚠️ <b>Bug:</b> slot aborts</summary>\n\nInner text\n\n<details open><summary>More</summary>deep</details>\n</details>\n\nOutro");
+  assert.deepEqual(p.map((x) => x.kind), ["md", "details", "md"]);
+  assert.equal(p[0].text, "Intro");
+  assert.equal(p[1].summary, "⚠️ Bug: slot aborts");
+  assert.equal(p[1].open, false);
+  assert.deepEqual(p[1].parts, [{ kind: "md", text: "Inner text" }, { kind: "details", summary: "More", open: true, parts: [{ kind: "md", text: "deep" }] }]);
+  assert.equal(p[2].text, "Outro");
+  assert.deepEqual(bodyParts("plain"), [{ kind: "md", text: "plain" }]);
+  assert.deepEqual(bodyParts("<details><summary>Cut</summary>half"), [{ kind: "details", summary: "Cut", open: false, parts: [{ kind: "md", text: "half" }] }]);
 });

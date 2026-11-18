@@ -499,3 +499,15 @@ Run INT-6 could not read Jira, Confluence, or Slack: the floor denied the Slack 
 - Checked on 2026-11-17: no repo or workspace had a project `models.md`.
 - A rule that put fable on 4 roles and opus on 7 (`abcf869`) cost too much and was reverted on 2026-11-18 (`a3bc06d`). `models.md` keeps the earlier defaults: opus for the coordinators, asker, decider, planner, and review gate; sonnet for fact-finder, tla-writer, units, and the other gates; haiku for classifier and commit.
 
+## 35. Run window and Pull request view cleanup (2026-11-18)
+
+Decided in a brainstorming round with the user. Where an older section says something else about these parts, this section is right.
+
+- **Projects list.** A row has no status word ("you", or the phase) at its right end. The row icon and the tooltip show the state.
+- **Run panel.** For a panel with a run, the bar above the graph is gone: the "Forge" label, the run chips, the cycle, the phase pill, `running/cap`, and the queued count. A panel with no run keeps the bar with Refresh.
+- **Cycle row.** One line: the chevron, "Cycle N", a pill with the cycle's source (gate comment, QA follow-up, PR follow-up, follow-up, counterexample), the first line of the reason, then a "paused" pill and "N blocked: needs you" when they apply, the view dropdown, and Pause/Resume. A click on the left part shows the full reason below the line.
+- **Pull request view.** The ticket key is in the line under the title, after the branches. "Merge conflict" shows there for an open PR that conflicts. The Forge section is gone. Progress shows only before a PR exists (Push, Open draft PR).
+- **Checks.** The list of checks is closed at first. A click on the Checks part of the box opens and closes it.
+- **Activity list.** Under the box, one rail, newest first, read only: conversation comments, reviews (one with no text shows only when it approves or asks for changes), code threads, commits, and "opened the pull request" last. A code thread shows its path, its line range, the last 4 lines of the diff hunk, and its comments. A resolved thread is one closed line that opens on click. Commits that follow each other show the newest one and "N more commits", which opens on click. The detail query fetches the last 50 comments, 50 reviews, and 50 threads (20 comments each). A body is cut at 12000 characters, and HTML comments are removed. A `<details>` block in a body is one line with an arrow that opens on a click, as on GitHub; blocks can hold blocks.
+
+Not checked yet: the look in the app, and how the markdown view draws the HTML that bots put in comments.

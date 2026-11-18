@@ -1,14 +1,15 @@
 // prs: the Pull request tab of a forge run window (props.run). The list shows this run's pull requests: one row per
 // repo (a workspace run has several), any state, and a row for a repo with no PR yet. A row opens its detail:
-// Overview (the Checks, Comments, and Approvals box, then every check), Commits, and Files changed.
+// Overview (the Checks, Comments, and Approvals box, every check on a click, then the activity list), Commits, and
+// Files changed.
 // The window mounts this mod only while its Pull request tab shows, so the list loads when the tab opens. The detail
 // data (commits, files, check times, required checks, reviewers asked) loads when a row opens. The last list, the
 // details, and where you were live in shared "prs.cache" for this run: a reopened window draws them at once.
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex } from "gpui-base";
+import { v_flex, h_flex, TextView } from "gpui-base";
 import * as fs from "fs/promises";
-import { theme, terminals, exec, readTextFile, writeTextFile, notify, appHome, home, shared, setShared, props as given, window as host } from "herdr";
-import { ago, checkLine, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, timeline } from "./model.js";
+import { theme, exec, readTextFile, writeTextFile, notify, appHome, home, shared, setShared, props as given, window as host } from "herdr";
+import { activity, ago, bodyParts, checkLine, overview, prState, reviewWord, sortChecks, sortPrs, stateIcon, timeline } from "./model.js";
 import { failedLog, fetchPrDetail, fetchRunPrs, openThreads } from "./github.js";
 
 // A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
@@ -41,7 +42,9 @@ export default class Prs extends View {
   init(_props, cx) {
     this.run = given()?.run ?? null;
     Object.assign(this, { items: [], local: new Map(), error: null, loading: false, at: null, open: null, sub: "overview",
-      details: new Map(), detailLoading: null, detailError: null, busy: null, config: {} });
+      details: new Map(), detailLoading: null, detailError: null, busy: null, config: {},
+      // The checks list (closed at first), and the opened folds of the activity list (resolved threads, older commits).
+      checksOpen: false, unfolded: new Set() });
     // The Push or Create PR the user clicked last, per item: { kind, status, cmd, out, result, at }. Shown as a
     // Progress step until a refresh shows the new state (done), or until the next action (failed).
     this.actions = new Map();
@@ -172,6 +175,8 @@ export default class Prs extends View {
   openRow(cx, key) {
     this.open = key;
     this.sub = "overview";
+    this.checksOpen = false;
+    this.unfolded = new Set();
     this.saveCache();
     this.loadDetail(cx, key);
     cx.notify();
@@ -314,17 +319,6 @@ export default class Prs extends View {
     return div().w(18).h(18).flex_none().flex().items_center().justify_center().rounded_full().bg(alpha(c, 0.18)).text_color(c).child(ico(ch, 11));
   }
 
-  // The run's live forge agents, from their hc labels (null when none runs).
-  agentRow(t, l) {
-    if (!l?.forge) return null;
-    const mine = terminals().filter((x) => x.state === "live" && String(x.labels?.forge ?? "").startsWith(`${l.forge.ticket ?? ""}/`));
-    if (!mine.length) return null;
-    const working = mine.filter((x) => x.status === "working").length;
-    return h_flex().gap(6).items_center().text_size(11.5).text_color(t.muted)
-      .child(div().w(7).h(7).rounded_full().bg(working ? t.working : t.idle))
-      .child(div().truncate().child(`${mine.length} forge agent${mine.length > 1 ? "s" : ""}${working ? ` · ${working} working` : ""}`));
-  }
-
   button(t, id, label, f, primary = false) {
     return div().id(id).h(26).px(10).flex().items_center().rounded(6).text_size(12).cursor_pointer()
       .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground).hover((s) => s.bg(primary ? t.solid : t.hover))
@@ -410,24 +404,20 @@ export default class Prs extends View {
       .child(div().text_size(15).font_semibold().child(pr?.title ?? (fr.title || fr.ticket)))
       .child(h_flex().gap(8).items_center().min_w(0).text_size(11.5).text_color(t.dim)
         .when(Boolean(icon), (e) => e.child(h_flex().flex_none().gap(4).items_center().text_color(this.color(t, icon.kind)).child(ico(icon.icon, 12)).child(icon.label)))
-        .child(div().truncate().child(pr ? `${pr.repo} #${pr.number}${pr.author ? ` · ${pr.author}` : ""} · ${pr.head} → ${pr.base}` : `${fr.repo ?? "no GitHub remote"} · ${fr.branch ?? "?"}`)));
+        .child(div().truncate().child(pr ? `${pr.repo} #${pr.number}${pr.author ? ` · ${pr.author}` : ""} · ${pr.head} → ${pr.base}` : `${fr.repo ?? "no GitHub remote"} · ${fr.branch ?? "?"}`))
+        .when(Boolean(ticket), (e) => e.child(div().flex_none().child("·")).child(div().id("prs-ticket").flex_none()
+          .text_color(ticketUrl ? t.accent : t.muted).when(Boolean(ticketUrl), (x) => x.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)))
+        .when(pr?.state === "OPEN" && pr.mergeable === "CONFLICTING", (e) => e.child(div().flex_none().text_color(t.blocked).child("· Merge conflict"))));
     const body = v_flex().id("prs-detail").flex_1().min_h(0).overflow_y_scrollbar().p(14).gap(8);
-    const progress = (p) => timeline(p, Date.now(), { ahead: l?.ahead ?? null, base: l?.base ?? "main", action: this.actions.get(item.key) ?? null });
     if (!pr) {
       body.when(onBase, (e) => e.child(div().text_size(12).text_color(t.muted).child(l.ahead
         ? `On ${l.base}: commits go straight to ${l.base}, so there is no PR. ${l.ahead} not pushed yet.`
         : `On ${l.base}: commits go straight to ${l.base}, so there is no PR. Everything is pushed.`)));
-      this.forgeSection(t, body, l);
-      this.steps(t, body, fr?.repo && !onBase ? progress(null) : []);
+      // Progress shows only before a PR: the push and the draft PR to come. With a PR, the Overview tells its story.
+      this.steps(t, body, fr?.repo && !onBase ? timeline(null, Date.now(), { ahead: l?.ahead ?? null, base: l?.base ?? "main", action: this.actions.get(item.key) ?? null }) : []);
     } else if (this.sub === "commits") this.commits(t, body, pr, d, item.key);
     else if (this.sub === "files") this.files(t, body, pr, d, item.key);
-    else {
-      this.overviewTab(t, body, pr, d, item.key);
-      this.forgeSection(t, body, l);
-      this.steps(t, body, progress(pr));
-    }
-    body.when(Boolean(ticket), (e) => e.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Ticket")).child(div().id("prs-ticket").text_size(12)
-      .text_color(ticketUrl ? t.accent : t.foreground).when(Boolean(ticketUrl), (x) => x.cursor_pointer().on_click(() => this.openUrl(ticketUrl))).child(ticket)));
+    else this.overviewTab(t, body, pr, d, item.key);
     return v_flex().size_full().min_h(0)
       .child(h_flex().h(40).flex_none().px(12).items_center().justify_between().border_b(1).border_color(t.border)
         .child(h_flex().id("prs-back").gap(2).items_center().text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
@@ -447,8 +437,9 @@ export default class Prs extends View {
           .child(this.button(t, "prs-chat", "Send to chat", (cx) => this.sendToChat(cx, pr, l), true)))));
   }
 
-  // The box (Checks, Comments, Approvals, each with a bar, like GitHub's merge box), then every check: failed
-  // first, with its run time and a "Required" badge. A click opens the check.
+  // The box (Checks, Comments, Approvals, each with a bar, like GitHub's merge box). A click on its Checks part
+  // shows every check: failed first, with its run time and a "Required" badge; a click opens the check. Then the
+  // activity list.
   overviewTab(t, body, pr, d, key) {
     if (!d && this.detailLoading === key) {
       body.child(h_flex().rounded(8).border_1().border_color(t.border)
@@ -458,29 +449,132 @@ export default class Prs extends View {
     }
     const o = overview(pr, d);
     body.child(h_flex().rounded(8).border_1().border_color(t.border).overflow_hidden()
-      .child(this.part(t, "ov-checks", o.checks, false))
+      .child(this.part(t, "ov-checks", o.checks, false, this.checksOpen))
       .child(this.part(t, "ov-comments", o.comments, true))
       .child(this.part(t, "ov-approvals", o.approvals, true)));
-    if (!d && this.detailError?.key === key) body.child(div().text_size(11).text_color(t.blocked).child(`Could not load the check details: ${this.detailError.text}`));
+    if (!d && this.detailError?.key === key) body.child(div().text_size(11).text_color(t.blocked).child(`Could not load the details: ${this.detailError.text}`));
     const checks = sortChecks(d?.checks ?? pr.checks);
-    body.child(div().pt(4).text_size(11.5).text_color(t.dim).child(`${checks.length} check${checks.length === 1 ? "" : "s"}`))
+    body.when(this.checksOpen, (e) => e.child(div().text_size(11.5).text_color(t.dim).child(`${checks.length} check${checks.length === 1 ? "" : "s"}`))
       .children(checks.map((c, i) => h_flex().id(`chk-${i}`).gap(8).items_center().py(2).rounded(4)
         .when(Boolean(c.url), (r) => r.cursor_pointer().hover((s) => s.bg(t.hover)).on_click(() => this.openUrl(c.url)))
         .child(this.stepIcon(t, c.status))
         .child(div().flex_none().text_size(12.5).child(c.name))
         .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(checkLine(c)))
         .when(c.required === true, (r) => r.child(div().flex_none().px(7).h(18).flex().items_center().rounded(9).border_1().border_color(t.border)
-          .text_size(10.5).text_color(t.muted).child("Required")))));
+          .text_size(10.5).text_color(t.muted).child("Required"))))));
+    if (d) this.activityList(t, body, pr, d);
   }
 
-  // One part of the Overview box: its title, a line in its color, and a bar of one segment per unit.
-  part(t, id, p, divider) {
+  // One part of the Overview box: its title, a line in its color, and a bar of one segment per unit. open (true
+  // or false) is only for the Checks part: it gets a chevron, and a click opens or closes the checks list.
+  part(t, id, p, divider, open = null) {
     return v_flex().id(id).flex_1().min_w(0).gap(8).p(10).when(divider, (e) => e.border_l(1).border_color(t.border))
+      .when(open !== null, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => { this.checksOpen = !this.checksOpen; cx.notify(); }))
       .child(h_flex().gap(6).items_center().min_w(0)
+        .when(open !== null, (e) => e.child(div().flex_none().flex().items_center().text_color(t.dim).child(ico(open ? "chevron-down" : "chevron-right", 12))))
         .child(div().flex_none().text_size(12.5).font_semibold().child(p.title))
         .child(div().truncate().text_size(11.5).text_color(this.color(t, p.kind)).child(p.sub)))
       .child(h_flex().h(4).w_full().gap(1).rounded(2).overflow_hidden()
         .children(p.bar.map((k) => div().h_full().flex_1().bg(k === "idle" ? t.raised : this.color(t, k)))));
+  }
+
+  // A click handler that opens or closes one fold of the activity list (a resolved thread, a group's older commits).
+  fold(key) {
+    return (_e, cx) => {
+      if (this.unfolded.has(key)) this.unfolded.delete(key);
+      else this.unfolded.add(key);
+      cx.notify();
+    };
+  }
+
+  // The activity list under the box: comments, reviews, code threads, and commits on one rail, newest first.
+  // Read only: to answer or resolve, use GitHub.
+  activityList(t, body, pr, d) {
+    const who = (x) => h_flex().gap(6).items_center().min_w(0).text_size(11.5)
+      .child(div().flex_none().font_semibold().child(x.author))
+      .when(Boolean(x.bot), (e) => e.child(div().flex_none().px(5).rounded(8).border_1().border_color(t.border).text_size(10).text_color(t.muted).child("bot")))
+      .child(div().flex_none().text_color(t.dim).child(x.at ? `· ${ago(x.at)}` : ""));
+    const badge = (text, color) => div().flex_none().px(7).rounded(9).text_size(10.5).bg(alpha(color, 0.16)).text_color(color).child(text);
+    const card = (id) => v_flex().id(id).min_w(0).rounded(8).border_1().border_color(t.border).bg(t.surface).overflow_hidden();
+    // A link in a comment opens through openUrl (https only): anyone who can comment on the PR writes this text.
+    const md = (id, text) => div().min_w(0).text_size(12).child(TextView.markdown(id, text).on_link_click((url) => this.openUrl(url)));
+    // A comment body: markdown, and each <details> block as a line with an arrow that opens on a click (as on
+    // GitHub). A block the author marked open starts open.
+    const bodyView = (id, list) => v_flex().gap(6).min_w(0).children(list.map((p, k) => {
+      if (p.kind === "md") return md(`${id}-${k}`, p.text);
+      const key = `dt:${id}-${k}:${p.summary}`;
+      const shown = p.open ? !this.unfolded.has(key) : this.unfolded.has(key);
+      return v_flex().gap(4).min_w(0)
+        .child(h_flex().id(`${id}-${k}-sum`).gap(6).items_center().min_w(0).text_size(12).cursor_pointer()
+          .hover((s) => s.bg(t.hover)).on_click(this.fold(key))
+          .child(div().flex_none().flex().items_center().text_color(t.dim).child(ico(shown ? "chevron-down" : "chevron-right", 12)))
+          .child(div().min_w(0).truncate().font_semibold().child(p.summary)))
+        .when(shown, (e) => e.child(div().pl(18).min_w(0).child(bodyView(`${id}-${k}`, p.parts))));
+    }));
+    const hunkLine = (h) => h_flex().gap(8).px(10).h(18).text_size(11.5)
+      .when(h.sign === "+", (e) => e.bg(alpha(t.done, 0.12))).when(h.sign === "-", (e) => e.bg(alpha(t.blocked, 0.12)))
+      .child(div().w(36).flex_none().text_color(t.dim).child(String(h.n)))
+      .child(div().w(8).flex_none().text_color(h.sign === "+" ? t.done : h.sign === "-" ? t.blocked : t.dim).child(h.sign))
+      .child(div().flex_1().min_w(0).truncate().child(h.text));
+    const commitLine = (c) => h_flex().gap(8).items_center().min_w(0).h(18).text_size(12)
+      .child(div().min_w(0).truncate().child(c.title))
+      .child(div().flex_none().text_size(11).text_color(t.dim).child(c.at ? `· ${ago(c.at)}` : ""))
+      .child(div().flex_1())
+      .child(div().flex_none().text_size(11).text_color(t.dim).child(c.oid.slice(0, 7)));
+    const items = activity(pr, d);
+    const rows = items.map((it, i) => {
+      const id = `act-${i}`;
+      let icon = "message-square", color = t.muted, content;
+      if (it.kind === "comment" || it.kind === "review") {
+        const word = it.kind === "review" && it.state === "APPROVED" ? "Approved" : it.kind === "review" && it.state === "CHANGES_REQUESTED" ? "Changes requested" : null;
+        if (word === "Approved") { icon = "circle-check"; color = t.done; }
+        if (word === "Changes requested") { icon = "circle-alert"; color = t.blocked; }
+        content = card(`${id}-card`)
+          .child(h_flex().px(10).py(6).gap(6).items_center().min_w(0).child(who(it)).child(div().flex_1())
+            .when(Boolean(word), (e) => e.child(badge(word, color))))
+          .when(Boolean(it.body), (e) => e.child(div().px(10).py(8).border_t(1).border_color(t.border).child(bodyView(`${id}-md`, bodyParts(it.body)))));
+      } else if (it.kind === "thread") {
+        const key = `th:${it.path}:${it.lines}:${it.at}`;
+        const closed = it.resolved && !this.unfolded.has(key);
+        icon = "file-text";
+        color = it.resolved ? t.muted : t.blocked;
+        content = card(`${id}-card`)
+          .child(h_flex().id(`${id}-head`).px(10).py(6).gap(6).items_center().min_w(0).text_size(11.5)
+            .when(it.resolved, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover)).on_click(this.fold(key))
+              .child(div().flex_none().flex().items_center().text_color(t.dim).child(ico(closed ? "chevron-right" : "chevron-down", 12))))
+            .child(div().min_w(0).truncate().text_color(t.muted).child(it.path))
+            .child(div().flex_none().text_color(t.dim).child(it.lines))
+            .child(div().flex_1())
+            .child(badge(it.resolved ? "resolved" : "unresolved", it.resolved ? t.muted : t.blocked)))
+          .when(!closed && it.hunk.length > 0, (e) => e.child(v_flex().py(4).border_t(1).border_color(t.border).children(it.hunk.map(hunkLine))))
+          .when(!closed, (e) => e.children(it.comments.map((c, j) => v_flex().gap(4).px(10).py(8).border_t(1).border_color(t.border)
+            .child(who(c)).child(bodyView(`${id}-md-${j}`, bodyParts(c.body))))));
+      } else if (it.kind === "commits") {
+        const [newest, ...rest] = it.commits;
+        const key = `cm:${newest.oid}`;
+        const shown = this.unfolded.has(key);
+        icon = "circle-dot";
+        content = v_flex().gap(2).min_w(0)
+          .child(commitLine(newest))
+          .when(rest.length > 0, (e) => e.child(div().id(`${id}-more`).text_size(11.5).text_color(t.muted).cursor_pointer()
+            .hover((s) => s.text_color(t.foreground)).on_click(this.fold(key))
+            .child(shown ? `Hide ${rest.length} older commit${rest.length === 1 ? "" : "s"}` : `${rest.length} more commit${rest.length === 1 ? "" : "s"}`)))
+          .when(shown, (e) => e.children(rest.map(commitLine)));
+      } else {
+        icon = "git-pull-request";
+        color = t.done;
+        content = h_flex().gap(6).items_center().h(18).text_size(11.5)
+          .child(div().flex_none().font_semibold().child(it.author))
+          .child(div().flex_none().text_color(t.dim).child(`opened the pull request${it.at ? ` · ${ago(it.at)}` : ""}`));
+      }
+      // The rail: the entry's icon, then a line down to the next entry.
+      return h_flex().id(id).items_stretch().gap(10).min_w(0)
+        .child(v_flex().w(18).flex_none().items_center()
+          .child(div().w(18).h(18).flex_none().flex().items_center().justify_center().rounded_full().bg(alpha(color, 0.18)).text_color(color).child(ico(icon, 11)))
+          .when(i < items.length - 1, (e) => e.child(div().w(1).flex_1().bg(t.border))))
+        .child(div().flex_1().min_w(0).pb(12).child(content));
+    });
+    body.child(v_flex().id("prs-activity").pt(6).children(rows));
   }
 
   // The Commits and Files tabs before their data: five shimmer rows, or the error.
@@ -516,17 +610,8 @@ export default class Prs extends View {
       .when(d.fileCount > d.files.length, (e) => e.child(div().text_size(11).text_color(t.dim).child(`Showing ${d.files.length} of ${d.fileCount}. The rest are on GitHub.`)));
   }
 
-  // The run's forge cycle and phase, and its live agents.
-  forgeSection(t, body, l) {
-    if (!l?.forge) return;
-    const agents = this.agentRow(t, l);
-    body.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Forge"))
-      .child(div().text_size(12).child(`cycle ${l.forge.cycle} · ${l.forge.phase}${l.forge.paused ? " · paused" : ""}`))
-      .when(Boolean(agents), (e) => e.child(agents));
-  }
-
-  // Progress: before a PR, the push and the draft PR to come; with one, its story. A clicked Push or Create PR
-  // shows as its step (the command, the result, the error, the full output on hover).
+  // Progress, only before a PR: the push and the draft PR to come. A clicked Push or Create PR shows as its step
+  // (the command, the result, the error, the full output on hover).
   steps(t, body, steps) {
     body.when(steps.length > 0, (e) => e.child(div().pt(6).text_size(11.5).text_color(t.dim).child("Progress"))
       .children(steps.map((st, i) => h_flex().id(`step-${i}`).gap(8).items_center().child(this.stepIcon(t, st.status))

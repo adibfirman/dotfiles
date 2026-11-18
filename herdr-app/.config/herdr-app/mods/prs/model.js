@@ -211,9 +211,80 @@ export function checkLine(c) {
   return "Skipped";
 }
 
+const BODY_MAX = 12000;
+
+/** A comment body for the view: no HTML comments (bots hide data in them), trimmed, cut at BODY_MAX characters. */
+export function cleanBody(text) {
+  const s = String(text ?? "").replace(/<!--[\s\S]*?-->/g, "").trim();
+  return s.length > BODY_MAX ? `${s.slice(0, BODY_MAX)}\n\n… (cut: the rest is on GitHub)` : s;
+}
+
 /**
- * The detail query's pullRequest node as { checks, commits, commitCount, files, fileCount, pendingReviewers }.
- * checks carry required and seconds. commits are [{ oid, title, at, author }], oldest first.
+ * A comment body as parts for the view: { kind: "md", text } for plain markdown, and
+ * { kind: "details", summary, open, parts } for each <details> block (GitHub draws it as a line that opens on a
+ * click). parts has the same shape, so a block can hold blocks. A block that never closes runs to the end.
+ */
+export function bodyParts(text) {
+  const s = String(text ?? "");
+  const parts = [];
+  const md = (t) => { if (t.trim()) parts.push({ kind: "md", text: t.trim() }); };
+  const block = (inner, attrs) => {
+    const sm = /<summary\b[^>]*>([\s\S]*?)<\/summary>/i.exec(inner);
+    const summary = (sm ? sm[1] : "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() || "Details";
+    const rest = sm ? inner.slice(0, sm.index) + inner.slice(sm.index + sm[0].length) : inner;
+    parts.push({ kind: "details", summary, open: /\bopen\b/i.test(attrs), parts: bodyParts(rest) });
+  };
+  const tag = /<(\/?)details\b([^>]*)>/gi;
+  let from = 0, depth = 0, start = 0, attrs = "", m;
+  while ((m = tag.exec(s))) {
+    if (!m[1]) {
+      if (depth === 0) { md(s.slice(from, m.index)); start = tag.lastIndex; attrs = m[2]; }
+      depth += 1;
+    } else if (depth > 0) {
+      depth -= 1;
+      if (depth === 0) { block(s.slice(start, m.index), attrs); from = tag.lastIndex; }
+    }
+  }
+  if (depth > 0) block(s.slice(start), attrs);
+  else md(s.slice(from));
+  return parts;
+}
+
+/**
+ * The last `keep` lines of a review comment's diff hunk as [{ n, sign, text }]. n is the line number in the new
+ * file (in the old file for a removed line). sign is "+", "-", or " ".
+ */
+export function hunkTail(hunk, keep = 4) {
+  const lines = String(hunk ?? "").split("\n");
+  const m = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(lines[0] ?? "");
+  if (!m) return [];
+  let oldN = Number(m[1]), newN = Number(m[2]);
+  const out = [];
+  for (const line of lines.slice(1)) {
+    if (line.startsWith("\\")) continue; // "\ No newline at end of file"
+    const sign = line[0] === "+" || line[0] === "-" ? line[0] : " ";
+    out.push({ n: sign === "-" ? oldN : newN, sign, text: line.slice(1).replace(/\t/g, "  ") });
+    if (sign !== "+") oldN += 1;
+    if (sign !== "-") newN += 1;
+  }
+  return out.slice(-keep);
+}
+
+/** A thread's place in its file: "Lines 718-728", "Line 728", or "" for a thread on the whole file. */
+export function lineRange(th) {
+  const end = th.line ?? th.originalLine ?? null, start = th.startLine ?? th.originalStartLine ?? null;
+  if (end == null) return "";
+  return start != null && start !== end ? `Lines ${start}-${end}` : `Line ${end}`;
+}
+
+// A GraphQL actor as { author, bot }.
+const person = (a) => ({ author: a?.login ?? "someone", bot: a?.__typename === "Bot" });
+
+/**
+ * The detail query's pullRequest node as { checks, commits, commitCount, files, fileCount, pendingReviewers,
+ * comments, reviews, threads }. checks carry required and seconds. commits are [{ oid, title, at, author }],
+ * oldest first. comments are [{ author, bot, at, body }]; reviews add state; threads are
+ * [{ path, lines, resolved, hunk, comments }].
  */
 export function detailOf(node) {
   const contexts = node.head?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
@@ -227,6 +298,15 @@ export function detailOf(node) {
     files: (node.files?.nodes ?? []).map((f) => ({ path: f.path, additions: f.additions, deletions: f.deletions })),
     fileCount: node.changedFiles ?? (node.files?.nodes ?? []).length,
     pendingReviewers: (node.reviewRequests?.nodes ?? []).map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.name ?? "someone"),
+    comments: (node.comments?.nodes ?? []).map((c) => ({ ...person(c.author), at: c.createdAt ?? null, body: cleanBody(c.body) })),
+    reviews: (node.reviewList?.nodes ?? []).map((r) => ({ ...person(r.author), at: r.submittedAt ?? null, state: r.state ?? "COMMENTED", body: cleanBody(r.body) })),
+    threads: (node.threads?.nodes ?? []).map((th) => {
+      const cs = th.comments?.nodes ?? [];
+      return {
+        path: th.path ?? "", lines: lineRange(th), resolved: Boolean(th.isResolved), hunk: hunkTail(cs[0]?.diffHunk),
+        comments: cs.map((c) => ({ ...person(c.author), at: c.createdAt ?? null, body: cleanBody(c.body) })),
+      };
+    }),
   };
 }
 
@@ -265,4 +345,33 @@ export function overview(pr, detail) {
       bar: [reviewKind],
     },
   };
+}
+
+/**
+ * The Overview's activity list, newest first: [{ kind, at, ... }].
+ * - "comment": author, bot, body.
+ * - "review": author, bot, state, body. A review with no body shows only when it approves or asks for changes.
+ * - "thread": path, lines, resolved, hunk, comments. Its time is its first comment's.
+ * - "commits": commits (newest first) that follow each other with nothing between them.
+ * - "opened": author. Always the last entry.
+ * detail is null until the detail query returns: then only "opened".
+ */
+export function activity(pr, detail) {
+  const d = detail ?? {};
+  const time = (x) => Date.parse(x.at ?? "") || 0;
+  const items = [
+    ...(d.comments ?? []).map((c) => ({ kind: "comment", ...c })),
+    ...(d.reviews ?? []).filter((r) => r.body || r.state === "APPROVED" || r.state === "CHANGES_REQUESTED").map((r) => ({ kind: "review", ...r })),
+    ...(d.threads ?? []).filter((th) => th.comments.length).map((th) => ({ kind: "thread", at: th.comments[0].at, ...th })),
+    ...(d.commits ?? []).map((c) => ({ kind: "commit", at: c.at, commit: c })),
+  ].sort((a, b) => time(b) - time(a));
+  const out = [];
+  for (const it of items) {
+    const last = out[out.length - 1];
+    if (it.kind !== "commit") out.push(it);
+    else if (last?.kind === "commits") last.commits.push(it.commit);
+    else out.push({ kind: "commits", at: it.at, commits: [it.commit] });
+  }
+  out.push({ kind: "opened", at: pr.createdAt, author: pr.author ?? "someone" });
+  return out;
 }
