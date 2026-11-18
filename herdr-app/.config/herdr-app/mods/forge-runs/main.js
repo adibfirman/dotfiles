@@ -102,7 +102,17 @@ function openRunWindow(f, view, tab) {
       ] },
     ] },
   ] };
-  const id = openOverlay({ kind: "window", key: "forge-run", width: 0.9, height: 0.88, layout: win });
+  // No key: Herdr saves the spot of a keyed window, so one stray drag kept the window off center. Without a key
+  // every open is centered, and Herdr does not replace the open window: close it here first. Its id can be stale
+  // (Herdr closes a window whose terminal ends).
+  if (win0?.id) {
+    try {
+      closeOverlay(win0.id);
+    } catch {
+      // already closed
+    }
+  }
+  const id = openOverlay({ kind: "window", width: 0.9, height: 0.88, layout: win });
   setShared("forge.window", { run: f.dir, id, terminal: term, view: v, tab: tb, shownView: v, shownTab: tb });
 }
 
