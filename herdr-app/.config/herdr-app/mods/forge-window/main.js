@@ -1,5 +1,6 @@
 // forge-window: the parts of a forge run window.
-//   part "bar":   the title bar: run title, the Coordinator | Chat switch (only while a coordinator runs), close.
+//   part "bar":   the title bar: run title, the cycle (and why a later cycle exists), the Coordinator | Chat switch
+//                 (only while a coordinator runs), close.
 //   part "tabs":  the Graph | Pull request tabs above the right side. A click writes shared "forge.window".tab;
 //                 the sidebar (forge-runs) then reopens the window with that tab's mod on the right.
 //   part "agent": the left side when it has no live terminal to show (no coordinator runs, or the Chat view
@@ -14,6 +15,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, closeOverlay, exec, home, shared, setShared, notify, terminals } from "herdr";
+import { cycleNote } from "./cycle.js";
 
 // A Lucide icon from omarchy-chrome/; it takes the text color of its parent.
 const ico = (name, size) => svg(`mods/omarchy-chrome/${name}.svg`).size(size).flex_none();
@@ -41,6 +43,7 @@ export default class ForgeWindow extends View {
     this.chat = null; // null | "opening" | "error: …"
     this.needs = null; // forge status → needs: a coordinator blocked on a tool
     this.fix = null; // null | "working" | {ok, text}: the last Allow / Restart result
+    this.cycle = null; // forge status → { n, source, text }: the current cycle, and why a later cycle exists
     const p0 = props() ?? {};
     if (!p0.run || p0.part === "tabs") return;
     this.loadNeeds(cx);
@@ -58,9 +61,12 @@ export default class ForgeWindow extends View {
         const st = JSON.parse(r.stdout);
         const nd = st.needs ?? null;
         const coord = st.coordinator?.terminal ?? null;
-        if (JSON.stringify(nd) !== JSON.stringify(this.needs) || coord !== this.coordTerm) {
+        const note = cycleNote(st);
+        const cycle = st.cycle ? { n: st.cycle, source: note?.source ?? null, text: note?.text ?? "" } : null;
+        if (JSON.stringify(nd) !== JSON.stringify(this.needs) || coord !== this.coordTerm || JSON.stringify(cycle) !== JSON.stringify(this.cycle)) {
           this.needs = nd;
           this.coordTerm = coord;
+          this.cycle = cycle;
           cx.notify();
         }
       } finally {
@@ -196,6 +202,11 @@ export default class ForgeWindow extends View {
       .child(this.needs
         ? h_flex().flex_1().min_w(0).px(8).py(4).rounded(6).bg(alpha(t.blocked, 0.12)).child(this.needsStrip(t, true))
         : div().flex_1().min_w(0).truncate().text_color(t.muted).child(p.title ?? ""))
+      // The run's cycle, and for a later cycle the pill that says why it exists (the full reason on hover).
+      .when(Boolean(this.cycle), (e) => e.child(h_flex().id("fw-cycle").flex_none().gap(6).items_center().text_size(11.5)
+        .when(Boolean(this.cycle.text), (x) => x.tooltip(this.cycle.text.slice(0, 2000)))
+        .child(div().font_semibold().text_color(t.accent).child(`Cycle ${this.cycle.n}`))
+        .when(Boolean(this.cycle.source), (x) => x.child(div().px(7).py(1).rounded(10).text_size(11).bg(alpha(t.accent, 0.16)).text_color(t.accent).child(this.cycle.source)))))
       // Only while a coordinator runs: without one, the Coordinator side shows the chat anyway, so both would match.
       .when(Boolean(p.run) && terminals().some((x) => x.address === this.coordTerm && x.state === "live"), (e) => e.child(h_flex().flex_none().rounded(6).overflow_hidden().border_1().border_color(t.border)
         .child(seg("fw-view-coord", "Coordinator", view === "coord", "Left side: the coordinator while one runs", "coord"))

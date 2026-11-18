@@ -280,9 +280,8 @@ export default class Forge extends View {
       // In a run window, a press that reaches the window drags it: stop presses here, so dragging the graph
       // pans it and the window stays where it is. (Inner handlers, like the graph's pan, run first.)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      // Without a run: the bar with Refresh. With one: the cycle row (the cycle, why it exists, the view, Pause).
+      // Without a run: the bar with Refresh. With one, the panel has no bar: its controls float over the body.
       .when(!this.st, (el) => el.child(this.header(t, cx)))
-      .when(Boolean(this.st), (el) => el.child(this.viewRow(t)))
       // The graph on top, a node's detail below: the user drags the line between them. The window keeps the
       // size under the group id while herdr-app runs; the hidden detail panel keeps its place for next time.
       .child(v_resizable("forge-detail-split").flex_1().min_h(0)
@@ -295,7 +294,8 @@ export default class Forge extends View {
                 cx.notify();
               }
             })
-            .child(this.body(t, cx))))
+            .child(this.body(t, cx))
+            .when(Boolean(this.st), (el) => el.child(this.controls(t)))))
         .child(resizable_panel().size(220).size_range(120).visible(Boolean(this.detail))
           .child(this.detail ? this.detailView(t) : div())))
       .when(!this.st, (el) => el.child(this.footer(t, cx)));
@@ -329,36 +329,14 @@ export default class Forge extends View {
       .child(this.button(t, "f-refresh", "Refresh", (cx) => this.refresh(cx)));
   }
 
-  // Why the current cycle exists, for every cycle after the first: { source, text }. source is the pill's word
-  // (a counterexample, a follow-up, a gate comment), or null when the cycle has only a reason.
-  cycleNote() {
+  // The panel's controls, floating at the top right of the body (the zoom control has the bottom right): what
+  // waits for you (paused, blocked), the way back from a stage, the cycle switch, the view dropdown (the run graph,
+  // the gate, each spec graph, the spec), and Pause. The cycle itself is in the run window's bar (forge-window).
+  controls(t) {
     const st = this.st;
-    if (!st || st.cycle <= 1) return null;
-    const o = st.cycleOpen ?? {};
-    const src = { gate: "gate comment", qa: "QA follow-up", pr: "PR follow-up", user: "follow-up" };
-    if (String(o.slug ?? "").startsWith("cex")) return { source: "counterexample", text: `From cycle ${st.cycle - 1}: ${o.reason ?? ""}` };
-    if (o.followup) return { source: src[o.followup.source] ?? "follow-up", text: String(o.followup.text ?? "") };
-    return { source: null, text: o.reason || `started at ${o.start ?? "?"}` };
-  }
-
-  // The row above the graph: the cycle and why it exists on the left (a click shows all of it below the line),
-  // then what waits for you (paused, blocked), the view dropdown (the run graph, the gate, each spec graph, the
-  // spec), and Pause.
-  viewRow(t) {
-    const st = this.st;
-    const note = this.cycleNote();
-    const text = note?.text ?? "";
-    const open = this.cycleOpen && Boolean(text);
-    const first = text.split("\n").find((l) => l.trim()) ?? "";
     const items = this.viewItems();
     const cur = items.find(([k]) => k === this.tab) ?? items[0];
     const gateWaiting = this.st.phase === "gate" && this.tab !== "gate";
-    const left = h_flex().id("f-cycle-line").flex_1().min_w(0).h(24).gap(6).items_center()
-      .when(Boolean(text), (e) => e.cursor_pointer().on_click((_e, cx) => { this.cycleOpen = !this.cycleOpen; cx.notify(); }))
-      .child(div().flex_none().w(12).h(16).flex().items_center().text_color(t.dim).when(Boolean(text), (x) => x.child(ico(open ? "chevron-down" : "chevron-right", 12))))
-      .child(div().flex_none().font_semibold().text_color(t.accent).child(`Cycle ${st.cycle}`))
-      .when(Boolean(note?.source), (e) => e.child(div().flex_none().child(this.pill(t, note.source, t.accent))))
-      .when(Boolean(text) && !open, (e) => e.child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(first)));
     const trigger = h_flex().id("f-view-btn").h(24).max_w(300).px(9).gap(6).items_center().rounded(6).border_1().border_color(t.input).bg(t.raised)
       .cursor_pointer().hover((x) => x.bg(t.hover)).tooltip(cur[2] ?? cur[1])
       .when(gateWaiting, (e) => e.child(div().w(7).h(7).flex_none().rounded_full().bg(t.blocked)))
@@ -382,8 +360,7 @@ export default class Forge extends View {
       .text_color(t.foreground).cursor_pointer().hover((x) => x.bg(t.hover)).tooltip("Back to the stage summary")
       .on_click((_e, cx) => { this.stage = null; this.selected = null; this.detail = null; cx.notify(); })
       .gap(4).child(ico("arrow-left", 12)).child("All stages");
-    const line = h_flex().gap(10).items_center()
-      .child(left)
+    return h_flex().id("f-controls").absolute().right(10).top(10).gap(8).p(4).items_center().rounded(7).bg(t.popover).border_1().border_color(t.border).text_size(11.5)
       .when(Boolean(st.paused), (e) => e.child(div().flex_none().child(this.pill(t, "paused", t.blocked))))
       .when(Boolean(st.blocked?.length), (e) => e.child(h_flex().flex_none().gap(4).items_center().text_color(t.blocked).tooltip("Stopped after too many failures: click the node, then Retry or Skip")
         .child(ico("circle-alert", 12)).child(`${st.blocked.length} blocked: needs you`)))
@@ -394,9 +371,6 @@ export default class Forge extends View {
         .on_open_change((o, cx) => { this.viewOpen = o; cx.notify(); })
         .trigger(trigger).content(menu))
       .child(this.button(t, "f-pause", st.paused ? "Resume" : "Pause", (cx) => this.act(cx, st.paused ? "resumed" : "paused", ["append", st.paused ? "resume" : "pause"]), { enabled: st.phase !== "done" }));
-    return v_flex().flex_none().px(12).py(5).gap(6).border_b(1).border_color(t.border).bg(t.surface).text_size(11.5)
-      .child(line)
-      .when(open, (e) => e.child(div().id("f-cycle-full").pl(18).max_h(160).overflow_y_scrollbar().text_color(t.foreground).child(text)));
   }
 
   graphs() {
@@ -421,7 +395,8 @@ export default class Forge extends View {
     if (!this.repo) return this.note(t, this.repoError ? `Not a git repo: ${this.repoError}` : this.error ? `Error: ${this.error}` : this.loading ? "Loading…" : this.runJsonState === "unreadable" ? `Cannot read ${this.pinned}/run.json` : "Focus a terminal in a git repo.");
     if (!this.st) return this.error ? this.note(t, this.error) : this.startForm(t);
     if (this.tab === "gate") return this.gateView(t);
-    if (this.tab === "spec") return div().id("f-spec").size_full().overflow_y_scrollbar().p(14).child(TextView.markdown("f-spec-md", this.specText));
+    // The text views leave room at the top for the floating controls.
+    if (this.tab === "spec") return div().id("f-spec").size_full().overflow_y_scrollbar().p(14).pt(50).child(TextView.markdown("f-spec-md", this.specText));
     if (this.tab.startsWith("g")) {
       const b = this.graphs()[Number(this.tab.slice(1))];
       return b ? this.canvas(t, parseTsGraph(b.code), `spec:${this.tab}:${b.code.length}`) : this.note(t, "No graph.");
@@ -449,8 +424,8 @@ export default class Forge extends View {
   gateView(t) {
     const decisions = agentDecisions(this.specText);
     return h_flex().size_full().min_h(0)
-      .child(div().id("f-gate-spec").flex_1().h_full().min_w(0).overflow_y_scrollbar().p(14).border_r(1).border_color(t.border).child(TextView.markdown("f-gate-md", this.specText)))
-      .child(v_flex().id("f-gate-side").w(320).flex_none().h_full().overflow_y_scrollbar().p(12).gap(10)
+      .child(div().id("f-gate-spec").flex_1().h_full().min_w(0).overflow_y_scrollbar().p(14).pt(50).border_r(1).border_color(t.border).child(TextView.markdown("f-gate-md", this.specText)))
+      .child(v_flex().id("f-gate-side").w(320).flex_none().h_full().overflow_y_scrollbar().p(12).pt(50).gap(10)
         .child(div().font_semibold().child("Decisions the agents made for you"))
         .children(decisions.length ? decisions.map((d, i) => v_flex().id(`f-dec-${i}`).gap(4).p(8).rounded(8).bg(t.surface).border_1().border_color(t.border)
           .child(div().text_size(12).child(d.text)))
